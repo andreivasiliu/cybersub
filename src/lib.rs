@@ -3,7 +3,9 @@
 #![warn(clippy::all, rust_2018_idioms)]
 
 mod app;
-pub use app::TemplateApp;
+pub use app::CyberSubApp;
+
+mod water;
 
 // ----------------------------------------------------------------------------
 // When compiling for web:
@@ -18,6 +20,6 @@ use eframe::wasm_bindgen::{self, prelude::*};
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
 pub fn start(canvas_id: &str) -> Result<(), eframe::wasm_bindgen::JsValue> {
-    let app = TemplateApp::default();
+    let app = CyberSubApp::default();
     eframe::start_web(canvas_id, Box::new(app))
 }
