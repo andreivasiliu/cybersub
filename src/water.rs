@@ -35,7 +35,7 @@ impl WaterGrid {
         cells.resize(width * height, WaterCell::default());
 
         for x in 1..width - 1 {
-            cells[(height-2) * width + x].wall = true;
+            cells[(height - 2) * width + x].wall = true;
         }
 
         for y in (height * 50 / 100)..height - 1 {
@@ -47,19 +47,20 @@ impl WaterGrid {
             }
         }
 
-        for y in 1..height-1 {
-            for x in 1..width-1 {
+        for y in 1..height - 1 {
+            for x in 1..width - 1 {
                 if !cells[y * width + x].is_wall() {
                     continue;
                 }
 
                 for direction in 0..DIRECTIONS {
                     let mut open_cells = 0;
-                    for near_direction in &[DIRECTIONS-1, 0, 1] {
+                    for near_direction in &[DIRECTIONS - 1, 0, 1] {
                         let near_direction = (direction + near_direction) % DIRECTIONS;
                         let (y_offset, x_offset) = NEIGHBOUR_OFFSETS[near_direction];
 
-                        let cell = &cells[(y as i32 + y_offset) as usize * width + (x as i32 + x_offset) as usize];
+                        let cell = &cells[(y as i32 + y_offset) as usize * width
+                            + (x as i32 + x_offset) as usize];
                         if !cell.is_wall() {
                             open_cells += 1;
                         }
@@ -110,11 +111,12 @@ impl WaterGrid {
     }
 
     fn neighbours<'a>(&'a self, x: usize, y: usize) -> impl Iterator<Item = &'a WaterCell> {
-        NEIGHBOUR_OFFSETS
-            .iter()
-            .map(move |(y_offset, x_offset)| {
-                self.cell((x as i32 + x_offset) as usize, (y as i32 + y_offset) as usize)
-            })
+        NEIGHBOUR_OFFSETS.iter().map(move |(y_offset, x_offset)| {
+            self.cell(
+                (x as i32 + x_offset) as usize,
+                (y as i32 + y_offset) as usize,
+            )
+        })
     }
 
     // pub fn debug_cell(&self, x: usize, y: usize) {
@@ -158,7 +160,7 @@ impl WaterGrid {
                     for (i, neighbour) in old_grid.neighbours(x, y).enumerate() {
                         cell.wall_reflect[i] = neighbour.pressure_surplus();
 
-                        cell.wall_reflect[i] += neighbour.gravity_surplus( i);
+                        cell.wall_reflect[i] += neighbour.gravity_surplus(i);
                     }
                 } else {
                     cell.level -= cell.pressure_surplus() * DIRECTIONS as u32;
@@ -170,7 +172,7 @@ impl WaterGrid {
                         let incoming_water = if neighbour.is_wall() {
                             neighbour.wall_surplus(i)
                         } else {
-                            neighbour.pressure_surplus() + neighbour.gravity_surplus( i)
+                            neighbour.pressure_surplus() + neighbour.gravity_surplus(i)
                         };
                         cell.level += incoming_water;
 
@@ -185,8 +187,8 @@ impl WaterGrid {
                             velocity_y += incoming_inertia as i32 * -NEIGHBOUR_OFFSETS[i].0;
                         }
                     }
-                    
-                    if enable_gravity && !old_grid.cell(x, y+1).is_wall() {
+
+                    if enable_gravity && !old_grid.cell(x, y + 1).is_wall() {
                         velocity_y += 32;
                     }
 
@@ -258,7 +260,7 @@ impl WaterCell {
         }
 
         let will_leave = should_leave.min(level);
-        
+
         // This is how much will leave in a certain direction
         let mut velocity_x = self.velocity_x;
         let mut velocity_y = self.velocity_y;
@@ -297,7 +299,7 @@ impl WaterCell {
         }
 
         let will_leave = should_leave.min(level);
-        
+
         will_leave as u32
     }
 
@@ -306,7 +308,7 @@ impl WaterCell {
 
         // for near_direction in &[3, 4, 5] {
         //     let direction = (opposite_direction + near_direction) % 8;
-            
+
         //     //reflected += self.wall_reflect[direction] / self.wall_open_cells[direction].max(1);
 
         //     // For the direct opposite, also send back the remainder, so it won't be lost.

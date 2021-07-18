@@ -1,4 +1,7 @@
-use crate::{draw::{draw_game, handle_input}, water::WaterGrid};
+use crate::{
+    draw::{draw_game, handle_input},
+    water::WaterGrid,
+};
 
 pub struct CyberSubApp {
     // Example stuff:
@@ -39,7 +42,7 @@ impl CyberSubApp {
             last_update,
             ..
         } = self;
-        
+
         if let Some(last_update) = last_update {
             let mut delta = (game_time - *last_update).clamp(0.0, 0.5);
 
@@ -99,12 +102,11 @@ impl CyberSubApp {
             egui::TopBottomPanel::bottom("bottom_panel").show(ctx, |ui| {
                 ui.horizontal(|ui| {
                     ui.label("Powered by");
-                    ui.add(
-                        egui::Hyperlink::new("https://github.com/emilk/egui/").text("egui"),
-                    );
+                    ui.add(egui::Hyperlink::new("https://github.com/emilk/egui/").text("egui"));
                     ui.label("and");
                     ui.add(
-                        egui::Hyperlink::new("https://github.com/not-fl3/macroquad/").text("macroquad"),
+                        egui::Hyperlink::new("https://github.com/not-fl3/macroquad/")
+                            .text("macroquad"),
                     );
                     egui::warn_if_debug_build(ui);
                     if *show_total_water {
@@ -127,7 +129,7 @@ impl CyberSubApp {
                 ui.hyperlink_to("https://github.com/andreivasiliu/cybersub", "https://github.com/andreivasiliu/cybersub");
                 ui.label("Left-click to add water, right-click to add walls, middle-click to remove walls.");
                 ui.label("On browsers, right-click also opens the browser menu. I'm too lazy to fix that.");
-                
+
                 if ui.button("Close").clicked() {
                     *show_help = false;
                 }

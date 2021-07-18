@@ -4,5 +4,5 @@
 mod app;
 pub use app::CyberSubApp;
 
-mod water;
 mod draw;
+mod water;

@@ -2,7 +2,7 @@
 #![warn(clippy::all, rust_2018_idioms)]
 
 use cybersub::CyberSubApp;
-use macroquad::prelude::{BLACK, Conf, clear_background, get_time, next_frame};
+use macroquad::prelude::{clear_background, get_time, next_frame, Conf, BLACK};
 
 fn window_conf() -> Conf {
     Conf {

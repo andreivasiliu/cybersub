@@ -1,4 +1,10 @@
-use macroquad::{camera::{Camera2D, set_camera}, prelude::{BLACK, Color, DARKBLUE, GRAY, MouseButton, Rect, SKYBLUE, Vec2, draw_line, draw_rectangle, is_mouse_button_down, mouse_position, screen_height, screen_width, vec2}};
+use macroquad::{
+    camera::{set_camera, Camera2D},
+    prelude::{
+        draw_line, draw_rectangle, is_mouse_button_down, mouse_position, screen_height,
+        screen_width, vec2, Color, MouseButton, Rect, Vec2, BLACK, DARKBLUE, GRAY, SKYBLUE,
+    },
+};
 
 use crate::water::WaterGrid;
 
@@ -55,7 +61,8 @@ fn to_screen_coords(x: usize, y: usize, width: usize, height: usize) -> Vec2 {
 
     vec2(
         (x as i32 - (width as i32 / 2)) as f32 / view_size as f32 + 1.0 / view_size as f32 / 2.0,
-        -((y as i32 - (height as i32 / 2)) as f32 / view_size as f32 + 1.0 / view_size as f32 / 2.0),
+        -((y as i32 - (height as i32 / 2)) as f32 / view_size as f32
+            + 1.0 / view_size as f32 / 2.0),
     )
 }
 
@@ -74,7 +81,7 @@ pub(crate) fn draw_game(grid: &WaterGrid) {
 
     let width = 60;
     let height = 40;
-    
+
     for i in 0..width {
         for j in 0..height {
             let pos = to_screen_coords(i, j, width, height);
@@ -102,7 +109,14 @@ pub(crate) fn draw_game(grid: &WaterGrid) {
 
             let velocity = vec2(velocity.0, -velocity.1).normalize_or_zero() * 0.007;
 
-            draw_line(pos.x, pos.y, pos.x + velocity.x, pos.y + velocity.y, 0.002, BLACK);
+            draw_line(
+                pos.x,
+                pos.y,
+                pos.x + velocity.x,
+                pos.y + velocity.y,
+                0.002,
+                BLACK,
+            );
         }
     }
 }
