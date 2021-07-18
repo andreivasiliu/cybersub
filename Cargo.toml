@@ -6,13 +6,13 @@ edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
-[lib]
-crate-type = ["cdylib", "rlib"]
+# [lib]
+# crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-eframe = "0.13.0" # Gives us egui, epi and web+native backends
+egui = "0.13.1"
+egui-macroquad = "0.5.0"
+macroquad = "0.3.6"
 
 [profile.release]
 opt-level = 2 # fast and small wasm
-
-[patch.crates-io]

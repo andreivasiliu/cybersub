@@ -248,41 +248,57 @@ impl WaterCell {
         let direction = (opposite_direction + (DIRECTIONS / 2)) % DIRECTIONS;
 
         // This amount of water can leave the cell
-        let level = self.level.min(512) as i32;
+        let level = self.level.min(1024) as i32;
 
         // This amount of water should leave the cell
-        let total_velocity = self.velocity_x.abs() + self.velocity_y.abs();
+        let should_leave = self.velocity_x.abs() + self.velocity_y.abs();
+
+        if should_leave == 0 {
+            return 0;
+        }
+
+        let will_leave = should_leave.min(level);
+        
+        // This is how much will leave in a certain direction
+        let mut velocity_x = self.velocity_x;
+        let mut velocity_y = self.velocity_y;
+
+        // velocity_x = (velocity_x.abs() as f32).log10() as i32 * velocity_x.signum();
+        // velocity_y = (velocity_y.abs() as f32).log10() as i32 * velocity_y.signum();
+
+        let total_velocity = velocity_x.abs() + velocity_y.abs();
 
         if total_velocity == 0 {
             return 0;
         }
-        
-        // This is how much will leave in a certain direction
-        let mut velocity_x = (self.velocity_x * NEIGHBOUR_OFFSETS[direction].1).max(0);
-        let mut velocity_y = (self.velocity_y * NEIGHBOUR_OFFSETS[direction].0).max(0);
 
-        if total_velocity > level {
-            velocity_x = velocity_x * level / total_velocity;
-            velocity_y = velocity_y * level / total_velocity;
+        velocity_x = velocity_x * will_leave / total_velocity;
+        velocity_y = velocity_y * will_leave / total_velocity;
 
-            // Don't let the rest disappear.
-            //velocity_y += dbg!(level - velocity_y - velocity_x);
-        }
+        let leftover = will_leave - velocity_x.abs() - velocity_y.abs();
+        velocity_y += leftover * velocity_y.signum();
+
+        velocity_x = (velocity_x * NEIGHBOUR_OFFSETS[direction].1).max(0);
+        velocity_y = (velocity_y * NEIGHBOUR_OFFSETS[direction].0).max(0);
 
         let surplus = velocity_x as u32 + velocity_y as u32;
-
-        // if surplus > 0 && direction == 1 {
-        //     let x = NEIGHBOUR_OFFSETS[direction].1;
-        //     let y = NEIGHBOUR_OFFSETS[direction].0;
-        //     dbg!((surplus, level, total_velocity, velocity_x, velocity_y, x, y));
-        // }
 
         surplus
     }
 
     fn total_gravity_surplus(&self) -> u32 {
-        let total_velocity = self.velocity_x.abs() + self.velocity_y.abs();
-        self.level.min(512).min(total_velocity as u32)
+        let level = self.level.min(1024) as i32;
+
+        // This amount of water should leave the cell
+        let should_leave = self.velocity_x.abs() + self.velocity_y.abs();
+
+        if should_leave == 0 {
+            return 0;
+        }
+
+        let will_leave = should_leave.min(level);
+        
+        will_leave as u32
     }
 
     fn wall_surplus(&self, opposite_direction: usize) -> u32 {

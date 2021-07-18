@@ -10,4 +10,7 @@ It builds as both a native desktop application and a WASM-powered web page.
 
 To see it in action, check: https://andreivasiliu.github.io/cybersub/
 
+Previous prototypes:
+* egui and eframe (using widgets to draw cells, makes phones spontaneously combust): https://andreivasiliu.github.io/cybersub/proto/1
+
 The project's name is a working title for a simpler pixel-art clone of [Barotrauma](https://barotraumagame.com/) that I had in my head, which will likely never come to fruition, but is fun to think about and build towards anyway. The current GUI is very weird and inefficient, I just needed enough to get a visual representation of the grid, and is unrelated to what the game would look like.

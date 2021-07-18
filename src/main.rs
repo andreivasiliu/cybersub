@@ -1,11 +1,43 @@
 #![forbid(unsafe_code)]
-#![cfg_attr(not(debug_assertions), deny(warnings))] // Forbid warnings in release builds
 #![warn(clippy::all, rust_2018_idioms)]
 
-// When compiling natively:
-#[cfg(not(target_arch = "wasm32"))]
-fn main() {
-    let app = cybersub::CyberSubApp::default();
-    let native_options = eframe::NativeOptions::default();
-    eframe::run_native(Box::new(app), native_options);
+use cybersub::CyberSubApp;
+use macroquad::prelude::{BLACK, Conf, clear_background, get_time, next_frame};
+
+fn window_conf() -> Conf {
+    Conf {
+        window_title: "egui with macroquad".to_owned(),
+        high_dpi: true,
+        window_resizable: true,
+        ..Default::default()
+    }
+}
+
+#[macroquad::main(window_conf)]
+async fn main() {
+    let mut cybersub_app = CyberSubApp::default();
+
+    loop {
+        clear_background(BLACK);
+
+        egui_macroquad::ui(|egui_ctx| {
+            cybersub_app.draw_ui(egui_ctx);
+            if !egui_ctx.wants_pointer_input() {
+                cybersub_app.handle_input();
+            }
+        });
+
+        cybersub_app.update_game(get_time());
+
+        cybersub_app.draw_game();
+
+        //draw_primitives();
+        egui_macroquad::draw();
+
+        if cybersub_app.should_quit() {
+            return;
+        }
+
+        next_frame().await
+    }
 }

@@ -1,11 +1,4 @@
-use eframe::{
-    egui::{
-        self, emath::RectTransform, pos2, vec2, Color32, Frame, Rect, Sense, Shape, Stroke, Vec2,
-    },
-    epi,
-};
-
-use crate::water::WaterGrid;
+use crate::{draw::{draw_game, handle_input}, water::WaterGrid};
 
 pub struct CyberSubApp {
     // Example stuff:
@@ -15,6 +8,9 @@ pub struct CyberSubApp {
     enable_gravity: bool,
     enable_inertia: bool,
     last_update: Option<f64>,
+    show_ui: bool,
+    show_help: bool,
+    quit_game: bool,
 }
 
 impl Default for CyberSubApp {
@@ -27,157 +23,127 @@ impl Default for CyberSubApp {
             enable_gravity: true,
             enable_inertia: true,
             last_update: None,
+            show_ui: true,
+            show_help: false,
+            quit_game: false,
         }
     }
 }
 
-impl epi::App for CyberSubApp {
-    fn name(&self) -> &str {
-        "CyberSub"
+impl CyberSubApp {
+    pub fn update_game(&mut self, game_time: f64) {
+        let Self {
+            grid,
+            enable_gravity,
+            enable_inertia,
+            last_update,
+            ..
+        } = self;
+        
+        if let Some(last_update) = last_update {
+            let mut delta = (game_time - *last_update).clamp(0.0, 0.5);
+
+            while delta > 0.0 {
+                delta -= 1.0 / 30.0;
+                grid.update(*enable_gravity, *enable_inertia);
+            }
+        }
+        *last_update = Some(game_time);
     }
 
     /// Called each time the UI needs repainting, which may be many times per second.
     /// Put your widgets into a `SidePanel`, `TopPanel`, `CentralPanel`, `Window` or `Area`.
-    fn update(&mut self, ctx: &egui::CtxRef, frame: &mut epi::Frame<'_>) {
+    pub fn draw_ui(&mut self, ctx: &egui::CtxRef) {
         let Self {
             label,
             grid,
             show_total_water,
             enable_gravity,
             enable_inertia,
-            last_update,
+            show_ui,
+            show_help,
+            quit_game,
+            ..
         } = self;
 
-        egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
-            egui::menu::bar(ui, |ui| {
-                egui::menu::menu(ui, "File", |ui| {
-                    if ui.button("Show total water").clicked() {
-                        *show_total_water = !*show_total_water;
-                    }
-                    if ui.button("Toggle gravity").clicked() {
-                        *enable_gravity = !*enable_gravity;
-                    }
-                    if ui.button("Toggle inertia").clicked() {
-                        *enable_inertia = !*enable_inertia;
-                    }
-                    if ui.button("Clear water").clicked() {
-                        grid.clear();
-                    }
-                    if ui.button("Quit").clicked() {
-                        frame.quit();
+        if *show_ui {
+            egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
+                egui::menu::bar(ui, |ui| {
+                    egui::menu::menu(ui, "File", |ui| {
+                        if ui.button("Show total water").clicked() {
+                            *show_total_water = !*show_total_water;
+                        }
+                        if ui.button("Toggle gravity").clicked() {
+                            *enable_gravity = !*enable_gravity;
+                        }
+                        if ui.button("Toggle inertia").clicked() {
+                            *enable_inertia = !*enable_inertia;
+                        }
+                        if ui.button("Clear water").clicked() {
+                            grid.clear();
+                        }
+                        if ui.button("Help").clicked() {
+                            *show_help = true;
+                        }
+                        if ui.button("Quit").clicked() {
+                            *quit_game = true;
+                        }
+                    });
+                });
+                ui.horizontal(|ui| {
+                    ui.label("Write something: ");
+                    ui.text_edit_singleline(label);
+                });
+            });
+
+            egui::TopBottomPanel::bottom("bottom_panel").show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label("Powered by");
+                    ui.add(
+                        egui::Hyperlink::new("https://github.com/emilk/egui/").text("egui"),
+                    );
+                    ui.label("and");
+                    ui.add(
+                        egui::Hyperlink::new("https://github.com/not-fl3/macroquad/").text("macroquad"),
+                    );
+                    egui::warn_if_debug_build(ui);
+                    if *show_total_water {
+                        ui.label(format!("Total water: {}", grid.total_water()));
                     }
                 });
             });
+        }
+
+        egui::Window::new("egui ❤ macroquad").show(ctx, |ui| {
+            ui.checkbox(show_ui, "Show UI");
+            ui.checkbox(enable_gravity, "Enable gravity");
+            ui.checkbox(enable_inertia, "Enable inertia");
         });
 
-        egui::TopBottomPanel::bottom("bottom_panel").show(ctx, |ui| {
-            ui.horizontal(|ui| {
-                ui.add(
-                    egui::Hyperlink::new("https://github.com/emilk/egui/").text("powered by egui"),
-                );
-                egui::warn_if_debug_build(ui);
-            });
-        });
-
-        egui::CentralPanel::default().show(ctx, |ui| {
-            ui.horizontal(|ui| {
-                ui.label("Write something: ");
-                ui.text_edit_singleline(label);
-            });
-            Frame::dark_canvas(ui.style()).show(ui, |ui| {
-                ui.ctx().request_repaint();
-
-                let (response, painter) = ui.allocate_painter(ui.available_size(), Sense::drag());
-
-                let click_pos = if response.dragged() {
-                    response.hover_pos()
-                } else {
-                    None
-                };
-
-                let to_screen = RectTransform::from_to(
-                    Rect::from_x_y_ranges(0.0..=1.0, 0.0..=1.0),
-                    painter.clip_rect(),
-                );
-
-                let mut shapes = Vec::with_capacity(10 * 10);
-
-                let width = 60;
-                let height = 40;
-
-                for i in 0..width {
-                    for j in 0..height {
-                        let pos = pos2(
-                            i as f32 / width as f32 + 1.0 / width as f32 / 2.0,
-                            j as f32 / height as f32 + 1.0 / height as f32 / 2.0,
-                        );
-                        let level = grid.cell(i, j).amount_filled();
-                        let overlevel = grid.cell(i, j).amount_overfilled();
-                        let velocity: Vec2 = grid.cell(i, j).velocity().into();
-
-                        let level = if level != 0.0 && level < 0.5 {
-                            0.5
-                        } else {
-                            level
-                        };
-
-                        let rect1 = Rect::from_center_size(to_screen * pos, vec2(10.0, 10.0));
-                        let rect2 =
-                            Rect::from_center_size(to_screen * pos, vec2(10.0, 10.0) * level);
-                        let rect3 =
-                            Rect::from_center_size(to_screen * pos, vec2(10.0, 10.0) * overlevel);
-
-                        if let Some(click_pos) = click_pos {
-                            if rect1.contains(click_pos) {
-                                if response.dragged_by(egui::PointerButton::Primary) {
-                                    grid.cell_mut(i, j).fill();
-                                } else if response.dragged_by(egui::PointerButton::Secondary) {
-                                    grid.cell_mut(i, j).make_wall();
-                                } else if response.dragged_by(egui::PointerButton::Middle) {
-                                    grid.cell_mut(i, j).clear_wall();
-                                }
-                            }
-                        }
-
-                        if grid.cell(i, j).is_wall() {
-                            shapes.push(Shape::rect_filled(rect1, 0.0, Color32::GRAY))
-                        } else {
-                            shapes.push(Shape::rect_filled(rect2, 0.0, Color32::LIGHT_BLUE));
-                            shapes.push(Shape::rect_filled(rect3, 0.0, Color32::BLUE));
-                        }
-
-                        shapes.push(Shape::line_segment(
-                            [
-                                to_screen * pos,
-                                to_screen * pos + velocity.normalized() * 5.0,
-                            ],
-                            Stroke::new(1.0, Color32::BLACK),
-                        ));
-
-                        shapes.push(Shape::rect_stroke(
-                            rect1,
-                            0.0,
-                            Stroke::new(1.0, Color32::WHITE),
-                        ));
-                    }
-                }
-
-                painter.extend(shapes);
-
-                if let Some(last_update) = last_update {
-                    let mut delta = (ctx.input().time - *last_update).clamp(0.0, 0.5);
-
-                    while delta > 0.0 {
-                        delta -= 1.0 / 30.0;
-                        grid.update(*enable_gravity, *enable_inertia);
-                    }
-                }
-                *last_update = Some(ctx.input().time);
-
-                if *show_total_water {
-                    dbg!(grid.total_water());
+        if *show_help {
+            egui::Window::new("Cybersub prototype").show(ctx, |ui| {
+                ui.label("This is a water simulation prototype that I was considering using for a little game.");
+                ui.label("The code is here:");
+                ui.hyperlink_to("https://github.com/andreivasiliu/cybersub", "https://github.com/andreivasiliu/cybersub");
+                ui.label("Left-click to add water, right-click to add walls, middle-click to remove walls.");
+                ui.label("On browsers, right-click also opens the browser menu. I'm too lazy to fix that.");
+                
+                if ui.button("Close").clicked() {
+                    *show_help = false;
                 }
             });
-        });
+        }
+    }
+
+    pub fn should_quit(&self) -> bool {
+        self.quit_game
+    }
+
+    pub fn handle_input(&mut self) {
+        handle_input(&mut self.grid);
+    }
+
+    pub fn draw_game(&self) {
+        draw_game(&self.grid);
     }
 }
