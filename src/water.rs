@@ -110,7 +110,7 @@ impl WaterGrid {
         total
     }
 
-    fn neighbours<'a>(&'a self, x: usize, y: usize) -> impl Iterator<Item = &'a WaterCell> {
+    fn neighbours(&self, x: usize, y: usize) -> impl Iterator<Item = &WaterCell> {
         NEIGHBOUR_OFFSETS.iter().map(move |(y_offset, x_offset)| {
             self.cell(
                 (x as i32 + x_offset) as usize,
@@ -193,8 +193,8 @@ impl WaterGrid {
                     }
 
                     let old_cell = old_grid.cell(x, y);
-                    cell.velocity_x = (old_cell.velocity_x * 3 + velocity_x * 1) / 4;
-                    cell.velocity_y = (old_cell.velocity_y * 3 + velocity_y * 1) / 4;
+                    cell.velocity_x = (old_cell.velocity_x * 3 + velocity_x) / 4;
+                    cell.velocity_y = (old_cell.velocity_y * 3 + velocity_y) / 4;
                 }
             }
         }
@@ -280,12 +280,10 @@ impl WaterCell {
         let leftover = will_leave - velocity_x.abs() - velocity_y.abs();
         velocity_y += leftover * velocity_y.signum();
 
-        velocity_x = (velocity_x * NEIGHBOUR_OFFSETS[direction].1).max(0);
-        velocity_y = (velocity_y * NEIGHBOUR_OFFSETS[direction].0).max(0);
+        let surplus_x = (velocity_x * NEIGHBOUR_OFFSETS[direction].1).max(0) as u32;
+        let surplus_y = (velocity_y * NEIGHBOUR_OFFSETS[direction].0).max(0) as u32;
 
-        let surplus = velocity_x as u32 + velocity_y as u32;
-
-        surplus
+        surplus_x + surplus_y
     }
 
     fn total_gravity_surplus(&self) -> u32 {
