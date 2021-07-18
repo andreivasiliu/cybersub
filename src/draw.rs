@@ -67,9 +67,14 @@ fn to_screen_coords(x: usize, y: usize, width: usize, height: usize) -> Vec2 {
 }
 
 fn camera() -> Camera2D {
+    let zoom = if screen_height() < screen_width() {
+        vec2(screen_height() / screen_width(), 1.0) * 1.3
+    } else {
+        vec2(1.0, screen_width() / screen_height())
+    };
+
     Camera2D {
-        zoom: vec2(2.0 * screen_height() / screen_width(), 2.0),
-        // offset: vec2(-1.0 * screen_height() / screen_width(), 1.0),
+        zoom: zoom * 1.5,
         ..Default::default()
     }
 }
