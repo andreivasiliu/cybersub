@@ -1,7 +1,4 @@
-use crate::{
-    draw::{draw_game, handle_input},
-    water::WaterGrid,
-};
+use crate::{draw::{Camera, draw_game, handle_keyboard_input, handle_pointer_input}, water::WaterGrid};
 
 pub struct CyberSubApp {
     // Example stuff:
@@ -14,14 +11,19 @@ pub struct CyberSubApp {
     show_ui: bool,
     show_help: bool,
     quit_game: bool,
+    camera: Camera,
+    error_message: Option<String>,
 }
+
+const WIDTH: usize = 300;
+const HEIGHT: usize = 100;
 
 impl Default for CyberSubApp {
     fn default() -> Self {
         Self {
             // Example stuff:
             label: "Hello me!".to_owned(),
-            grid: WaterGrid::new(60, 40),
+            grid: WaterGrid::new(WIDTH, HEIGHT),
             show_total_water: false,
             enable_gravity: true,
             enable_inertia: true,
@@ -29,6 +31,8 @@ impl Default for CyberSubApp {
             show_ui: true,
             show_help: false,
             quit_game: false,
+            camera: Camera::default(),
+            error_message: None,
         }
     }
 }
@@ -47,6 +51,7 @@ impl CyberSubApp {
             let mut delta = (game_time - *last_update).clamp(0.0, 0.5);
 
             while delta > 0.0 {
+                // 30 updates per second, regardless of FPS
                 delta -= 1.0 / 30.0;
                 grid.update(*enable_gravity, *enable_inertia);
             }
@@ -66,6 +71,7 @@ impl CyberSubApp {
             show_ui,
             show_help,
             quit_game,
+            error_message,
             ..
         } = self;
 
@@ -73,6 +79,21 @@ impl CyberSubApp {
             egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
                 egui::menu::bar(ui, |ui| {
                     egui::menu::menu(ui, "File", |ui| {
+                        if ui.button("Save grid").clicked() {
+                            match save(grid) {
+                                Ok(()) => (),
+                                Err(err) => *error_message = Some(err),
+                            }
+                        }
+
+                        if ui.button("Load grid").clicked() {
+                            match load() {
+                                Ok(new_grid) => *grid = new_grid,
+                                Err(err) => *error_message = Some(err),
+                            }
+                        }
+
+                        ui.separator();
                         if ui.button("Show total water").clicked() {
                             *show_total_water = !*show_total_water;
                         }
@@ -88,6 +109,7 @@ impl CyberSubApp {
                         if ui.button("Help").clicked() {
                             *show_help = true;
                         }
+                        ui.separator();
                         if ui.button("Quit").clicked() {
                             *quit_game = true;
                         }
@@ -122,6 +144,16 @@ impl CyberSubApp {
             ui.checkbox(enable_inertia, "Enable inertia");
         });
 
+        if error_message.is_some() {
+            egui::Window::new("Error").show(ctx, |ui| {
+                ui.label(error_message.as_ref().unwrap());
+
+                if ui.button("Close").clicked() {
+                    *error_message = None;
+                }
+            });
+        }
+
         if *show_help {
             egui::Window::new("Cybersub prototype").show(ctx, |ui| {
                 ui.label("This is a water simulation prototype that I was considering using for a little game.");
@@ -141,11 +173,54 @@ impl CyberSubApp {
         self.quit_game
     }
 
-    pub fn handle_input(&mut self) {
-        handle_input(&mut self.grid);
+    pub fn handle_pointer_input(&mut self) {
+        handle_pointer_input(&mut self.grid, &mut self.camera);
+    }
+
+    pub fn handle_keyboard_input(&mut self) {
+        handle_keyboard_input(&mut self.camera);
     }
 
     pub fn draw_game(&self) {
-        draw_game(&self.grid);
+        draw_game(&self.grid, &self.camera);
+    }
+}
+
+fn save(grid: &WaterGrid) -> Result<(), String> {
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let file = std::fs::File::create("grid.bin")
+            .map_err(|err| format!("Could not save: {}", err))?;
+        let writer = std::io::BufWriter::new(file);
+
+        bincode::serialize_into(writer, grid)
+            .map_err(|err| format!("Could not serialize grid: {}", err))?;
+
+        Ok(())
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    {
+        let _ = grid;
+        Err("Saving not yet possible on browsers".to_string())
+    }
+}
+
+fn load() -> Result<WaterGrid, String> {
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let bytes = std::fs::File::open("grid.bin")
+            .map_err(|err| format!("Could not load: {}", err))?;
+        let reader = std::io::BufReader::new(bytes);
+
+        let grid = bincode::deserialize_from(reader)
+            .map_err(|err| format!("Could not deserialize: {}", err))?;
+
+        Ok(grid)
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    {
+        Err("Loading not yet possible on browsers".to_string())
     }
 }

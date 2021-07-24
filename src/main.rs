@@ -6,7 +6,7 @@ use macroquad::prelude::{clear_background, get_time, next_frame, Conf, BLACK};
 
 fn window_conf() -> Conf {
     Conf {
-        window_title: "egui with macroquad".to_owned(),
+        window_title: "CyberSub".to_owned(),
         high_dpi: true,
         window_resizable: true,
         ..Default::default()
@@ -23,7 +23,10 @@ async fn main() {
         egui_macroquad::ui(|egui_ctx| {
             cybersub_app.draw_ui(egui_ctx);
             if !egui_ctx.wants_pointer_input() {
-                cybersub_app.handle_input();
+                cybersub_app.handle_pointer_input();
+            }
+            if !egui_ctx.wants_keyboard_input() {
+                cybersub_app.handle_keyboard_input();
             }
         });
 
@@ -31,7 +34,6 @@ async fn main() {
 
         cybersub_app.draw_game();
 
-        //draw_primitives();
         egui_macroquad::draw();
 
         if cybersub_app.should_quit() {

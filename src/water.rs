@@ -1,11 +1,13 @@
-#[derive(Clone)]
+use serde::{Serialize, Deserialize};
+
+#[derive(Clone, Serialize, Deserialize)]
 pub(crate) struct WaterGrid {
     cells: Vec<WaterCell>,
     width: usize,
     height: usize,
 }
 
-#[derive(Default, Clone, Copy)]
+#[derive(Default, Clone, Copy, Serialize, Deserialize)]
 pub(crate) struct WaterCell {
     level: u32,
     wall: bool,
@@ -75,6 +77,10 @@ impl WaterGrid {
             width,
             height,
         }
+    }
+
+    pub fn size(&self) -> (usize, usize) {
+        (self.width, self.height)
     }
 
     pub fn cell(&self, x: usize, y: usize) -> &WaterCell {
