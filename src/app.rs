@@ -1,4 +1,11 @@
-use crate::{draw::{Camera, draw_game, handle_keyboard_input, handle_pointer_input}, water::WaterGrid};
+use egui::Slider;
+use flate2::read::GzDecoder;
+
+use crate::{
+    draw::{draw_game, handle_keyboard_input, handle_pointer_input, Camera},
+    draw_quad::draw_quad_game,
+    water::WaterGrid,
+};
 
 pub struct CyberSubApp {
     // Example stuff:
@@ -31,13 +38,22 @@ impl Default for CyberSubApp {
             show_ui: true,
             show_help: false,
             quit_game: false,
-            camera: Camera::default(),
+            camera: Camera {
+                offset_x: 0,
+                offset_y: 0,
+                zoom: -200,
+            },
             error_message: None,
         }
     }
 }
 
 impl CyberSubApp {
+    pub fn load_grid(&mut self, grid_bytes: Vec<u8>) {
+        let decoder = GzDecoder::new(grid_bytes.as_slice());
+        self.grid = bincode::deserialize_from(decoder).unwrap();
+    }
+
     pub fn update_game(&mut self, game_time: f64) {
         let Self {
             grid,
@@ -72,6 +88,7 @@ impl CyberSubApp {
             show_help,
             quit_game,
             error_message,
+            camera,
             ..
         } = self;
 
@@ -142,6 +159,10 @@ impl CyberSubApp {
             ui.checkbox(show_ui, "Show UI");
             ui.checkbox(enable_gravity, "Enable gravity");
             ui.checkbox(enable_inertia, "Enable inertia");
+            ui.horizontal(|ui| {
+                ui.label("Zoom:");
+                ui.add(Slider::new(&mut camera.zoom, -512..=36));
+            });
         });
 
         if error_message.is_some() {
@@ -161,6 +182,8 @@ impl CyberSubApp {
                 ui.hyperlink_to("https://github.com/andreivasiliu/cybersub", "https://github.com/andreivasiliu/cybersub");
                 ui.label("Left-click to add water, right-click to add walls, middle-click to remove walls.");
                 ui.label("On browsers, right-click also opens the browser menu. I'm too lazy to fix that.");
+                ui.label("WASD or arrow keys to move camera, keyboard +/- to zoom. Minus doesn't work on browsers. No idea why.");
+                ui.label("Firefox is having issues with rendering the whole thing; my phone and other browsers work fine though.");
 
                 if ui.button("Close").clicked() {
                     *show_help = false;
@@ -184,14 +207,21 @@ impl CyberSubApp {
     pub fn draw_game(&self) {
         draw_game(&self.grid, &self.camera);
     }
+
+    pub fn draw_quad_game(&self) {
+        draw_quad_game(&self.grid, &self.camera);
+    }
 }
 
 fn save(grid: &WaterGrid) -> Result<(), String> {
     #[cfg(not(target_arch = "wasm32"))]
     {
-        let file = std::fs::File::create("grid.bin")
+        use flate2::{read::GzEncoder, Compression};
+
+        let file = std::fs::File::create("grid.bin.gz")
             .map_err(|err| format!("Could not save: {}", err))?;
-        let writer = std::io::BufWriter::new(file);
+        let encoder = GzEncoder::new(file, Compression::best());
+        let writer = std::io::BufWriter::new(encoder);
 
         bincode::serialize_into(writer, grid)
             .map_err(|err| format!("Could not serialize grid: {}", err))?;
@@ -209,9 +239,10 @@ fn save(grid: &WaterGrid) -> Result<(), String> {
 fn load() -> Result<WaterGrid, String> {
     #[cfg(not(target_arch = "wasm32"))]
     {
-        let bytes = std::fs::File::open("grid.bin")
-            .map_err(|err| format!("Could not load: {}", err))?;
-        let reader = std::io::BufReader::new(bytes);
+        let file =
+            std::fs::File::open("grid.bin.gz").map_err(|err| format!("Could not load: {}", err))?;
+        let decoder = GzDecoder::new(file);
+        let reader = std::io::BufReader::new(decoder);
 
         let grid = bincode::deserialize_from(reader)
             .map_err(|err| format!("Could not deserialize: {}", err))?;
