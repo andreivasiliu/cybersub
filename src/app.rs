@@ -1,4 +1,4 @@
-use egui::Slider;
+use egui::{vec2, Slider};
 use flate2::read::GzDecoder;
 
 use crate::{
@@ -20,6 +20,14 @@ pub struct CyberSubApp {
     quit_game: bool,
     camera: Camera,
     error_message: Option<String>,
+    current_tool: Tool,
+}
+
+#[derive(PartialEq, Eq)]
+pub(crate) enum Tool {
+    AddWater,
+    AddWalls,
+    RemoveWalls,
 }
 
 const WIDTH: usize = 300;
@@ -39,11 +47,11 @@ impl Default for CyberSubApp {
             show_help: false,
             quit_game: false,
             camera: Camera {
-                offset_x: 0,
-                offset_y: 0,
                 zoom: -200,
+                ..Default::default()
             },
             error_message: None,
+            current_tool: Tool::AddWater,
         }
     }
 }
@@ -89,6 +97,7 @@ impl CyberSubApp {
             quit_game,
             error_message,
             camera,
+            current_tool,
             ..
         } = self;
 
@@ -165,6 +174,19 @@ impl CyberSubApp {
             });
         });
 
+        let toolbar = egui::Window::new("toolbar")
+            .auto_sized()
+            .title_bar(false)
+            .default_pos(ctx.available_rect().left_bottom() + vec2(16.0, -16.0 - 32.0));
+
+        toolbar.show(ctx, |ui| {
+            ui.horizontal(|ui| {
+                ui.radio_value(current_tool, Tool::AddWater, "Add Water");
+                ui.radio_value(current_tool, Tool::AddWalls, "Add Walls");
+                ui.radio_value(current_tool, Tool::RemoveWalls, "Remove Walls");
+            });
+        });
+
         if error_message.is_some() {
             egui::Window::new("Error").show(ctx, |ui| {
                 ui.label(error_message.as_ref().unwrap());
@@ -182,7 +204,8 @@ impl CyberSubApp {
                 ui.hyperlink_to("https://github.com/andreivasiliu/cybersub", "https://github.com/andreivasiliu/cybersub");
                 ui.label("Left-click to add water, right-click to add walls, middle-click to remove walls.");
                 ui.label("On browsers, right-click also opens the browser menu. I'm too lazy to fix that.");
-                ui.label("WASD or arrow keys to move camera, keyboard +/- to zoom. Minus doesn't work on browsers. No idea why.");
+                ui.label("WASD, arrow keys, or hold right-click to move camera. Keypad +/- or mouse-scroll to zoom. Minus doesn't work on browsers. No idea why. There is currently no way to move the camera with a touch-screen.");
+                ui.label("Use the tool controls (Add Water, Add Walls, etc) at the bottom to switch what left-click paints. Holding shift or ctrl is a shortcut for switching.");
                 ui.label("Firefox is having issues with rendering the whole thing; my phone and other browsers work fine though.");
 
                 if ui.button("Close").clicked() {
@@ -197,11 +220,11 @@ impl CyberSubApp {
     }
 
     pub fn handle_pointer_input(&mut self) {
-        handle_pointer_input(&mut self.grid, &mut self.camera);
+        handle_pointer_input(&mut self.grid, &mut self.camera, &self.current_tool);
     }
 
     pub fn handle_keyboard_input(&mut self) {
-        handle_keyboard_input(&mut self.camera);
+        handle_keyboard_input(&mut self.camera, &mut self.current_tool);
     }
 
     pub fn draw_game(&self) {

@@ -1,26 +1,18 @@
-use macroquad::{
-    camera::{set_camera, Camera2D},
-    prelude::{
-        draw_line, draw_rectangle, is_key_down, is_mouse_button_down, mouse_position,
-        screen_height, screen_width, vec2, Color, KeyCode, MouseButton, Rect, Vec2, BLACK,
-        DARKBLUE, GRAY, SKYBLUE,
-    },
+use macroquad::prelude::{
+    draw_line, draw_rectangle, is_key_down, is_key_pressed, is_key_released, is_mouse_button_down,
+    is_mouse_button_pressed, mouse_position, mouse_wheel, screen_height, screen_width, set_camera,
+    vec2, Camera2D, Color, KeyCode, MouseButton, Rect, Vec2, BLACK, DARKBLUE, GRAY, SKYBLUE,
 };
 
-use crate::water::WaterGrid;
-
-#[derive(Debug, Clone, Copy)]
-enum Action {
-    Fill,
-    MakeWall,
-    ClearWall,
-}
+use crate::{app::Tool, water::WaterGrid};
 
 #[derive(Debug, Default)]
 pub(crate) struct Camera {
-    pub offset_x: i32,
-    pub offset_y: i32,
+    pub offset_x: f32,
+    pub offset_y: f32,
     pub zoom: i32,
+    pub dragging_from: (f32, f32),
+    pub scrolling_from: f32,
 }
 
 impl Camera {
@@ -31,30 +23,32 @@ impl Camera {
             vec2(1.0, screen_width() / screen_height())
         };
 
-        let user_zoom = 1.0 / (1.0 - self.zoom as f32 / 64.0);
-
         let offset = vec2(-self.offset_x as f32 / 2.0, -self.offset_y as f32 / 2.0);
 
         Camera2D {
-            zoom: zoom * (1.5 / 50.0) * user_zoom,
+            zoom: zoom * (1.5 / 50.0) * self.user_zoom(),
             target: offset,
             ..Default::default()
         }
     }
+
+    fn user_zoom(&self) -> f32 {
+        1.0 / (1.0 - self.zoom as f32 / 64.0)
+    }
 }
 
-pub(crate) fn handle_keyboard_input(camera: &mut Camera) {
+pub(crate) fn handle_keyboard_input(camera: &mut Camera, current_tool: &mut Tool) {
     if is_key_down(KeyCode::A) || is_key_down(KeyCode::Left) {
-        camera.offset_x += 1;
+        camera.offset_x += 1.0;
     }
     if is_key_down(KeyCode::D) || is_key_down(KeyCode::Right) {
-        camera.offset_x -= 1;
+        camera.offset_x -= 1.0;
     }
     if is_key_down(KeyCode::W) || is_key_down(KeyCode::Up) {
-        camera.offset_y -= 1;
+        camera.offset_y -= 1.0;
     }
     if is_key_down(KeyCode::S) || is_key_down(KeyCode::Down) {
-        camera.offset_y += 1;
+        camera.offset_y += 1.0;
     }
     if is_key_down(KeyCode::KpAdd) {
         camera.zoom += 1;
@@ -62,22 +56,48 @@ pub(crate) fn handle_keyboard_input(camera: &mut Camera) {
     if is_key_down(KeyCode::KpSubtract) {
         camera.zoom -= 1;
     }
+    if is_key_pressed(KeyCode::LeftShift) {
+        *current_tool = Tool::RemoveWalls;
+    }
+    if is_key_pressed(KeyCode::LeftControl) {
+        *current_tool = Tool::AddWalls;
+    }
+    if is_key_released(KeyCode::LeftShift) || is_key_released(KeyCode::LeftControl) {
+        *current_tool = Tool::AddWater;
+    }
 }
 
-pub(crate) fn handle_pointer_input(grid: &mut WaterGrid, camera: &mut Camera) {
-    let action = if is_mouse_button_down(macroquad::prelude::MouseButton::Left) {
-        Action::Fill
-    } else if is_mouse_button_down(MouseButton::Right) {
-        Action::MakeWall
-    } else if is_mouse_button_down(MouseButton::Middle) {
-        Action::ClearWall
-    } else {
-        return;
-    };
+pub(crate) fn handle_pointer_input(grid: &mut WaterGrid, camera: &mut Camera, tool: &Tool) {
+    let macroquad_camera = camera.to_macroquad_camera();
 
-    let mouse_position = camera
-        .to_macroquad_camera()
-        .screen_to_world(mouse_position().into());
+    if is_mouse_button_pressed(MouseButton::Right) {
+        camera.dragging_from = mouse_position();
+    }
+
+    if is_mouse_button_down(MouseButton::Right) {
+        let new_position = mouse_position();
+
+        let old = macroquad_camera.screen_to_world(Vec2::from(camera.dragging_from));
+        let new = macroquad_camera.screen_to_world(Vec2::from(new_position));
+
+        let delta = (new - old) * 2.0;
+
+        camera.offset_x += delta.x;
+        camera.offset_y += delta.y;
+
+        camera.dragging_from = new_position;
+    }
+
+    let scroll = mouse_wheel().1;
+    if scroll != 0.0 {
+        camera.zoom = (camera.zoom + scroll as i32 * 4).clamp(-512, 36);
+    }
+
+    if !is_mouse_button_down(MouseButton::Left) {
+        return;
+    }
+
+    let mouse_position = macroquad_camera.screen_to_world(mouse_position().into());
 
     let (width, height) = grid.size();
 
@@ -86,15 +106,15 @@ pub(crate) fn handle_pointer_input(grid: &mut WaterGrid, camera: &mut Camera) {
         for j in 0..height {
             let pos = to_screen_coords(i, j, width, height);
 
-            let size = 0.35;
+            let size = 0.5;
             let rect = Rect::new(pos.x - size, pos.y - size, size * 2.0, size * 2.0);
 
             if rect.contains(mouse_position) {
                 let cell = grid.cell_mut(i, j);
-                match action {
-                    Action::Fill => cell.fill(),
-                    Action::MakeWall => cell.make_wall(),
-                    Action::ClearWall => cell.clear_wall(),
+                match tool {
+                    Tool::AddWater => cell.fill(),
+                    Tool::AddWalls => cell.make_wall(),
+                    Tool::RemoveWalls => cell.clear_wall(),
                 }
                 return;
             }
