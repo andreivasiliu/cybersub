@@ -16,8 +16,9 @@ fn window_conf() -> Conf {
 async fn main() {
     let mut cybersub_app = CyberSubApp::default();
 
-    let grid_file = load_file("grid.bin.gz").await.unwrap();
-    cybersub_app.load_grid(grid_file);
+    // if let Ok(grid_file) = load_file("grid.bin.gz").await {
+    // cybersub_app.load_grid(grid_file);
+    // }
 
     loop {
         clear_background(BLACK);

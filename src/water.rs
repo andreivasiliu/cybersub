@@ -9,13 +9,26 @@ pub(crate) struct WaterGrid {
 
 #[derive(Default, Clone, Copy, Serialize, Deserialize)]
 pub(crate) struct WaterCell {
-    level: u32,
-    wall: bool,
-    wall_reflect: [u32; DIRECTIONS],
-    wall_open_cells: [u32; DIRECTIONS],
+    cell_type: CellType,
     velocity_x: i32,
     velocity_y: i32,
 }
+
+#[derive(Clone, Copy, Serialize, Deserialize)]
+enum CellType {
+    Inside { level: u32 },
+    Wall { wall_reflect: [u32; DIRECTIONS] },
+    Sea,
+}
+
+impl Default for CellType {
+    fn default() -> Self {
+        CellType::Inside { level: 0 }
+    }
+}
+
+// Currently static; will eventually be based on sub's depth
+const SEA_LEVEL: u32 = 8192;
 
 // Offsets: (y, x), x goes rightwards, y goes downwards
 const NEIGHBOUR_OFFSETS: &[(i32, i32)] = &[
@@ -37,40 +50,41 @@ impl WaterGrid {
         cells.resize(width * height, WaterCell::default());
 
         for x in 1..width - 1 {
-            cells[(height - 2) * width + x].wall = true;
+            cells[(height - 2) * width + x].make_wall();
         }
 
         for y in (height * 50 / 100)..height - 1 {
-            cells[y * width + 1].wall = true;
-            cells[y * width + width - 2].wall = true;
+            cells[y * width + 1].make_wall();
+            cells[y * width + width - 2].make_wall();
 
             if y < height * 90 / 100 {
-                cells[y * width + width * 3 / 4].wall = true;
+                cells[y * width + width * 3 / 4].make_wall();
             }
         }
 
-        for y in 1..height - 1 {
-            for x in 1..width - 1 {
-                if !cells[y * width + x].is_wall() {
-                    continue;
-                }
+        // Disabled: Needs 8 neighbours
+        // for y in 1..height - 1 {
+        //     for x in 1..width - 1 {
+        //         if !cells[y * width + x].is_wall() {
+        //             continue;
+        //         }
 
-                for direction in 0..DIRECTIONS {
-                    let mut open_cells = 0;
-                    for near_direction in &[DIRECTIONS - 1, 0, 1] {
-                        let near_direction = (direction + near_direction) % DIRECTIONS;
-                        let (y_offset, x_offset) = NEIGHBOUR_OFFSETS[near_direction];
+        //         for direction in 0..DIRECTIONS {
+        //             let mut open_cells = 0;
+        //             for near_direction in &[DIRECTIONS - 1, 0, 1] {
+        //                 let near_direction = (direction + near_direction) % DIRECTIONS;
+        //                 let (y_offset, x_offset) = NEIGHBOUR_OFFSETS[near_direction];
 
-                        let cell = &cells[(y as i32 + y_offset) as usize * width
-                            + (x as i32 + x_offset) as usize];
-                        if !cell.is_wall() {
-                            open_cells += 1;
-                        }
-                    }
-                    cells[y * width + x].wall_open_cells[direction] = open_cells;
-                }
-            }
-        }
+        //                 let cell = &cells[(y as i32 + y_offset) as usize * width
+        //                     + (x as i32 + x_offset) as usize];
+        //                 if !cell.is_wall() {
+        //                     open_cells += 1;
+        //                 }
+        //             }
+        //             cells[y * width + x].wall_open_cells[direction] = open_cells;
+        //         }
+        //     }
+        // }
 
         WaterGrid {
             cells,
@@ -103,11 +117,12 @@ impl WaterGrid {
         for y in 0..self.height {
             for x in 0..self.width {
                 let cell = self.cell(x, y);
-                total += cell.level;
 
-                if cell.is_wall() {
+                if let CellType::Inside { level } = cell.cell_type {
+                    total += level;
+                } else if let CellType::Wall { ref wall_reflect } = cell.cell_type {
                     for dir in 0..DIRECTIONS {
-                        total += cell.wall_reflect[dir];
+                        total += wall_reflect[dir];
                     }
                 }
             }
@@ -144,12 +159,10 @@ impl WaterGrid {
             for x in 0..self.width {
                 let cell = self.cell_mut(x, y);
 
-                if cell.is_wall() {
-                    for i in 0..DIRECTIONS as usize {
-                        cell.wall_reflect[i] = 0;
-                    }
-                } else {
-                    cell.level = 0;
+                match &mut cell.cell_type {
+                    CellType::Inside { level } => *level = 0,
+                    CellType::Wall { wall_reflect } => *wall_reflect = [0; DIRECTIONS],
+                    CellType::Sea => (),
                 }
             }
         }
@@ -162,15 +175,20 @@ impl WaterGrid {
             for x in 1..old_grid.width - 1 {
                 let cell = self.cell_mut(x, y);
 
-                if cell.is_wall() {
+                if let CellType::Wall {
+                    ref mut wall_reflect,
+                } = cell.cell_type
+                {
                     for (i, neighbour) in old_grid.neighbours(x, y).enumerate() {
-                        cell.wall_reflect[i] = neighbour.pressure_surplus();
+                        wall_reflect[i] = neighbour.pressure_surplus();
 
-                        cell.wall_reflect[i] += neighbour.gravity_surplus(i);
+                        wall_reflect[i] += neighbour.gravity_surplus(i);
                     }
-                } else {
-                    cell.level -= cell.pressure_surplus() * DIRECTIONS as u32;
-                    cell.level -= cell.total_gravity_surplus();
+                } else if let CellType::Inside { .. } = cell.cell_type {
+                    let mut level = cell.level();
+
+                    level = level.saturating_sub(cell.pressure_surplus() * DIRECTIONS as u32);
+                    level = level.saturating_sub(cell.total_gravity_surplus());
 
                     let (mut velocity_x, mut velocity_y) = (0, 0);
 
@@ -180,7 +198,7 @@ impl WaterGrid {
                         } else {
                             neighbour.pressure_surplus() + neighbour.gravity_surplus(i)
                         };
-                        cell.level += incoming_water;
+                        level = level.saturating_add(incoming_water);
 
                         if enable_inertia {
                             let incoming_inertia = if neighbour.is_wall() {
@@ -201,6 +219,7 @@ impl WaterGrid {
                     let old_cell = old_grid.cell(x, y);
                     cell.velocity_x = (old_cell.velocity_x * 3 + velocity_x) / 4;
                     cell.velocity_y = (old_cell.velocity_y * 3 + velocity_y) / 4;
+                    cell.set_level(level);
                 }
             }
         }
@@ -208,13 +227,23 @@ impl WaterGrid {
 }
 
 impl WaterCell {
+    fn level(&self) -> u32 {
+        match self.cell_type {
+            CellType::Inside { level } => level,
+            CellType::Wall { wall_reflect } => 0,
+            CellType::Sea => SEA_LEVEL,
+        }
+    }
+
     pub fn amount_filled(&self) -> f32 {
-        self.level.min(1024) as f32 / 1024.0
+        self.level().min(1024) as f32 / 1024.0
     }
 
     pub fn amount_overfilled(&self) -> f32 {
-        if self.level > 1024 {
-            (self.level - 1024).min(4096) as f32 / 4096.0
+        let level = self.level();
+
+        if level > 1024 {
+            (level - 1024).min(4096) as f32 / 4096.0
         } else {
             0.0
         }
@@ -225,28 +254,47 @@ impl WaterCell {
     }
 
     pub fn fill(&mut self) {
-        self.level += 16 * 1024;
+        if let CellType::Inside { ref mut level } = self.cell_type {
+            *level += 16 * 1024;
+        }
     }
 
     pub fn is_wall(&self) -> bool {
-        self.wall
+        matches!(self.cell_type, CellType::Wall { .. })
+    }
+
+    pub fn is_sea(&self) -> bool {
+        matches!(self.cell_type, CellType::Sea)
     }
 
     pub fn make_wall(&mut self) {
-        self.wall = true;
-        self.level = 0;
+        self.cell_type = CellType::Wall {
+            wall_reflect: [0; DIRECTIONS],
+        };
         self.velocity_x = 0;
         self.velocity_y = 0;
     }
 
+    pub fn make_sea(&mut self) {
+        self.cell_type = CellType::Sea
+    }
+
     pub fn clear_wall(&mut self) {
-        self.wall = false;
-        self.wall_reflect = [0; DIRECTIONS];
+        self.cell_type = CellType::Inside { level: 0 };
+    }
+
+    fn set_level(&mut self, new_level: u32) {
+        match self.cell_type {
+            CellType::Inside { ref mut level } => *level = new_level,
+            CellType::Wall { wall_reflect } => (),
+            CellType::Sea => (),
+        }
     }
 
     fn pressure_surplus(&self) -> u32 {
-        if self.level > 1024 {
-            (self.level - 1024) / DIRECTIONS as u32
+        let level = self.level();
+        if level > 1024 {
+            (level - 1024) / DIRECTIONS as u32
         } else {
             0
         }
@@ -256,7 +304,7 @@ impl WaterCell {
         let direction = (opposite_direction + (DIRECTIONS / 2)) % DIRECTIONS;
 
         // This amount of water can leave the cell
-        let level = self.level.min(1024) as i32;
+        let level = self.level().min(1024) as i32;
 
         // This amount of water should leave the cell
         let should_leave = self.velocity_x.abs() + self.velocity_y.abs();
@@ -293,7 +341,7 @@ impl WaterCell {
     }
 
     fn total_gravity_surplus(&self) -> u32 {
-        let level = self.level.min(1024) as i32;
+        let level = self.level().min(1024) as i32;
 
         // This amount of water should leave the cell
         let should_leave = self.velocity_x.abs() + self.velocity_y.abs();
@@ -324,7 +372,11 @@ impl WaterCell {
 
         // reflected
 
-        let direction = (opposite_direction + (DIRECTIONS / 2)) % DIRECTIONS;
-        self.wall_reflect[direction]
+        if let CellType::Wall { ref wall_reflect } = self.cell_type {
+            let direction = (opposite_direction + (DIRECTIONS / 2)) % DIRECTIONS;
+            wall_reflect[direction]
+        } else {
+            0
+        }
     }
 }

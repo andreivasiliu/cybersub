@@ -4,6 +4,7 @@ use flate2::read::GzDecoder;
 use crate::{
     draw::{draw_game, handle_keyboard_input, handle_pointer_input, Camera},
     draw_quad::draw_quad_game,
+    saveload::{load, load_png, save, save_png},
     water::WaterGrid,
 };
 
@@ -114,6 +115,20 @@ impl CyberSubApp {
 
                         if ui.button("Load grid").clicked() {
                             match load() {
+                                Ok(new_grid) => *grid = new_grid,
+                                Err(err) => *error_message = Some(err),
+                            }
+                        }
+
+                        if ui.button("Save grid as PNG").clicked() {
+                            match save_png(grid) {
+                                Ok(()) => (),
+                                Err(err) => *error_message = Some(err),
+                            }
+                        }
+
+                        if ui.button("Load grid from PNG").clicked() {
+                            match load_png() {
                                 Ok(new_grid) => *grid = new_grid,
                                 Err(err) => *error_message = Some(err),
                             }
@@ -233,48 +248,5 @@ impl CyberSubApp {
 
     pub fn draw_quad_game(&self) {
         draw_quad_game(&self.grid, &self.camera);
-    }
-}
-
-fn save(grid: &WaterGrid) -> Result<(), String> {
-    #[cfg(not(target_arch = "wasm32"))]
-    {
-        use flate2::{read::GzEncoder, Compression};
-
-        let file = std::fs::File::create("grid.bin.gz")
-            .map_err(|err| format!("Could not save: {}", err))?;
-        let encoder = GzEncoder::new(file, Compression::best());
-        let writer = std::io::BufWriter::new(encoder);
-
-        bincode::serialize_into(writer, grid)
-            .map_err(|err| format!("Could not serialize grid: {}", err))?;
-
-        Ok(())
-    }
-
-    #[cfg(target_arch = "wasm32")]
-    {
-        let _ = grid;
-        Err("Saving not yet possible on browsers".to_string())
-    }
-}
-
-fn load() -> Result<WaterGrid, String> {
-    #[cfg(not(target_arch = "wasm32"))]
-    {
-        let file =
-            std::fs::File::open("grid.bin.gz").map_err(|err| format!("Could not load: {}", err))?;
-        let decoder = GzDecoder::new(file);
-        let reader = std::io::BufReader::new(decoder);
-
-        let grid = bincode::deserialize_from(reader)
-            .map_err(|err| format!("Could not deserialize: {}", err))?;
-
-        Ok(grid)
-    }
-
-    #[cfg(target_arch = "wasm32")]
-    {
-        Err("Loading not yet possible on browsers".to_string())
     }
 }

@@ -346,6 +346,7 @@ dependencies = [
  "egui-macroquad",
  "flate2",
  "macroquad",
+ "png",
  "serde",
 ]
 
