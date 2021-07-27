@@ -23,6 +23,7 @@ pub struct CyberSubApp {
     camera: Camera,
     error_message: Option<String>,
     current_tool: Tool,
+    draw_sea_water: bool,
 }
 
 #[derive(PartialEq, Eq)]
@@ -54,6 +55,7 @@ impl Default for CyberSubApp {
             },
             error_message: None,
             current_tool: Tool::AddWater,
+            draw_sea_water: true,
         }
     }
 }
@@ -99,6 +101,7 @@ impl CyberSubApp {
             error_message,
             camera,
             current_tool,
+            draw_sea_water,
             ..
         } = self;
 
@@ -183,6 +186,7 @@ impl CyberSubApp {
             ui.checkbox(show_ui, "Show UI");
             ui.checkbox(enable_gravity, "Enable gravity");
             ui.checkbox(enable_inertia, "Enable inertia");
+            ui.checkbox(draw_sea_water, "Enable sea shader");
             ui.horizontal(|ui| {
                 ui.label("Zoom:");
                 ui.add(Slider::new(&mut camera.zoom, -512..=36));
@@ -243,7 +247,7 @@ impl CyberSubApp {
     }
 
     pub fn draw_game(&self, resources: &Resources) {
-        draw_game(&self.grid, &self.camera, resources);
+        draw_game(&self.grid, &self.camera, self.draw_sea_water, resources);
     }
 
     pub fn draw_quad_game(&self) {

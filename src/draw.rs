@@ -92,19 +92,20 @@ pub(crate) fn to_screen_coords(x: usize, y: usize, width: usize, height: usize) 
     )
 }
 
-pub(crate) fn draw_game(grid: &WaterGrid, camera: &Camera, resources: &Resources) {
+pub(crate) fn draw_game(grid: &WaterGrid, camera: &Camera, draw_sea_water: bool, resources: &Resources) {
     let camera = camera.to_macroquad_camera();
     set_camera(&camera);
 
     let (width, height) = grid.size();
 
-    resources.sea_water.set_uniform("iTime", get_time() as f32);
-    resources
-        .sea_water
-        .set_uniform("iResolution", vec2(0.3, 0.3));
-
-    gl_use_material(resources.sea_water);
-    draw_rect_at(vec2(0.0, 0.0), 500.0, BLACK);
+    if draw_sea_water {
+        resources.sea_water.set_uniform("iTime", get_time() as f32);
+        resources
+            .sea_water
+            .set_uniform("iResolution", vec2(0.3, 0.3));
+        gl_use_material(resources.sea_water);
+    }
+    draw_rect_at(vec2(0.0, 0.0), 500.0, DARKBLUE);
 
     gl_use_default_material();
     let top_left = to_screen_coords(0, 0, width, height) - vec2(0.5, 0.5);
