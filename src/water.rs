@@ -230,7 +230,7 @@ impl WaterCell {
     fn level(&self) -> u32 {
         match self.cell_type {
             CellType::Inside { level } => level,
-            CellType::Wall { wall_reflect } => 0,
+            CellType::Wall { .. } => 0,
             CellType::Sea => SEA_LEVEL,
         }
     }
@@ -279,14 +279,20 @@ impl WaterCell {
         self.cell_type = CellType::Sea
     }
 
+    pub fn make_inside(&mut self) {
+        self.cell_type = CellType::Inside { level: 0 }
+    }
+
     pub fn clear_wall(&mut self) {
-        self.cell_type = CellType::Inside { level: 0 };
+        if self.is_wall() {
+            self.cell_type = CellType::Inside { level: 0 };
+        }
     }
 
     fn set_level(&mut self, new_level: u32) {
         match self.cell_type {
             CellType::Inside { ref mut level } => *level = new_level,
-            CellType::Wall { wall_reflect } => (),
+            CellType::Wall { .. } => (),
             CellType::Sea => (),
         }
     }

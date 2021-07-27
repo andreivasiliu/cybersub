@@ -1,11 +1,12 @@
 use egui::{vec2, Slider};
-use flate2::read::GzDecoder;
 
 use crate::{
-    draw::{draw_game, handle_keyboard_input, handle_pointer_input, Camera},
+    draw::{draw_game, Camera},
     draw_quad::draw_quad_game,
-    saveload::{load, load_png, save, save_png},
+    input::{handle_keyboard_input, handle_pointer_input},
+    saveload::{load, load_png, load_png_from_bytes, save, save_png},
     water::WaterGrid,
+    Resources,
 };
 
 pub struct CyberSubApp {
@@ -59,8 +60,7 @@ impl Default for CyberSubApp {
 
 impl CyberSubApp {
     pub fn load_grid(&mut self, grid_bytes: Vec<u8>) {
-        let decoder = GzDecoder::new(grid_bytes.as_slice());
-        self.grid = bincode::deserialize_from(decoder).unwrap();
+        self.grid = load_png_from_bytes(&grid_bytes).expect("Could not load grid");
     }
 
     pub fn update_game(&mut self, game_time: f64) {
@@ -242,8 +242,8 @@ impl CyberSubApp {
         handle_keyboard_input(&mut self.camera, &mut self.current_tool);
     }
 
-    pub fn draw_game(&self) {
-        draw_game(&self.grid, &self.camera);
+    pub fn draw_game(&self, resources: &Resources) {
+        draw_game(&self.grid, &self.camera, resources);
     }
 
     pub fn draw_quad_game(&self) {

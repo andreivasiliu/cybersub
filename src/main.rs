@@ -1,6 +1,6 @@
 #![warn(clippy::all, rust_2018_idioms)]
 
-use cybersub::CyberSubApp;
+use cybersub::{CyberSubApp, ResourcesBuilder};
 use macroquad::prelude::{clear_background, get_time, load_file, next_frame, Conf, BLACK};
 
 fn window_conf() -> Conf {
@@ -16,9 +16,17 @@ fn window_conf() -> Conf {
 async fn main() {
     let mut cybersub_app = CyberSubApp::default();
 
-    // if let Ok(grid_file) = load_file("grid.bin.gz").await {
-    // cybersub_app.load_grid(grid_file);
-    // }
+    if let Ok(grid_file) = load_file("grid.png").await {
+        cybersub_app.load_grid(grid_file);
+    }
+
+    let background_bytes = load_file("background.png")
+        .await
+        .expect("Background not found");
+
+    let resources = ResourcesBuilder::new()
+        .sub_background(&background_bytes)
+        .build();
 
     loop {
         clear_background(BLACK);
@@ -35,7 +43,7 @@ async fn main() {
 
         cybersub_app.update_game(get_time());
 
-        cybersub_app.draw_game();
+        cybersub_app.draw_game(&resources);
         // cybersub_app.draw_quad_game();
 
         egui_macroquad::draw();

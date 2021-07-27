@@ -1,10 +1,10 @@
 use macroquad::prelude::{
-    draw_line, draw_rectangle, is_key_down, is_key_pressed, is_key_released, is_mouse_button_down,
-    is_mouse_button_pressed, mouse_position, mouse_wheel, screen_height, screen_width, set_camera,
-    vec2, Camera2D, Color, KeyCode, MouseButton, Rect, Vec2, BLACK, DARKBLUE, GRAY, SKYBLUE,
+    draw_line, draw_rectangle, draw_texture, get_time, gl_use_default_material, gl_use_material,
+    load_material, screen_height, screen_width, set_camera, vec2, Camera2D, Color, ImageFormat,
+    Material, MaterialParams, Texture2D, UniformType, Vec2, BLACK, DARKBLUE, GRAY, SKYBLUE, WHITE,
 };
 
-use crate::{app::Tool, water::WaterGrid};
+use crate::water::WaterGrid;
 
 #[derive(Debug, Default)]
 pub(crate) struct Camera {
@@ -15,15 +15,24 @@ pub(crate) struct Camera {
     pub scrolling_from: f32,
 }
 
+pub struct ResourcesBuilder {
+    sub_background: Option<Texture2D>,
+}
+
+pub struct Resources {
+    sub_background: Texture2D,
+    sea_water: Material,
+}
+
 impl Camera {
     pub fn to_macroquad_camera(&self) -> Camera2D {
         let zoom = if screen_height() < screen_width() {
-            vec2(screen_height() / screen_width(), 1.0) * 1.3
+            vec2(screen_height() / screen_width(), -1.0) * 1.3
         } else {
-            vec2(1.0, screen_width() / screen_height())
+            vec2(1.0, -screen_width() / screen_height())
         };
 
-        let offset = vec2(-self.offset_x as f32 / 2.0, -self.offset_y as f32 / 2.0);
+        let offset = vec2(-self.offset_x as f32 * 2.0, -self.offset_y as f32 * 2.0);
 
         Camera2D {
             zoom: zoom * (1.5 / 50.0) * self.user_zoom(),
@@ -37,87 +46,37 @@ impl Camera {
     }
 }
 
-pub(crate) fn handle_keyboard_input(camera: &mut Camera, current_tool: &mut Tool) {
-    if is_key_down(KeyCode::A) || is_key_down(KeyCode::Left) {
-        camera.offset_x += 1.0;
-    }
-    if is_key_down(KeyCode::D) || is_key_down(KeyCode::Right) {
-        camera.offset_x -= 1.0;
-    }
-    if is_key_down(KeyCode::W) || is_key_down(KeyCode::Up) {
-        camera.offset_y -= 1.0;
-    }
-    if is_key_down(KeyCode::S) || is_key_down(KeyCode::Down) {
-        camera.offset_y += 1.0;
-    }
-    if is_key_down(KeyCode::KpAdd) {
-        camera.zoom += 1;
-    }
-    if is_key_down(KeyCode::KpSubtract) {
-        camera.zoom -= 1;
-    }
-    if is_key_pressed(KeyCode::LeftShift) {
-        *current_tool = Tool::RemoveWalls;
-    }
-    if is_key_pressed(KeyCode::LeftControl) {
-        *current_tool = Tool::AddWalls;
-    }
-    if is_key_released(KeyCode::LeftShift) || is_key_released(KeyCode::LeftControl) {
-        *current_tool = Tool::AddWater;
-    }
-}
-
-pub(crate) fn handle_pointer_input(grid: &mut WaterGrid, camera: &mut Camera, tool: &Tool) {
-    let macroquad_camera = camera.to_macroquad_camera();
-
-    if is_mouse_button_pressed(MouseButton::Right) {
-        camera.dragging_from = mouse_position();
+impl ResourcesBuilder {
+    pub fn new() -> Self {
+        ResourcesBuilder {
+            sub_background: None,
+        }
     }
 
-    if is_mouse_button_down(MouseButton::Right) {
-        let new_position = mouse_position();
-
-        let old = macroquad_camera.screen_to_world(Vec2::from(camera.dragging_from));
-        let new = macroquad_camera.screen_to_world(Vec2::from(new_position));
-
-        let delta = (new - old) * 2.0;
-
-        camera.offset_x += delta.x;
-        camera.offset_y += delta.y;
-
-        camera.dragging_from = new_position;
+    pub fn sub_background(mut self, bytes: &[u8]) -> Self {
+        self.sub_background = Some(Texture2D::from_file_with_format(
+            bytes,
+            Some(ImageFormat::Png),
+        ));
+        self
     }
 
-    let scroll = mouse_wheel().1;
-    if scroll != 0.0 {
-        camera.zoom = (camera.zoom + scroll as i32 * 4).clamp(-512, 36);
-    }
-
-    if !is_mouse_button_down(MouseButton::Left) {
-        return;
-    }
-
-    let mouse_position = macroquad_camera.screen_to_world(mouse_position().into());
-
-    let (width, height) = grid.size();
-
-    // Yes, this is silly. I'm just too lazy to figure out the math to find i/j directly.
-    for i in 0..width {
-        for j in 0..height {
-            let pos = to_screen_coords(i, j, width, height);
-
-            let size = 0.5;
-            let rect = Rect::new(pos.x - size, pos.y - size, size * 2.0, size * 2.0);
-
-            if rect.contains(mouse_position) {
-                let cell = grid.cell_mut(i, j);
-                match tool {
-                    Tool::AddWater => cell.fill(),
-                    Tool::AddWalls => cell.make_wall(),
-                    Tool::RemoveWalls => cell.clear_wall(),
-                }
-                return;
-            }
+    pub fn build(self) -> Resources {
+        let sea_water = load_material(
+            include_str!("vertex.glsl"),
+            include_str!("water.glsl"),
+            MaterialParams {
+                uniforms: vec![
+                    ("iTime".to_string(), UniformType::Float1),
+                    ("iResolution".to_string(), UniformType::Float2),
+                ],
+                ..Default::default()
+            },
+        )
+        .expect("Could not load material");
+        Resources {
+            sea_water,
+            sub_background: self.sub_background.expect("Sub Background not provided"),
         }
     }
 }
@@ -129,15 +88,27 @@ fn draw_rect_at(pos: Vec2, size: f32, color: Color) {
 pub(crate) fn to_screen_coords(x: usize, y: usize, width: usize, height: usize) -> Vec2 {
     vec2(
         (x as i32 - (width as i32 / 2)) as f32,
-        -((y as i32 - (height as i32 / 2)) as f32),
+        (y as i32 - (height as i32 / 2)) as f32,
     )
 }
 
-pub(crate) fn draw_game(grid: &WaterGrid, camera: &Camera) {
+pub(crate) fn draw_game(grid: &WaterGrid, camera: &Camera, resources: &Resources) {
     let camera = camera.to_macroquad_camera();
     set_camera(&camera);
 
     let (width, height) = grid.size();
+
+    resources.sea_water.set_uniform("iTime", get_time() as f32);
+    resources
+        .sea_water
+        .set_uniform("iResolution", vec2(0.3, 0.3));
+
+    gl_use_material(resources.sea_water);
+    draw_rect_at(vec2(0.0, 0.0), 500.0, BLACK);
+
+    gl_use_default_material();
+    let top_left = to_screen_coords(0, 0, width, height) - vec2(0.5, 0.5);
+    draw_texture(resources.sub_background, top_left.x, top_left.y, WHITE);
 
     for i in 0..width {
         for j in 0..height {
@@ -157,24 +128,28 @@ pub(crate) fn draw_game(grid: &WaterGrid, camera: &Camera) {
             // draw_rect_at(pos, size * 1.05, GRAY);
             // draw_rect_at(pos, size, BLACK);
 
-            if grid.cell(i, j).is_wall() {
+            let cell = grid.cell(i, j);
+
+            if cell.is_wall() {
                 draw_rect_at(pos, size, GRAY);
-            } else if level > 0.0 {
+            } else if level > 0.0 && !cell.is_sea() {
                 draw_rect_at(pos, size * level, SKYBLUE);
                 draw_rect_at(pos, size * overlevel, DARKBLUE);
             }
 
-            let velocity = vec2(velocity.0, -velocity.1).normalize_or_zero() * 0.35;
+            if !cell.is_sea() && !cell.is_wall() && level != 0.0 {
+                let velocity = vec2(velocity.0, velocity.1).normalize_or_zero() * 0.35;
 
-            if velocity != vec2(0.0, 0.0) {
-                draw_line(
-                    pos.x,
-                    pos.y,
-                    pos.x + velocity.x,
-                    pos.y + velocity.y,
-                    0.1,
-                    BLACK,
-                );
+                if velocity != vec2(0.0, 0.0) {
+                    draw_line(
+                        pos.x,
+                        pos.y,
+                        pos.x + velocity.x,
+                        pos.y + velocity.y,
+                        0.1,
+                        BLACK,
+                    );
+                }
             }
         }
     }
