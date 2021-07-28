@@ -1,10 +1,14 @@
 use macroquad::prelude::{
-    draw_line, draw_rectangle, draw_texture, get_time, gl_use_default_material, gl_use_material,
-    load_material, screen_height, screen_width, set_camera, vec2, Camera2D, Color, ImageFormat,
-    Material, MaterialParams, Texture2D, UniformType, Vec2, BLACK, DARKBLUE, GRAY, SKYBLUE, WHITE,
+    draw_line, draw_rectangle, draw_texture, draw_texture_ex, get_time, gl_use_default_material,
+    gl_use_material, load_material, screen_height, screen_width, set_camera, vec2, Camera2D, Color,
+    DrawTextureParams, FilterMode, ImageFormat, Material, MaterialParams, Rect, Texture2D,
+    UniformType, Vec2, BLACK, DARKBLUE, GRAY, SKYBLUE, WHITE,
 };
 
-use crate::water::WaterGrid;
+use crate::{
+    objects::{Object, ObjectType},
+    water::WaterGrid,
+};
 
 #[derive(Debug, Default)]
 pub(crate) struct Camera {
@@ -21,6 +25,7 @@ pub struct ResourcesBuilder {
 
 pub struct Resources {
     sub_background: Texture2D,
+    door: Texture2D,
     sea_water: Material,
 }
 
@@ -58,6 +63,10 @@ impl ResourcesBuilder {
             bytes,
             Some(ImageFormat::Png),
         ));
+        self.sub_background
+            .as_mut()
+            .unwrap()
+            .set_filter(FilterMode::Nearest);
         self
     }
 
@@ -74,9 +83,17 @@ impl ResourcesBuilder {
             },
         )
         .expect("Could not load material");
+
+        let door = Texture2D::from_file_with_format(
+            include_bytes!("../resources/door.png"),
+            Some(ImageFormat::Png),
+        );
+        door.set_filter(FilterMode::Nearest);
+
         Resources {
             sea_water,
             sub_background: self.sub_background.expect("Sub Background not provided"),
+            door,
         }
     }
 }
@@ -92,22 +109,46 @@ pub(crate) fn to_screen_coords(x: usize, y: usize, width: usize, height: usize) 
     )
 }
 
-pub(crate) fn draw_game(grid: &WaterGrid, camera: &Camera, draw_sea_water: bool, resources: &Resources) {
+pub(crate) fn draw_game(
+    grid: &WaterGrid,
+    camera: &Camera,
+    draw_sea_water: bool,
+    objects: &Vec<Object>,
+    resources: &Resources,
+) {
     let camera = camera.to_macroquad_camera();
     set_camera(&camera);
 
+    if draw_sea_water {
+        draw_sea(resources);
+    } else {
+        draw_fake_sea();
+    }
+
     let (width, height) = grid.size();
 
-    if draw_sea_water {
-        resources.sea_water.set_uniform("iTime", get_time() as f32);
-        resources
-            .sea_water
-            .set_uniform("iResolution", vec2(0.3, 0.3));
-        gl_use_material(resources.sea_water);
-    }
-    draw_rect_at(vec2(0.0, 0.0), 500.0, DARKBLUE);
+    draw_water(grid, resources);
 
+    draw_objects(objects, width, height, resources);
+}
+
+fn draw_sea(resources: &Resources) {
+    resources.sea_water.set_uniform("iTime", get_time() as f32);
+    resources
+        .sea_water
+        .set_uniform("iResolution", vec2(0.3, 0.3));
+    gl_use_material(resources.sea_water);
+    draw_rect_at(vec2(0.0, 0.0), 500.0, DARKBLUE);
     gl_use_default_material();
+}
+
+fn draw_fake_sea() {
+    draw_rect_at(vec2(0.0, 0.0), 500.0, DARKBLUE);
+}
+
+fn draw_water(grid: &WaterGrid, resources: &Resources) {
+    let (width, height) = grid.size();
+
     let top_left = to_screen_coords(0, 0, width, height) - vec2(0.5, 0.5);
     draw_texture(resources.sub_background, top_left.x, top_left.y, WHITE);
 
@@ -125,9 +166,6 @@ pub(crate) fn draw_game(grid: &WaterGrid, camera: &Camera, draw_sea_water: bool,
             };
 
             let size = 0.5;
-
-            // draw_rect_at(pos, size * 1.05, GRAY);
-            // draw_rect_at(pos, size, BLACK);
 
             let cell = grid.cell(i, j);
 
@@ -153,5 +191,47 @@ pub(crate) fn draw_game(grid: &WaterGrid, camera: &Camera, draw_sea_water: bool,
                 }
             }
         }
+    }
+}
+
+pub(crate) fn object_rect(object: &Object, width: usize, height: usize) -> Rect {
+    let pos = to_screen_coords(
+        object.position_x as usize,
+        object.position_y as usize,
+        width,
+        height,
+    );
+
+    let size = object.size();
+    let size = vec2(size.0 as f32, size.1 as f32);
+
+    Rect::new(pos.x + 0.5, pos.y + 0.5, size.x, size.y)
+}
+
+fn draw_objects(objects: &Vec<Object>, width: usize, height: usize, resources: &Resources) {
+    for object in objects {
+        let draw_rect = object_rect(object, width, height);
+
+        let texture = match object.object_type {
+            ObjectType::Door { .. } => resources.door,
+        };
+
+        // Textures are vertically split into equally-sized animation frames
+        let frame_width = texture.width();
+        let frame_height = (texture.height() as u16 / object.frames) as f32;
+        let frame_x = 0.0;
+        let frame_y = (frame_height as u16 * object.current_frame) as f32;
+
+        draw_texture_ex(
+            texture,
+            draw_rect.x,
+            draw_rect.y,
+            WHITE,
+            DrawTextureParams {
+                dest_size: Some(draw_rect.size()),
+                source: Some(Rect::new(frame_x, frame_y, frame_width, frame_height)),
+                ..Default::default()
+            },
+        );
     }
 }

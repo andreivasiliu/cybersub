@@ -4,9 +4,10 @@ mod app;
 pub use app::CyberSubApp;
 
 mod draw;
-mod draw_quad;
 mod input;
+mod objects;
 mod saveload;
+mod ui;
 mod water;
 
 pub use draw::{Resources, ResourcesBuilder};

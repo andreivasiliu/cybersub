@@ -1,12 +1,12 @@
 use macroquad::prelude::{
     is_key_down, is_key_pressed, is_key_released, is_mouse_button_down, is_mouse_button_pressed,
-    is_mouse_button_released, mouse_position, mouse_wheel, set_cursor_grab, KeyCode, MouseButton,
-    Rect, Vec2,
+    is_mouse_button_released, mouse_position, mouse_wheel, KeyCode, MouseButton, Rect, Vec2,
 };
 
 use crate::{
     app::Tool,
-    draw::{to_screen_coords, Camera},
+    draw::{object_rect, to_screen_coords, Camera},
+    objects::{interact_with_object, Object},
     water::WaterGrid,
 };
 
@@ -40,19 +40,26 @@ pub(crate) fn handle_keyboard_input(camera: &mut Camera, current_tool: &mut Tool
     }
 }
 
-pub(crate) fn handle_pointer_input(grid: &mut WaterGrid, camera: &mut Camera, tool: &Tool) {
+pub(crate) fn handle_pointer_input(
+    grid: &mut WaterGrid,
+    objects: &mut Vec<Object>,
+    camera: &mut Camera,
+    tool: &Tool,
+    dragging_object: &mut bool,
+) {
     let macroquad_camera = camera.to_macroquad_camera();
 
     if is_mouse_button_pressed(MouseButton::Right) {
         camera.dragging_from = mouse_position();
         if cfg!(not(target_arch = "wasm32")) {
-            set_cursor_grab(true);
+            // TODO: Bugged; it makes the egui windows act weird
+            // set_cursor_grab(true);
         }
     }
 
     if is_mouse_button_released(MouseButton::Right) {
         if cfg!(not(target_arch = "wasm32")) {
-            set_cursor_grab(false);
+            // set_cursor_grab(false);
         }
     }
 
@@ -81,13 +88,30 @@ pub(crate) fn handle_pointer_input(grid: &mut WaterGrid, camera: &mut Camera, to
         camera.zoom = (camera.zoom + (scroll * multiplier) as i32 * 4).clamp(-512, 36);
     }
 
-    if !is_mouse_button_down(MouseButton::Left) {
-        return;
-    }
-
     let mouse_position = macroquad_camera.screen_to_world(mouse_position().into());
 
     let (width, height) = grid.size();
+
+    if is_mouse_button_pressed(MouseButton::Left) {
+        for object in objects {
+            let draw_rect = object_rect(object, width, height);
+
+            if draw_rect.contains(mouse_position) {
+                interact_with_object(object);
+                *dragging_object = true;
+                return;
+            }
+        }
+    }
+
+    if is_mouse_button_released(MouseButton::Left) {
+        *dragging_object = false;
+    }
+
+    // Painting the grid
+    if !is_mouse_button_down(MouseButton::Left) || *dragging_object {
+        return;
+    }
 
     // Yes, this is silly. I'm just too lazy to figure out the math to find i/j directly.
     for i in 0..width {

@@ -3,7 +3,10 @@ use std::io::Read;
 use flate2::read::GzDecoder;
 use png::{BitDepth, ColorType, Decoder, Encoder};
 
-use crate::water::WaterGrid;
+use crate::{
+    objects::{DoorState, Object, ObjectType},
+    water::WaterGrid,
+};
 
 pub(crate) fn save(grid: &WaterGrid) -> Result<(), String> {
     if cfg!(target_arch = "wasm32") {
@@ -106,10 +109,12 @@ fn load_png_from_decoder(png_decoder: Decoder<impl Read>) -> Result<WaterGrid, S
                 [0, 0, 255, 255] => cell.make_sea(),
                 [255, 255, 255, 255] => cell.make_wall(),
                 [0, 0, 0, 0] => cell.make_inside(),
-                [r, g, b, a] => return Err(format!(
+                [r, g, b, a] => {
+                    return Err(format!(
                     "Unknown color code {}/{}/{}/{}; expected blue, white, or black-transparent",
                     r, g, b, a
-                )),
+                ))
+                }
                 _ => panic!("Expected row size to equal PNG width"),
             }
         }
@@ -135,4 +140,31 @@ pub(crate) fn load_png() -> Result<WaterGrid, String> {
     let png_decoder = Decoder::new(reader);
 
     load_png_from_decoder(png_decoder)
+}
+
+pub(crate) fn load_objects() -> Vec<Object> {
+    let mut objects = Vec::new();
+
+    let doors = &[
+        (146, 13),
+        (191, 39),
+        (209, 64),
+        (273, 64),
+        (59, 64),
+    ];
+
+    for door in doors {
+        objects.push(Object {
+            object_type: ObjectType::Door {
+                state: DoorState::Closing,
+                progress: 0,
+            },
+            position_x: door.0,
+            position_y: door.1,
+            current_frame: 0,
+            frames: 8,
+        });
+    }
+
+    objects
 }

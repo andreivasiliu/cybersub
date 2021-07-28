@@ -267,6 +267,10 @@ impl WaterCell {
         matches!(self.cell_type, CellType::Sea)
     }
 
+    pub fn is_inside(&self) -> bool {
+        matches!(self.cell_type, CellType::Inside { .. })
+    }
+
     pub fn make_wall(&mut self) {
         self.cell_type = CellType::Wall {
             wall_reflect: [0; DIRECTIONS],

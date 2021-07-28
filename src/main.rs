@@ -18,6 +18,7 @@ async fn main() {
 
     if let Ok(grid_file) = load_file("grid.png").await {
         cybersub_app.load_grid(grid_file);
+        cybersub_app.load_objects();
     }
 
     let background_bytes = load_file("background.png")
