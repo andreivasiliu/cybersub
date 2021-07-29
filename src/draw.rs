@@ -20,8 +20,10 @@ pub struct ResourcesBuilder {
 
 pub struct Resources {
     sub_background: Texture2D,
+    wall: Texture2D,
     door: Texture2D,
-    door_highlight: Material,
+    vertical_door: Texture2D,
+    hover_highlight: Material,
     sea_water: Material,
 }
 
@@ -80,13 +82,25 @@ impl ResourcesBuilder {
         )
         .expect("Could not load material");
 
+        let wall = Texture2D::from_file_with_format(
+            include_bytes!("../resources/wall.png"),
+            Some(ImageFormat::Png),
+        );
+        wall.set_filter(FilterMode::Nearest);
+
         let door = Texture2D::from_file_with_format(
             include_bytes!("../resources/door.png"),
             Some(ImageFormat::Png),
         );
         door.set_filter(FilterMode::Nearest);
 
-        let door_highlight = load_material(
+        let vertical_door = Texture2D::from_file_with_format(
+            include_bytes!("../resources/vertical_door.png"),
+            Some(ImageFormat::Png),
+        );
+        vertical_door.set_filter(FilterMode::Nearest);
+
+        let hover_highlight = load_material(
             include_str!("vertex.glsl"),
             include_str!("highlight.glsl"),
             MaterialParams {
@@ -116,9 +130,11 @@ impl ResourcesBuilder {
 
         Resources {
             sea_water,
+            wall,
             sub_background: self.sub_background.expect("Sub Background not provided"),
             door,
-            door_highlight,
+            vertical_door,
+            hover_highlight,
         }
     }
 }
@@ -138,6 +154,7 @@ pub(crate) fn draw_game(
     grid: &WaterGrid,
     camera: &Camera,
     draw_sea_water: bool,
+    should_draw_objects: bool,
     objects: &Vec<Object>,
     resources: &Resources,
     highlighting_object: &Option<(usize, bool)>,
@@ -155,7 +172,9 @@ pub(crate) fn draw_game(
 
     draw_water(grid, resources);
 
-    draw_objects(objects, width, height, resources, highlighting_object);
+    if should_draw_objects {
+        draw_objects(objects, width, height, resources, highlighting_object);
+    }
 }
 
 fn draw_sea(resources: &Resources) {
@@ -196,7 +215,11 @@ fn draw_water(grid: &WaterGrid, resources: &Resources) {
             let cell = grid.cell(i, j);
 
             if cell.is_wall() {
-                draw_rect_at(pos, size, GRAY);
+                draw_texture_ex(resources.wall, pos.x - 0.5, pos.y - 0.5, GRAY, DrawTextureParams {
+                    dest_size: Some(vec2(1.0, 1.0)),
+                    ..Default::default()
+                });
+                //draw_rect_at(pos, size, GRAY);
             } else if level > 0.0 && !cell.is_sea() {
                 draw_rect_at(pos, size * level, SKYBLUE);
                 draw_rect_at(pos, size * overlevel, DARKBLUE);
@@ -246,6 +269,7 @@ fn draw_objects(
 
         let texture = match object.object_type {
             ObjectType::Door { .. } => resources.door,
+            ObjectType::VerticalDoor { .. } => resources.vertical_door,
         };
 
         // Textures are vertically split into equally-sized animation frames
@@ -268,20 +292,20 @@ fn draw_objects(
 
         if let Some((highlighting_object, _clicked)) = highlighting_object {
             if *highlighting_object == obj_id {
-                let texture_resolution = vec2(resources.door.width(), resources.door.height());
+                let texture_resolution = vec2(texture.width(), texture.height());
                 resources
-                    .door_highlight
+                    .hover_highlight
                     .set_uniform("input_resolution", texture_resolution);
                 resources
-                    .door_highlight
+                    .hover_highlight
                     .set_uniform("frame_y", frame_y);
                     resources
-                    .door_highlight
+                    .hover_highlight
                     .set_uniform("frame_height", frame_height);
                 resources
-                    .door_highlight
-                    .set_texture("input_texture", resources.door);
-                gl_use_material(resources.door_highlight);
+                    .hover_highlight
+                    .set_texture("input_texture", texture);
+                gl_use_material(resources.hover_highlight);
                 let r = draw_rect;
                 draw_rectangle(r.x, r.y, r.w, r.h, DARKBLUE);
                 gl_use_default_material();

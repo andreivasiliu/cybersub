@@ -1,8 +1,3 @@
-// Shamelessly stolen from https://www.shadertoy.com/view/MdlXz8
-// Here just temporarily to test that shaders work; the sea water shader I have
-// in my head looks way different (particles in 3 planes moving in parallax
-// with the sub), but I don't know enough GLSL to do it yet.
-
 #version 100
 
 precision highp float;                                   
@@ -49,5 +44,5 @@ void main()
 
     float different = ceil(fract(alpha / 8.0));
 
-	gl_FragColor = vec4(0.4, 0.8, 0.8, different);
+	gl_FragColor = vec4(0.8, 0.4, 0.8, different);
 }

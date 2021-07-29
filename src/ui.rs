@@ -47,6 +47,7 @@ pub(crate) fn draw_ui(
         camera,
         current_tool,
         draw_sea_water,
+        draw_objects,
         quit_game,
         ..
     } = settings;
@@ -134,6 +135,7 @@ pub(crate) fn draw_ui(
         ui.checkbox(enable_gravity, "Enable gravity");
         ui.checkbox(enable_inertia, "Enable inertia");
         ui.checkbox(draw_sea_water, "Enable sea shader");
+        ui.checkbox(draw_objects, "Draw objects");
         ui.horizontal(|ui| {
             ui.label("Zoom:");
             ui.add(Slider::new(&mut camera.zoom, -512..=36));

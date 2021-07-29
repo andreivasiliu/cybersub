@@ -160,5 +160,28 @@ pub(crate) fn load_objects() -> Vec<Object> {
         });
     }
 
+    let vertical_doors = &[
+        (167, 23),
+        (77, 48),
+        (189, 48),
+        (267, 48),
+        (313, 48),
+        (173, 76),
+        (231, 76),
+    ];
+
+    for door in vertical_doors {
+        objects.push(Object {
+            object_type: ObjectType::VerticalDoor {
+                state: DoorState::Closing,
+                progress: 0,
+            },
+            position_x: door.0,
+            position_y: door.1,
+            current_frame: 0,
+            frames: 9,
+        });
+    }
+
     objects
 }
