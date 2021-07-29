@@ -168,8 +168,8 @@ pub(crate) fn draw_ui(
             ui.label("This is a water simulation prototype that I was considering using for a little game.");
             ui.label("The code is here:");
             ui.hyperlink_to("https://github.com/andreivasiliu/cybersub", "https://github.com/andreivasiliu/cybersub");
-            ui.label("Left-click to add water, right-click to add walls, middle-click to remove walls.");
-            ui.label("On browsers, right-click also opens the browser menu. I'm too lazy to fix that.");
+            ui.label("Left-click to add water or interact with objects.");
+            ui.label("On browsers, the right-click menu is disabled, in order to make scrolling easier. You can still shift-right-click.");
             ui.label("WASD, arrow keys, or hold right-click to move camera. Keypad +/- or mouse-scroll to zoom. Minus doesn't work on browsers. No idea why. There is currently no way to move the camera with a touch-screen.");
             ui.label("Use the tool controls (Add Water, Add Walls, etc) at the bottom to switch what left-click paints. Holding shift or ctrl is a shortcut for switching.");
             ui.label("Firefox is having issues with rendering the whole thing; my phone and other browsers work fine though.");

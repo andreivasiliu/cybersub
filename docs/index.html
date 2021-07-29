@@ -17,6 +17,12 @@
                 z-index: 0;
             }
         </style>
+        <script>
+            // Disable right-click menu to make dragging the camera easier
+            window.addEventListener('contextmenu', function (e) {
+                e.preventDefault();
+            }, false);
+        </Script>
     </head>
 
     <body>
