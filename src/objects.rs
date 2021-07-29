@@ -54,7 +54,7 @@ pub(crate) fn update_objects(objects: &mut Vec<Object>, grid: &mut WaterGrid) {
                     for x in 6..19 {
                         let cell_x = object.position_x + x;
                         let cell_y = object.position_y + y;
-        
+
                         let cell = grid.cell_mut(cell_x as usize, cell_y as usize);
 
                         if should_be_open(x) {

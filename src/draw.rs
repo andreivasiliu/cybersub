@@ -1,9 +1,4 @@
-use macroquad::prelude::{
-    draw_line, draw_rectangle, draw_texture, draw_texture_ex, get_time, gl_use_default_material,
-    gl_use_material, load_material, screen_height, screen_width, set_camera, vec2, Camera2D, Color,
-    DrawTextureParams, FilterMode, ImageFormat, Material, MaterialParams, Rect, Texture2D,
-    UniformType, Vec2, BLACK, DARKBLUE, GRAY, SKYBLUE, WHITE,
-};
+use macroquad::{miniquad::{BlendFactor, BlendState, BlendValue, Equation}, prelude::{BLACK, Camera2D, Color, DARKBLUE, DrawTextureParams, FilterMode, GRAY, ImageFormat, Material, MaterialParams, PipelineParams, Rect, SKYBLUE, Texture2D, UniformType, Vec2, WHITE, draw_line, draw_rectangle, draw_texture, draw_texture_ex, get_time, gl_use_default_material, gl_use_material, load_material, screen_height, screen_width, set_camera, vec2}};
 
 use crate::{
     objects::{Object, ObjectType},
@@ -26,6 +21,7 @@ pub struct ResourcesBuilder {
 pub struct Resources {
     sub_background: Texture2D,
     door: Texture2D,
+    door_highlight: Material,
     sea_water: Material,
 }
 
@@ -90,10 +86,39 @@ impl ResourcesBuilder {
         );
         door.set_filter(FilterMode::Nearest);
 
+        let door_highlight = load_material(
+            include_str!("vertex.glsl"),
+            include_str!("highlight.glsl"),
+            MaterialParams {
+                uniforms: vec![
+                    ("input_resolution".to_string(), UniformType::Float2),
+                    ("frame_y".to_string(), UniformType::Float1),
+                    ("frame_height".to_string(), UniformType::Float1),
+                    ("clicked".to_string(), UniformType::Float1),
+                ],
+                textures: vec!["input_texture".to_string()],
+                pipeline_params: PipelineParams {
+                    color_blend: Some(BlendState::new(
+                        Equation::Add,
+                        BlendFactor::Value(BlendValue::SourceAlpha),
+                        BlendFactor::OneMinusValue(BlendValue::SourceAlpha))
+                    ),
+                    alpha_blend: Some(BlendState::new(
+                        Equation::Add,
+                        BlendFactor::Zero,
+                        BlendFactor::One)
+                    ),
+                    ..Default::default()
+                }
+            },
+        )
+        .expect("Could not load door highlight material");
+
         Resources {
             sea_water,
             sub_background: self.sub_background.expect("Sub Background not provided"),
             door,
+            door_highlight,
         }
     }
 }
@@ -115,6 +140,7 @@ pub(crate) fn draw_game(
     draw_sea_water: bool,
     objects: &Vec<Object>,
     resources: &Resources,
+    highlighting_object: &Option<(usize, bool)>,
 ) {
     let camera = camera.to_macroquad_camera();
     set_camera(&camera);
@@ -129,7 +155,7 @@ pub(crate) fn draw_game(
 
     draw_water(grid, resources);
 
-    draw_objects(objects, width, height, resources);
+    draw_objects(objects, width, height, resources, highlighting_object);
 }
 
 fn draw_sea(resources: &Resources) {
@@ -208,8 +234,14 @@ pub(crate) fn object_rect(object: &Object, width: usize, height: usize) -> Rect 
     Rect::new(pos.x + 0.5, pos.y + 0.5, size.x, size.y)
 }
 
-fn draw_objects(objects: &Vec<Object>, width: usize, height: usize, resources: &Resources) {
-    for object in objects {
+fn draw_objects(
+    objects: &Vec<Object>,
+    width: usize,
+    height: usize,
+    resources: &Resources,
+    highlighting_object: &Option<(usize, bool)>,
+) {
+    for (obj_id, object) in objects.iter().enumerate() {
         let draw_rect = object_rect(object, width, height);
 
         let texture = match object.object_type {
@@ -233,5 +265,27 @@ fn draw_objects(objects: &Vec<Object>, width: usize, height: usize, resources: &
                 ..Default::default()
             },
         );
+
+        if let Some((highlighting_object, _clicked)) = highlighting_object {
+            if *highlighting_object == obj_id {
+                let texture_resolution = vec2(resources.door.width(), resources.door.height());
+                resources
+                    .door_highlight
+                    .set_uniform("input_resolution", texture_resolution);
+                resources
+                    .door_highlight
+                    .set_uniform("frame_y", frame_y);
+                    resources
+                    .door_highlight
+                    .set_uniform("frame_height", frame_height);
+                resources
+                    .door_highlight
+                    .set_texture("input_texture", resources.door);
+                gl_use_material(resources.door_highlight);
+                let r = draw_rect;
+                draw_rectangle(r.x, r.y, r.w, r.h, DARKBLUE);
+                gl_use_default_material();
+            }
+        }
     }
 }

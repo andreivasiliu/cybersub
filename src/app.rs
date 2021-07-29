@@ -22,6 +22,7 @@ pub(crate) struct GameSettings {
     pub draw_sea_water: bool,
     pub quit_game: bool,
     pub dragging_object: bool,
+    pub highlighting_object: Option<(usize, bool)>,
 }
 
 pub(crate) struct GameState {
@@ -54,6 +55,7 @@ impl Default for CyberSubApp {
                 quit_game: false,
                 draw_sea_water: true,
                 dragging_object: false,
+                highlighting_object: None,
             },
             game_state: GameState {
                 grid: WaterGrid::new(WIDTH, HEIGHT),
@@ -115,6 +117,7 @@ impl CyberSubApp {
             &mut self.game_settings.camera,
             &self.game_settings.current_tool,
             &mut self.game_settings.dragging_object,
+            &mut self.game_settings.highlighting_object,
         );
     }
 
@@ -132,6 +135,7 @@ impl CyberSubApp {
             self.game_settings.draw_sea_water,
             &self.game_state.objects,
             resources,
+            &self.game_settings.highlighting_object,
         );
     }
 }

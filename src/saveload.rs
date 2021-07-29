@@ -145,13 +145,7 @@ pub(crate) fn load_png() -> Result<WaterGrid, String> {
 pub(crate) fn load_objects() -> Vec<Object> {
     let mut objects = Vec::new();
 
-    let doors = &[
-        (146, 13),
-        (191, 39),
-        (209, 64),
-        (273, 64),
-        (59, 64),
-    ];
+    let doors = &[(146, 13), (191, 39), (209, 64), (273, 64), (59, 64)];
 
     for door in doors {
         objects.push(Object {

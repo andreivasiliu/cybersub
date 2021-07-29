@@ -46,6 +46,7 @@ pub(crate) fn handle_pointer_input(
     camera: &mut Camera,
     tool: &Tool,
     dragging_object: &mut bool,
+    highlighting_object: &mut Option<(usize, bool)>,
 ) {
     let macroquad_camera = camera.to_macroquad_camera();
 
@@ -92,13 +93,18 @@ pub(crate) fn handle_pointer_input(
 
     let (width, height) = grid.size();
 
-    if is_mouse_button_pressed(MouseButton::Left) {
-        for object in objects {
-            let draw_rect = object_rect(object, width, height);
+    *highlighting_object = None;
 
-            if draw_rect.contains(mouse_position) {
+    for (obj_index, object) in objects.iter_mut().enumerate() {
+        let draw_rect = object_rect(object, width, height);
+
+        if draw_rect.contains(mouse_position) {
+            *highlighting_object = Some((obj_index, false));
+
+            if is_mouse_button_pressed(MouseButton::Left) {
                 interact_with_object(object);
                 *dragging_object = true;
+                *highlighting_object = Some((obj_index, true));
                 return;
             }
         }
