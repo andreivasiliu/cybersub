@@ -12,6 +12,7 @@ pub struct CyberSubApp {
     ui_state: UiState,
     game_state: GameState,
     game_settings: GameSettings,
+    pub timings: Timings,
 }
 
 pub(crate) struct GameSettings {
@@ -21,6 +22,7 @@ pub(crate) struct GameSettings {
     pub current_tool: Tool,
     pub draw_sea_water: bool,
     pub draw_objects: bool,
+    pub draw_water_grid: bool,
     pub quit_game: bool,
     pub dragging_object: bool,
     pub highlighting_object: Option<(usize, bool)>,
@@ -37,6 +39,18 @@ pub(crate) enum Tool {
     AddWater,
     AddWalls,
     RemoveWalls,
+}
+
+#[derive(Default)]
+pub struct Timings {
+    pub egui_layout: u32,
+    pub egui_drawing: u32,
+    pub input_handling: u32,
+    pub game_update: u32,
+    pub game_layout: u32,
+    pub frame_update: u32,
+    pub fps: u32,
+    pub frame_time: u32,
 }
 
 const WIDTH: usize = 300;
@@ -56,6 +70,7 @@ impl Default for CyberSubApp {
                 quit_game: false,
                 draw_sea_water: true,
                 draw_objects: true,
+                draw_water_grid: true,
                 dragging_object: false,
                 highlighting_object: None,
             },
@@ -65,6 +80,7 @@ impl Default for CyberSubApp {
                 last_update: None,
             },
             ui_state: UiState::default(),
+            timings: Timings::default(),
         }
     }
 }
@@ -105,6 +121,7 @@ impl CyberSubApp {
             &mut self.ui_state,
             &mut self.game_settings,
             &mut self.game_state,
+            &self.timings,
         );
     }
 
@@ -136,6 +153,7 @@ impl CyberSubApp {
             &self.game_settings.camera,
             self.game_settings.draw_sea_water,
             self.game_settings.draw_objects,
+            self.game_settings.draw_water_grid,
             &self.game_state.objects,
             resources,
             &self.game_settings.highlighting_object,

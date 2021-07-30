@@ -1,8 +1,9 @@
-use egui::{vec2, Slider};
+use egui::{vec2, Color32, Label, Slider};
 
 use crate::{
     app::{GameSettings, GameState, Tool},
     saveload::{load, load_png, save, save_png},
+    Timings,
 };
 
 pub(crate) struct UiState {
@@ -10,6 +11,7 @@ pub(crate) struct UiState {
     show_total_water: bool,
     show_ui: bool,
     show_help: bool,
+    show_timings: bool,
     error_message: Option<String>,
 }
 
@@ -20,6 +22,7 @@ impl Default for UiState {
             show_total_water: false,
             show_ui: true,
             show_help: false,
+            show_timings: false,
             error_message: None,
         }
     }
@@ -32,12 +35,14 @@ pub(crate) fn draw_ui(
     ui_state: &mut UiState,
     settings: &mut GameSettings,
     state: &mut GameState,
+    timings: &Timings,
 ) {
     let UiState {
         label,
         show_total_water,
         show_ui,
         show_help,
+        show_timings,
         error_message,
     } = ui_state;
 
@@ -48,6 +53,7 @@ pub(crate) fn draw_ui(
         current_tool,
         draw_sea_water,
         draw_objects,
+        draw_water_grid,
         quit_game,
         ..
     } = settings;
@@ -96,6 +102,9 @@ pub(crate) fn draw_ui(
                     if ui.button("Toggle inertia").clicked() {
                         *enable_inertia = !*enable_inertia;
                     }
+                    if cfg!(not(target_arch = "wasm32")) && ui.button("Show timings").clicked() {
+                        *show_timings = !*show_timings;
+                    }
                     if ui.button("Clear water").clicked() {
                         grid.clear();
                     }
@@ -123,6 +132,9 @@ pub(crate) fn draw_ui(
                     egui::Hyperlink::new("https://github.com/not-fl3/macroquad/").text("macroquad"),
                 );
                 egui::warn_if_debug_build(ui);
+                ui.label(format!("FPS:"));
+                ui.colored_label(Color32::GREEN, timings.fps.to_string());
+
                 if *show_total_water {
                     ui.label(format!("Total water: {}", grid.total_water()));
                 }
@@ -136,6 +148,7 @@ pub(crate) fn draw_ui(
         ui.checkbox(enable_inertia, "Enable inertia");
         ui.checkbox(draw_sea_water, "Enable sea shader");
         ui.checkbox(draw_objects, "Draw objects");
+        ui.checkbox(draw_water_grid, "Draw water grid");
         ui.horizontal(|ui| {
             ui.label("Zoom:");
             ui.add(Slider::new(&mut camera.zoom, -512..=36));
@@ -154,6 +167,32 @@ pub(crate) fn draw_ui(
             ui.radio_value(current_tool, Tool::RemoveWalls, "Remove Walls");
         });
     });
+
+    if *show_timings {
+        egui::Window::new("Timings").show(ctx, |ui| {
+            let mut show_timer = |name: &str, value: u32| {
+                ui.horizontal(|ui| {
+                    ui.label(format!("{}:", name));
+                    ui.add(
+                        Label::new(format!("{:5}", value))
+                            .text_color(Color32::GREEN)
+                            .monospace(),
+                    )
+                });
+            };
+
+            show_timer("egui_layout", timings.egui_layout);
+            show_timer("egui_drawing", timings.egui_drawing);
+            show_timer("input_handling", timings.input_handling);
+            show_timer("game_update", timings.game_update);
+            show_timer("game_layout", timings.game_layout);
+            show_timer("frame_update", timings.frame_update);
+
+            if ui.button("Close").clicked() {
+                *show_timings = false;
+            }
+        });
+    }
 
     if error_message.is_some() {
         egui::Window::new("Error").show(ctx, |ui| {

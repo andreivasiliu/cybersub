@@ -1,4 +1,13 @@
-use macroquad::{miniquad::{BlendFactor, BlendState, BlendValue, Equation}, prelude::{BLACK, Camera2D, Color, DARKBLUE, DrawTextureParams, FilterMode, GRAY, ImageFormat, Material, MaterialParams, PipelineParams, Rect, SKYBLUE, Texture2D, UniformType, Vec2, WHITE, draw_line, draw_rectangle, draw_texture, draw_texture_ex, get_time, gl_use_default_material, gl_use_material, load_material, screen_height, screen_width, set_camera, vec2}};
+use macroquad::{
+    miniquad::{BlendFactor, BlendState, BlendValue, Equation},
+    prelude::{
+        draw_line, draw_rectangle, draw_texture, draw_texture_ex, get_time,
+        gl_use_default_material, gl_use_material, load_material, screen_height, screen_width,
+        set_camera, vec2, Camera2D, Color, DrawTextureParams, FilterMode, ImageFormat, Material,
+        MaterialParams, PipelineParams, Rect, Texture2D, UniformType, Vec2, BLACK, DARKBLUE, GRAY,
+        SKYBLUE, WHITE,
+    },
+};
 
 use crate::{
     objects::{Object, ObjectType},
@@ -115,15 +124,15 @@ impl ResourcesBuilder {
                     color_blend: Some(BlendState::new(
                         Equation::Add,
                         BlendFactor::Value(BlendValue::SourceAlpha),
-                        BlendFactor::OneMinusValue(BlendValue::SourceAlpha))
-                    ),
+                        BlendFactor::OneMinusValue(BlendValue::SourceAlpha),
+                    )),
                     alpha_blend: Some(BlendState::new(
                         Equation::Add,
                         BlendFactor::Zero,
-                        BlendFactor::One)
-                    ),
+                        BlendFactor::One,
+                    )),
                     ..Default::default()
-                }
+                },
             },
         )
         .expect("Could not load door highlight material");
@@ -155,6 +164,7 @@ pub(crate) fn draw_game(
     camera: &Camera,
     draw_sea_water: bool,
     should_draw_objects: bool,
+    draw_water_grid: bool,
     objects: &Vec<Object>,
     resources: &Resources,
     highlighting_object: &Option<(usize, bool)>,
@@ -170,7 +180,9 @@ pub(crate) fn draw_game(
 
     let (width, height) = grid.size();
 
-    draw_water(grid, resources);
+    if draw_water_grid {
+        draw_water(grid, resources);
+    }
 
     if should_draw_objects {
         draw_objects(objects, width, height, resources, highlighting_object);
@@ -215,10 +227,16 @@ fn draw_water(grid: &WaterGrid, resources: &Resources) {
             let cell = grid.cell(i, j);
 
             if cell.is_wall() {
-                draw_texture_ex(resources.wall, pos.x - 0.5, pos.y - 0.5, GRAY, DrawTextureParams {
-                    dest_size: Some(vec2(1.0, 1.0)),
-                    ..Default::default()
-                });
+                draw_texture_ex(
+                    resources.wall,
+                    pos.x - 0.5,
+                    pos.y - 0.5,
+                    GRAY,
+                    DrawTextureParams {
+                        dest_size: Some(vec2(1.0, 1.0)),
+                        ..Default::default()
+                    },
+                );
                 //draw_rect_at(pos, size, GRAY);
             } else if level > 0.0 && !cell.is_sea() {
                 draw_rect_at(pos, size * level, SKYBLUE);
@@ -296,10 +314,8 @@ fn draw_objects(
                 resources
                     .hover_highlight
                     .set_uniform("input_resolution", texture_resolution);
+                resources.hover_highlight.set_uniform("frame_y", frame_y);
                 resources
-                    .hover_highlight
-                    .set_uniform("frame_y", frame_y);
-                    resources
                     .hover_highlight
                     .set_uniform("frame_height", frame_height);
                 resources
