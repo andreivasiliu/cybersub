@@ -70,6 +70,23 @@ impl WireGrid {
         &mut self.cells[y * self.width + x]
     }
 
+    /// Returns whether a cell has the following neighbours: [down, right, up, left]
+    pub fn has_neighbours(&self, wire_color: WireColor, x: usize, y: usize) -> [bool; 4] {
+        let mut has_neighbours = [false; 4];
+
+        for (index, (y_offset, x_offset)) in NEIGHBOUR_OFFSETS.iter().enumerate() {
+            let cell = self.cell(
+                (x as i32 + x_offset) as usize,
+                (y as i32 + y_offset) as usize,
+            );
+            if cell.value[wire_color as usize].connected() {
+                has_neighbours[index] = true;
+            }
+        }
+
+        has_neighbours
+    }
+
     fn neighbours(&self, x: usize, y: usize) -> impl Iterator<Item = &WireCell> {
         NEIGHBOUR_OFFSETS.iter().map(move |(y_offset, x_offset)| {
             self.cell(

@@ -136,6 +136,10 @@ pub(crate) fn draw_ui(
                 egui::warn_if_debug_build(ui);
                 ui.label(format!("FPS:"));
                 ui.colored_label(Color32::GREEN, timings.fps.to_string());
+                ui.label(format!("x:"));
+                ui.colored_label(Color32::GREEN, camera.pointing_at.0.to_string());
+                ui.label(format!("y:"));
+                ui.colored_label(Color32::GREEN, camera.pointing_at.1.to_string());
 
                 if *show_total_water {
                     ui.label(format!("Total water: {}", grid.total_water()));
@@ -166,8 +170,10 @@ pub(crate) fn draw_ui(
         ui.horizontal(|ui| {
             ui.radio_value(current_tool, Tool::AddWater, "Add Water");
             ui.radio_value(current_tool, Tool::AddWall, "Add Walls");
-            ui.radio_value(current_tool, Tool::AddWire, "Add Wires");
-            ui.radio_value(current_tool, Tool::AddPower, "Add Power");
+            ui.radio_value(current_tool, Tool::AddOrangeWire, "Orange Wires");
+            ui.radio_value(current_tool, Tool::AddBrownWire, "Brown Wires");
+            ui.radio_value(current_tool, Tool::AddBlueWire, "Blue Wires");
+            ui.radio_value(current_tool, Tool::AddGreenWire, "Green Wires");
             ui.radio_value(current_tool, Tool::RemoveWall, "Remove Walls");
         });
     });

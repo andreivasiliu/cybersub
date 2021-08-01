@@ -40,8 +40,10 @@ pub(crate) struct GameState {
 pub(crate) enum Tool {
     AddWater,
     AddWall,
-    AddWire,
-    AddPower,
+    AddOrangeWire,
+    AddBrownWire,
+    AddBlueWire,
+    AddGreenWire,
     RemoveWall,
 }
 

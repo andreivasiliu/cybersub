@@ -10,7 +10,7 @@
 #define TAU 6.28318530718
 #define MAX_ITER 30
 
-precision highp float;                                   
+precision highp float;
 
 uniform float iTime;
 uniform vec2 iResolution;

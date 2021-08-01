@@ -1,7 +1,4 @@
-use crate::{
-    water::WaterGrid,
-    wires::{WireColor, WireGrid},
-};
+use crate::{water::WaterGrid, wires::WireGrid};
 
 pub(crate) struct Object {
     pub object_type: ObjectType,
@@ -33,6 +30,7 @@ pub(crate) enum ObjectType {
         speed: i8,
         progress: u8,
     },
+    JunctionBox,
 }
 
 pub(crate) enum DoorState {
@@ -49,6 +47,7 @@ impl Object {
             ObjectType::Lamp => (5, 4),
             ObjectType::Gauge { .. } => (7, 7),
             ObjectType::LargePump { .. } => (30, 18),
+            ObjectType::JunctionBox => (6, 8),
         }
     }
 }
@@ -157,10 +156,12 @@ pub(crate) fn update_objects(
 
                 let cell = wire_grid.cell(cell_x as usize, cell_y as usize);
 
-                if cell.value(WireColor::Brown).signal() > 5 {
-                    object.current_frame = 1;
-                } else {
-                    object.current_frame = 0;
+                object.current_frame = 0;
+
+                if let Some(power_value) = cell.receive_power() {
+                    if power_value > 10 {
+                        object.current_frame = 1;
+                    }
                 }
             }
             ObjectType::Gauge { value } => {
@@ -217,12 +218,36 @@ pub(crate) fn update_objects(
 
                 for y in 0..4 {
                     for x in 0..4 {
-                        let cell_x = object.position_x + 24 + x;
+                        let cell_x = object.position_x + 23 + x;
                         let cell_y = object.position_y + 12 + y;
 
                         let cell = water_grid.cell_mut(cell_x as usize, cell_y as usize);
 
-                        cell.add_level(*speed as i32 * 8);
+                        cell.add_level(*speed as i32 * 2);
+                    }
+                }
+            }
+            ObjectType::JunctionBox => {
+                let cell_x = object.position_x as usize + 3;
+                let cell_y = object.position_y as usize + 1;
+
+                let outputs = &[(3, 1), (3, 2), (3, 3), (3, 4)];
+
+                let cell = wire_grid.cell(cell_x, cell_y);
+                if let Some(logic_value) = cell.receive_logic() {
+                    for output in outputs {
+                        wire_grid
+                            .cell_mut(cell_x + output.0, cell_y + output.1)
+                            .send_logic(logic_value);
+                    }
+                }
+
+                let cell = wire_grid.cell(cell_x, cell_y);
+                if let Some(power_value) = cell.receive_power() {
+                    for output in outputs {
+                        wire_grid
+                            .cell_mut(cell_x + output.0, cell_y + output.1)
+                            .send_power(power_value);
                     }
                 }
             }
@@ -243,6 +268,7 @@ pub(crate) fn interact_with_object(object: &mut Object) {
         ObjectType::Lamp => (),
         ObjectType::Gauge { value } => cycle_i8(value),
         ObjectType::LargePump { target_speed, .. } => cycle_i8(target_speed),
+        ObjectType::JunctionBox => (),
     }
 }
 

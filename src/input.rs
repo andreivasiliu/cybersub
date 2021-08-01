@@ -11,6 +11,13 @@ use crate::{
     wires::{WireColor, WireGrid},
 };
 
+fn from_screen_coords(pos: Vec2, width: usize, height: usize) -> (usize, usize) {
+    (
+        ((pos.x + 0.5) as i32 + (width as i32 / 2)) as usize,
+        ((pos.y + 0.5) as i32 + (height as i32 / 2)) as usize,
+    )
+}
+
 pub(crate) fn handle_keyboard_input(camera: &mut Camera, current_tool: &mut Tool) {
     if is_key_down(KeyCode::A) || is_key_down(KeyCode::Left) {
         camera.offset_x += 1.0;
@@ -51,6 +58,13 @@ pub(crate) fn handle_pointer_input(
     highlighting_object: &mut Option<(usize, bool)>,
 ) {
     let macroquad_camera = camera.to_macroquad_camera();
+    let (width, height) = water_grid.size();
+
+    camera.pointing_at = from_screen_coords(
+        macroquad_camera.screen_to_world(mouse_position().into()),
+        width,
+        height,
+    );
 
     if is_mouse_button_pressed(MouseButton::Right) {
         camera.dragging_from = mouse_position();
@@ -92,8 +106,6 @@ pub(crate) fn handle_pointer_input(
     }
 
     let mouse_position = macroquad_camera.screen_to_world(mouse_position().into());
-
-    let (width, height) = water_grid.size();
 
     *highlighting_object = None;
 
@@ -137,8 +149,10 @@ pub(crate) fn handle_pointer_input(
                     Tool::AddWater => water_cell.fill(),
                     Tool::AddWall => water_cell.make_wall(),
                     Tool::RemoveWall => water_cell.clear_wall(),
-                    Tool::AddWire => wire_cell.make_wire(WireColor::Brown),
-                    Tool::AddPower => wire_cell.make_powered_wire(WireColor::Brown),
+                    Tool::AddBrownWire => wire_cell.make_wire(WireColor::Brown),
+                    Tool::AddOrangeWire => wire_cell.make_wire(WireColor::Orange),
+                    Tool::AddBlueWire => wire_cell.make_powered_wire(WireColor::Blue),
+                    Tool::AddGreenWire => wire_cell.make_powered_wire(WireColor::Green),
                 }
                 return;
             }

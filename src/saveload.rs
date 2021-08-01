@@ -200,7 +200,7 @@ pub(crate) fn load_objects() -> Vec<Object> {
         frames: 2,
     });
 
-    let gauges = &[(115, 52), (73, 70), (240, 70)];
+    let gauges = &[(115, 52), (62, 71), (275, 71)];
 
     for gauge in gauges {
         objects.push(Object {
@@ -228,22 +228,77 @@ pub(crate) fn load_objects() -> Vec<Object> {
         });
     }
 
+    let junction_boxes = &[
+        (180, 71),
+        (187, 71),
+        (194, 71),
+        (201, 71),
+        (208, 71),
+        (215, 71),
+        (187, 80),
+        (194, 80),
+    ];
+
+    for junction_box in junction_boxes {
+        objects.push(Object {
+            object_type: ObjectType::JunctionBox,
+            position_x: junction_box.0,
+            position_y: junction_box.1,
+            current_frame: 0,
+            frames: 1,
+        });
+    }
+
     objects
 }
 
 pub(crate) fn load_wires(grid: &mut WireGrid) {
     let wires = &[
-        // Reactor to lamp
-        (141..=141, 71..=81),
-        (141..=163, 71..=71),
-        (163..=163, 71..=75),
+        // Reactor to first junction box
+        (141..=141, 71..=81, WireColor::Blue),
+        (141..=183, 71..=71, WireColor::Blue),
+        (183..=183, 71..=73, WireColor::Blue),
+        // First junction box to lamp
+        (186..=187, 74..=74, WireColor::Green),
+        (187..=187, 71..=74, WireColor::Green),
+        (163..=187, 71..=71, WireColor::Green),
+        (163..=163, 71..=74, WireColor::Green),
+        // First junction box to left large pump
+        (186..=187, 75..=75, WireColor::Brown),
+        (187..=187, 71..=75, WireColor::Brown),
+        (78..=187, 71..=71, WireColor::Brown),
+        (78..=78, 71..=80, WireColor::Brown),
+        // First junction box to right large pump
+        (186..=187, 76..=76, WireColor::Orange),
+        (187..=187, 71..=76, WireColor::Orange),
+        (187..=292, 71..=71, WireColor::Orange),
+        (292..=292, 71..=80, WireColor::Orange),
+        // Main gauge to second junction box
+        (119..=119, 58..=60, WireColor::Green),
+        (119..=124, 60..=60, WireColor::Green),
+        (124..=124, 47..=60, WireColor::Green),
+        (124..=224, 47..=47, WireColor::Green),
+        (224..=224, 47..=71, WireColor::Green),
+        (190..=224, 71..=71, WireColor::Green),
+        (190..=190, 71..=72, WireColor::Green),
+        // Second junction box to right pump gauge
+        (193..=194, 75..=75, WireColor::Blue),
+        (194..=194, 71..=75, WireColor::Blue),
+        (194..=279, 71..=71, WireColor::Blue),
+        (279..=279, 71..=73, WireColor::Blue),
+        // Right pump gauge to pump
+        (279..=279, 76..=78, WireColor::Green),
+        (279..=282, 78..=78, WireColor::Green),
+        (282..=282, 71..=78, WireColor::Green),
+        (282..=295, 71..=71, WireColor::Green),
+        (295..=295, 71..=80, WireColor::Green),
     ];
 
-    for (x_range, y_range) in wires {
+    for (x_range, y_range, color) in wires {
         for y in y_range.clone() {
             for x in x_range.clone() {
                 let cell = grid.cell_mut(x, y);
-                cell.make_wire(WireColor::Brown);
+                cell.make_wire(*color);
             }
         }
     }

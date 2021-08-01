@@ -3,9 +3,9 @@ use macroquad::{
     prelude::{
         draw_line, draw_rectangle, draw_texture, draw_texture_ex, get_time,
         gl_use_default_material, gl_use_material, load_material, screen_height, screen_width,
-        set_camera, vec2, Camera2D, Color, DrawTextureParams, FilterMode, ImageFormat, Material,
-        MaterialParams, PipelineParams, Rect, Texture2D, UniformType, Vec2, BLACK, BLUE, BROWN,
-        DARKBLUE, GRAY, GREEN, ORANGE, SKYBLUE, WHITE,
+        set_camera, vec2, vec3, Camera2D, Color, DrawTextureParams, FilterMode, ImageFormat,
+        Material, MaterialParams, PipelineParams, Rect, Texture2D, UniformType, Vec2, BLACK,
+        DARKBLUE, GRAY, WHITE,
     },
 };
 
@@ -22,6 +22,7 @@ pub(crate) struct Camera {
     pub zoom: i32,
     pub dragging_from: (f32, f32),
     pub scrolling_from: f32,
+    pub pointing_at: (usize, usize),
 }
 
 pub struct ResourcesBuilder {
@@ -29,6 +30,10 @@ pub struct ResourcesBuilder {
 }
 
 pub struct Resources {
+    sea_water: Material,
+    hover_highlight: Material,
+    wire_material: Material,
+    wires: Texture2D,
     sub_background: Texture2D,
     wall: Texture2D,
     door: Texture2D,
@@ -37,8 +42,7 @@ pub struct Resources {
     lamp: Texture2D,
     gauge: Texture2D,
     large_pump: Texture2D,
-    hover_highlight: Material,
-    sea_water: Material,
+    junction_box: Texture2D,
 }
 
 impl Camera {
@@ -102,6 +106,7 @@ impl ResourcesBuilder {
             texture
         }
 
+        let wires = load_texture(include_bytes!("../resources/wires.png"));
         let wall = load_texture(include_bytes!("../resources/wall.png"));
         let door = load_texture(include_bytes!("../resources/door.png"));
         let vertical_door = load_texture(include_bytes!("../resources/vertical_door.png"));
@@ -109,6 +114,7 @@ impl ResourcesBuilder {
         let lamp = load_texture(include_bytes!("../resources/lamp.png"));
         let gauge = load_texture(include_bytes!("../resources/gauge.png"));
         let large_pump = load_texture(include_bytes!("../resources/largepump.png"));
+        let junction_box = load_texture(include_bytes!("../resources/junctionbox.png"));
 
         let hover_highlight = load_material(
             include_str!("vertex.glsl"),
@@ -138,17 +144,46 @@ impl ResourcesBuilder {
         )
         .expect("Could not load door highlight material");
 
+        let wire_material = load_material(
+            include_str!("vertex.glsl"),
+            include_str!("wires.glsl"),
+            MaterialParams {
+                uniforms: vec![
+                    ("wire_color".to_string(), UniformType::Float3),
+                    ("signal".to_string(), UniformType::Float1),
+                ],
+                textures: vec!["wires_texture".to_string()],
+                pipeline_params: PipelineParams {
+                    color_blend: Some(BlendState::new(
+                        Equation::Add,
+                        BlendFactor::Value(BlendValue::SourceAlpha),
+                        BlendFactor::OneMinusValue(BlendValue::SourceAlpha),
+                    )),
+                    alpha_blend: Some(BlendState::new(
+                        Equation::Add,
+                        BlendFactor::Zero,
+                        BlendFactor::One,
+                    )),
+                    ..Default::default()
+                },
+            },
+        )
+        .expect("Could not load door highlight material");
+
         Resources {
             sea_water,
-            wall,
+            hover_highlight,
+            wire_material,
+            wires,
             sub_background: self.sub_background.expect("Sub Background not provided"),
+            wall,
             door,
             vertical_door,
             reactor,
             lamp,
             gauge,
             large_pump,
-            hover_highlight,
+            junction_box,
         }
     }
 }
@@ -188,14 +223,14 @@ pub(crate) fn draw_game(
 
     draw_background(width, height, resources);
 
-    if draw_water_grid {
-        draw_water(water_grid, resources);
-    }
-
-    draw_wires(wire_grid);
+    draw_wires(wire_grid, resources);
 
     if should_draw_objects {
         draw_objects(objects, width, height, resources, highlighting_object);
+    }
+
+    if draw_water_grid {
+        draw_water(water_grid, resources);
     }
 }
 
@@ -238,6 +273,8 @@ fn draw_water(grid: &WaterGrid, resources: &Resources) {
 
             let cell = grid.cell(i, j);
 
+            let transparent_blue = Color::new(0.40, 0.75, 1.00, 0.75);
+
             if cell.is_wall() {
                 draw_texture_ex(
                     resources.wall,
@@ -251,7 +288,7 @@ fn draw_water(grid: &WaterGrid, resources: &Resources) {
                 );
                 //draw_rect_at(pos, size, GRAY);
             } else if level > 0.0 && !cell.is_sea() {
-                draw_rect_at(pos, size * level, SKYBLUE);
+                draw_rect_at(pos, size * level, transparent_blue);
                 draw_rect_at(pos, size * overlevel, DARKBLUE);
             }
 
@@ -273,22 +310,20 @@ fn draw_water(grid: &WaterGrid, resources: &Resources) {
     }
 }
 
-fn draw_wires(grid: &WireGrid) {
+fn draw_wires(grid: &WireGrid, resources: &Resources) {
     let (width, height) = grid.size();
 
     for x in 0..width {
         for y in 0..height {
             let pos = to_screen_coords(x, y, width, height);
 
-            let size = 0.5;
-
             let cell = grid.cell(x, y);
 
             let colors = &[
-                (WireColor::Orange, ORANGE),
-                (WireColor::Brown, BROWN),
-                (WireColor::Blue, BLUE),
-                (WireColor::Green, GREEN),
+                (WireColor::Orange, vec3(1.0, 1.0, 0.0)),
+                (WireColor::Brown, vec3(0.0, 1.0, 1.0)),
+                (WireColor::Blue, vec3(0.0, 0.0, 1.0)),
+                (WireColor::Green, vec3(0.0, 1.0, 0.0)),
             ];
 
             for (wire_color, color) in colors {
@@ -301,11 +336,54 @@ fn draw_wires(grid: &WireGrid) {
                     }
                 };
 
-                let value = (value + 128) as f32 / u8::MAX as f32;
+                let has_neighbours = grid.has_neighbours(*wire_color, x, y);
+
+                let total_frames = 7;
+                let wire_frame = match has_neighbours {
+                    // [down, right, up, left]
+                    [true, false, true, false] => 0,
+                    [false, false, true, false] => 0,
+                    [true, false, false, false] => 0,
+                    [false, true, false, true] => 1,
+                    [false, false, false, true] => 1,
+                    [false, true, false, false] => 1,
+                    [true, true, false, false] => 2,
+                    [true, false, false, true] => 3,
+                    [false, false, true, true] => 4,
+                    [false, true, true, false] => 5,
+                    _ => 6,
+                };
+
+                let _value = (value + 128) as f32 / u8::MAX as f32;
                 let signal = cell.value(*wire_color).signal() as f32 / 256.0;
 
-                draw_rect_at(pos, size * value, *color);
-                draw_rect_at(pos, size * signal * 0.25, BLACK);
+                resources.wire_material.set_uniform("wire_color", *color);
+                resources.wire_material.set_uniform("signal", signal);
+                resources
+                    .wire_material
+                    .set_texture("wires_texture", resources.wires);
+
+                gl_use_material(resources.wire_material);
+
+                // Textures are vertically split into equally-sized animation frames
+                let frame_width = resources.wires.width();
+                let frame_height = (resources.wires.height() as u16 / total_frames) as f32;
+                let frame_x = 0.0;
+                let frame_y = (frame_height as u16 * wire_frame) as f32;
+
+                draw_texture_ex(
+                    resources.wires,
+                    pos.x - 0.5,
+                    pos.y - 0.5,
+                    BLACK,
+                    DrawTextureParams {
+                        dest_size: Some(vec2(1.0, 1.0)),
+                        source: Some(Rect::new(frame_x, frame_y, frame_width, frame_height)),
+                        ..Default::default()
+                    },
+                );
+
+                gl_use_default_material();
             }
         }
     }
@@ -342,6 +420,7 @@ fn draw_objects(
             ObjectType::Lamp => resources.lamp,
             ObjectType::Gauge { .. } => resources.gauge,
             ObjectType::LargePump { .. } => resources.large_pump,
+            ObjectType::JunctionBox => resources.junction_box,
         };
 
         // Textures are vertically split into equally-sized animation frames
