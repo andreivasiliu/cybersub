@@ -7,6 +7,7 @@ mod objects;
 mod saveload;
 mod ui;
 mod water;
+mod wires;
 
 pub use app::{CyberSubApp, Timings};
 pub use draw::{Resources, ResourcesBuilder};

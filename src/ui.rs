@@ -58,7 +58,7 @@ pub(crate) fn draw_ui(
         ..
     } = settings;
 
-    let GameState { grid, .. } = state;
+    let GameState { water_grid: grid, .. } = state;
 
     if *show_ui {
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
@@ -163,8 +163,10 @@ pub(crate) fn draw_ui(
     toolbar.show(ctx, |ui| {
         ui.horizontal(|ui| {
             ui.radio_value(current_tool, Tool::AddWater, "Add Water");
-            ui.radio_value(current_tool, Tool::AddWalls, "Add Walls");
-            ui.radio_value(current_tool, Tool::RemoveWalls, "Remove Walls");
+            ui.radio_value(current_tool, Tool::AddWall, "Add Walls");
+            ui.radio_value(current_tool, Tool::AddWire, "Add Wires");
+            ui.radio_value(current_tool, Tool::AddPower, "Add Power");
+            ui.radio_value(current_tool, Tool::RemoveWall, "Remove Walls");
         });
     });
 

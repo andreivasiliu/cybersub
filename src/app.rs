@@ -1,12 +1,4 @@
-use crate::{
-    draw::{draw_game, Camera},
-    input::{handle_keyboard_input, handle_pointer_input},
-    objects::{update_objects, Object},
-    saveload::{load_objects, load_png_from_bytes},
-    ui::{draw_ui, UiState},
-    water::WaterGrid,
-    Resources,
-};
+use crate::{Resources, draw::{draw_game, Camera}, input::{handle_keyboard_input, handle_pointer_input}, objects::{update_objects, Object}, saveload::{load_objects, load_png_from_bytes, load_wires}, ui::{draw_ui, UiState}, water::WaterGrid, wires::WireGrid};
 
 pub struct CyberSubApp {
     ui_state: UiState,
@@ -30,15 +22,18 @@ pub(crate) struct GameSettings {
 
 pub(crate) struct GameState {
     pub last_update: Option<f64>,
-    pub grid: WaterGrid,
+    pub water_grid: WaterGrid,
+    pub wire_grid: WireGrid,
     pub objects: Vec<Object>,
 }
 
 #[derive(PartialEq, Eq)]
 pub(crate) enum Tool {
     AddWater,
-    AddWalls,
-    RemoveWalls,
+    AddWall,
+    AddWire,
+    AddPower,
+    RemoveWall,
 }
 
 #[derive(Default)]
@@ -75,7 +70,8 @@ impl Default for CyberSubApp {
                 highlighting_object: None,
             },
             game_state: GameState {
-                grid: WaterGrid::new(WIDTH, HEIGHT),
+                water_grid: WaterGrid::new(WIDTH, HEIGHT),
+                wire_grid: WireGrid::new(WIDTH, HEIGHT),
                 objects: Vec::new(),
                 last_update: None,
             },
@@ -87,11 +83,14 @@ impl Default for CyberSubApp {
 
 impl CyberSubApp {
     pub fn load_grid(&mut self, grid_bytes: Vec<u8>) {
-        self.game_state.grid = load_png_from_bytes(&grid_bytes).expect("Could not load grid");
+        self.game_state.water_grid = load_png_from_bytes(&grid_bytes).expect("Could not load grid");
+        let (width, height) = self.game_state.water_grid.size();
+        self.game_state.wire_grid = WireGrid::new(width, height);
     }
 
     pub fn load_objects(&mut self) {
         self.game_state.objects = load_objects();
+        load_wires(&mut self.game_state.wire_grid);
     }
 
     pub fn update_game(&mut self, game_time: f64) {
@@ -103,11 +102,14 @@ impl CyberSubApp {
             while delta > 0.0 {
                 // 30 updates per second, regardless of FPS
                 delta -= 1.0 / 30.0;
-                self.game_state.grid.update(
+                self.game_state.water_grid.update(
                     self.game_settings.enable_gravity,
                     self.game_settings.enable_inertia,
                 );
-                update_objects(&mut self.game_state.objects, &mut self.game_state.grid);
+                for _ in 0..2 {
+                    self.game_state.wire_grid.update();
+                }
+                update_objects(&mut self.game_state.objects, &mut self.game_state.water_grid, &mut self.game_state.wire_grid);
             }
         }
         *last_update = Some(game_time);
@@ -131,7 +133,8 @@ impl CyberSubApp {
 
     pub fn handle_pointer_input(&mut self) {
         handle_pointer_input(
-            &mut self.game_state.grid,
+            &mut self.game_state.water_grid,
+            &mut self.game_state.wire_grid,
             &mut self.game_state.objects,
             &mut self.game_settings.camera,
             &self.game_settings.current_tool,
@@ -149,7 +152,8 @@ impl CyberSubApp {
 
     pub fn draw_game(&self, resources: &Resources) {
         draw_game(
-            &self.game_state.grid,
+            &self.game_state.water_grid,
+            &self.game_state.wire_grid,
             &self.game_settings.camera,
             self.game_settings.draw_sea_water,
             self.game_settings.draw_objects,

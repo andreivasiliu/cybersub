@@ -3,12 +3,7 @@ use macroquad::prelude::{
     is_mouse_button_released, mouse_position, mouse_wheel, KeyCode, MouseButton, Rect, Vec2,
 };
 
-use crate::{
-    app::Tool,
-    draw::{object_rect, to_screen_coords, Camera},
-    objects::{interact_with_object, Object},
-    water::WaterGrid,
-};
+use crate::{app::Tool, draw::{object_rect, to_screen_coords, Camera}, objects::{interact_with_object, Object}, water::WaterGrid, wires::{WireColor, WireGrid}};
 
 pub(crate) fn handle_keyboard_input(camera: &mut Camera, current_tool: &mut Tool) {
     if is_key_down(KeyCode::A) || is_key_down(KeyCode::Left) {
@@ -30,10 +25,10 @@ pub(crate) fn handle_keyboard_input(camera: &mut Camera, current_tool: &mut Tool
         camera.zoom -= 1;
     }
     if is_key_pressed(KeyCode::LeftShift) {
-        *current_tool = Tool::RemoveWalls;
+        *current_tool = Tool::RemoveWall;
     }
     if is_key_pressed(KeyCode::LeftControl) {
-        *current_tool = Tool::AddWalls;
+        *current_tool = Tool::AddWall;
     }
     if is_key_released(KeyCode::LeftShift) || is_key_released(KeyCode::LeftControl) {
         *current_tool = Tool::AddWater;
@@ -41,7 +36,8 @@ pub(crate) fn handle_keyboard_input(camera: &mut Camera, current_tool: &mut Tool
 }
 
 pub(crate) fn handle_pointer_input(
-    grid: &mut WaterGrid,
+    water_grid: &mut WaterGrid,
+    wire_grid: &mut WireGrid,
     objects: &mut Vec<Object>,
     camera: &mut Camera,
     tool: &Tool,
@@ -91,7 +87,7 @@ pub(crate) fn handle_pointer_input(
 
     let mouse_position = macroquad_camera.screen_to_world(mouse_position().into());
 
-    let (width, height) = grid.size();
+    let (width, height) = water_grid.size();
 
     *highlighting_object = None;
 
@@ -120,19 +116,23 @@ pub(crate) fn handle_pointer_input(
     }
 
     // Yes, this is silly. I'm just too lazy to figure out the math to find i/j directly.
-    for i in 0..width {
-        for j in 0..height {
-            let pos = to_screen_coords(i, j, width, height);
+    for x in 0..width {
+        for y in 0..height {
+            let pos = to_screen_coords(x, y, width, height);
 
             let size = 0.5;
             let rect = Rect::new(pos.x - size, pos.y - size, size * 2.0, size * 2.0);
 
             if rect.contains(mouse_position) {
-                let cell = grid.cell_mut(i, j);
+                let water_cell = water_grid.cell_mut(x, y);
+                let wire_cell = wire_grid.cell_mut(x, y);
+
                 match tool {
-                    Tool::AddWater => cell.fill(),
-                    Tool::AddWalls => cell.make_wall(),
-                    Tool::RemoveWalls => cell.clear_wall(),
+                    Tool::AddWater => water_cell.fill(),
+                    Tool::AddWall => water_cell.make_wall(),
+                    Tool::RemoveWall => water_cell.clear_wall(),
+                    Tool::AddWire => wire_cell.make_wire(WireColor::Brown),
+                    Tool::AddPower => wire_cell.make_powered_wire(WireColor::Brown),
                 }
                 return;
             }

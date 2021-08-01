@@ -1,4 +1,4 @@
-use crate::water::WaterGrid;
+use crate::{water::WaterGrid, wires::{WireColor, WireGrid}};
 
 pub(crate) struct Object {
     pub object_type: ObjectType,
@@ -11,6 +11,8 @@ pub(crate) struct Object {
 pub(crate) enum ObjectType {
     Door { state: DoorState, progress: u8 },
     VerticalDoor { state: DoorState, progress: u8 },
+    Reactor { active: bool },
+    Lamp,
     // SmallPump,
 }
 
@@ -24,12 +26,14 @@ impl Object {
         match self.object_type {
             ObjectType::Door { .. } => (22, 5),
             ObjectType::VerticalDoor { .. } => (5, 17),
+            ObjectType::Reactor { .. } => (32, 17),
+            ObjectType::Lamp => (5, 4),
         }
     }
 }
 
 // What an object does on every physics update tick.
-pub(crate) fn update_objects(objects: &mut Vec<Object>, grid: &mut WaterGrid) {
+pub(crate) fn update_objects(objects: &mut Vec<Object>, water_grid: &mut WaterGrid, wire_grid: &mut WireGrid) {
     for object in objects {
         match &mut object.object_type {
             ObjectType::Door { state, progress } => {
@@ -56,7 +60,7 @@ pub(crate) fn update_objects(objects: &mut Vec<Object>, grid: &mut WaterGrid) {
                         let cell_x = object.position_x + x;
                         let cell_y = object.position_y + y;
 
-                        let cell = grid.cell_mut(cell_x as usize, cell_y as usize);
+                        let cell = water_grid.cell_mut(cell_x as usize, cell_y as usize);
 
                         if should_be_open(x) {
                             if !cell.is_inside() {
@@ -96,7 +100,7 @@ pub(crate) fn update_objects(objects: &mut Vec<Object>, grid: &mut WaterGrid) {
                     let cell_x = object.position_x + x;
                     let cell_y = object.position_y + y;
 
-                    let cell = grid.cell_mut(cell_x as usize, cell_y as usize);
+                    let cell = water_grid.cell_mut(cell_x as usize, cell_y as usize);
 
                     if should_be_open(y) {
                         if !cell.is_inside() {
@@ -109,6 +113,32 @@ pub(crate) fn update_objects(objects: &mut Vec<Object>, grid: &mut WaterGrid) {
                     }
                 }
             }
+            ObjectType::Reactor { active } => {
+                let cell_x = object.position_x + 29;
+                let cell_y = object.position_y + 5;
+
+                let cell = wire_grid.cell_mut(cell_x as usize, cell_y as usize);
+
+                if *active {
+                    object.current_frame = 0;
+                    cell.make_powered_wire(WireColor::Brown);
+                } else {
+                    object.current_frame = 1;
+                    cell.make_wire(WireColor::Brown);
+                }
+            },
+            ObjectType::Lamp => {
+                let cell_x = object.position_x + 3;
+                let cell_y = object.position_y + 1;
+
+                let cell = wire_grid.cell(cell_x as usize, cell_y as usize);
+
+                if cell.value(WireColor::Brown).signal() > 5 {
+                    object.current_frame = 1;
+                } else {
+                    object.current_frame = 0;
+                }
+            },
         }
     }
 }
@@ -122,5 +152,7 @@ pub(crate) fn interact_with_object(object: &mut Object) {
                 DoorState::Closing => DoorState::Opening,
             }
         }
+        ObjectType::Reactor { active } => *active = !*active,
+        ObjectType::Lamp => (),
     }
 }

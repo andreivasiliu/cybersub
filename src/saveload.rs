@@ -3,10 +3,7 @@ use std::io::Read;
 use flate2::read::GzDecoder;
 use png::{BitDepth, ColorType, Decoder, Encoder};
 
-use crate::{
-    objects::{DoorState, Object, ObjectType},
-    water::WaterGrid,
-};
+use crate::{objects::{DoorState, Object, ObjectType}, water::WaterGrid, wires::{WireColor, WireGrid}};
 
 pub(crate) fn save(grid: &WaterGrid) -> Result<(), String> {
     if cfg!(target_arch = "wasm32") {
@@ -183,5 +180,41 @@ pub(crate) fn load_objects() -> Vec<Object> {
         });
     }
 
+    objects.push(Object {
+        object_type: ObjectType::Reactor {
+            active: false,
+        },
+        position_x: 112,
+        position_y: 76,
+        current_frame: 1,
+        frames: 2,
+    });
+
+    objects.push(Object {
+        object_type: ObjectType::Lamp,
+        position_x: 160,
+        position_y: 73,
+        current_frame: 0,
+        frames: 2,
+    });
+
     objects
+}
+
+pub(crate) fn load_wires(grid: &mut WireGrid) {
+    let wires = &[
+        // Reactor to lamp
+        (141..=141, 71..=81),
+        (141..=163, 71..=71),
+        (163..=163, 71..=75),
+    ];
+
+    for (x_range, y_range) in wires {
+        for y in y_range.clone() {
+            for x in x_range.clone() {
+                let cell = grid.cell_mut(x, y);
+                cell.make_wire(WireColor::Brown);
+            }
+        }
+    }
 }

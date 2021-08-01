@@ -1,18 +1,6 @@
-use macroquad::{
-    miniquad::{BlendFactor, BlendState, BlendValue, Equation},
-    prelude::{
-        draw_line, draw_rectangle, draw_texture, draw_texture_ex, get_time,
-        gl_use_default_material, gl_use_material, load_material, screen_height, screen_width,
-        set_camera, vec2, Camera2D, Color, DrawTextureParams, FilterMode, ImageFormat, Material,
-        MaterialParams, PipelineParams, Rect, Texture2D, UniformType, Vec2, BLACK, DARKBLUE, GRAY,
-        SKYBLUE, WHITE,
-    },
-};
+use macroquad::{miniquad::{BlendFactor, BlendState, BlendValue, Equation}, prelude::{BLACK, BLUE, BROWN, Camera2D, Color, DARKBLUE, DrawTextureParams, FilterMode, GRAY, GREEN, ImageFormat, Material, MaterialParams, ORANGE, PipelineParams, Rect, SKYBLUE, Texture2D, UniformType, Vec2, WHITE, draw_line, draw_rectangle, draw_texture, draw_texture_ex, get_time, gl_use_default_material, gl_use_material, load_material, screen_height, screen_width, set_camera, vec2}};
 
-use crate::{
-    objects::{Object, ObjectType},
-    water::WaterGrid,
-};
+use crate::{objects::{Object, ObjectType}, water::WaterGrid, wires::{WireColor, WireGrid}};
 
 #[derive(Debug, Default)]
 pub(crate) struct Camera {
@@ -32,6 +20,8 @@ pub struct Resources {
     wall: Texture2D,
     door: Texture2D,
     vertical_door: Texture2D,
+    reactor: Texture2D,
+    lamp: Texture2D,
     hover_highlight: Material,
     sea_water: Material,
 }
@@ -91,23 +81,20 @@ impl ResourcesBuilder {
         )
         .expect("Could not load material");
 
-        let wall = Texture2D::from_file_with_format(
-            include_bytes!("../resources/wall.png"),
-            Some(ImageFormat::Png),
-        );
-        wall.set_filter(FilterMode::Nearest);
+        fn load_texture(bytes: &[u8]) -> Texture2D {
+            let texture = Texture2D::from_file_with_format(
+                bytes,
+                Some(ImageFormat::Png),
+            );
+            texture.set_filter(FilterMode::Nearest);
+            texture
+        }
 
-        let door = Texture2D::from_file_with_format(
-            include_bytes!("../resources/door.png"),
-            Some(ImageFormat::Png),
-        );
-        door.set_filter(FilterMode::Nearest);
-
-        let vertical_door = Texture2D::from_file_with_format(
-            include_bytes!("../resources/vertical_door.png"),
-            Some(ImageFormat::Png),
-        );
-        vertical_door.set_filter(FilterMode::Nearest);
+        let wall = load_texture(include_bytes!("../resources/wall.png"));
+        let door = load_texture(include_bytes!("../resources/door.png"));
+        let vertical_door = load_texture(include_bytes!("../resources/vertical_door.png"));
+        let reactor = load_texture(include_bytes!("../resources/reactor.png"));
+        let lamp = load_texture(include_bytes!("../resources/lamp.png"));
 
         let hover_highlight = load_material(
             include_str!("vertex.glsl"),
@@ -143,6 +130,8 @@ impl ResourcesBuilder {
             sub_background: self.sub_background.expect("Sub Background not provided"),
             door,
             vertical_door,
+            reactor,
+            lamp,
             hover_highlight,
         }
     }
@@ -160,7 +149,8 @@ pub(crate) fn to_screen_coords(x: usize, y: usize, width: usize, height: usize) 
 }
 
 pub(crate) fn draw_game(
-    grid: &WaterGrid,
+    water_grid: &WaterGrid,
+    wire_grid: &WireGrid,
     camera: &Camera,
     draw_sea_water: bool,
     should_draw_objects: bool,
@@ -178,11 +168,15 @@ pub(crate) fn draw_game(
         draw_fake_sea();
     }
 
-    let (width, height) = grid.size();
+    let (width, height) = water_grid.size();
+
+    draw_background(width, height, resources);
 
     if draw_water_grid {
-        draw_water(grid, resources);
+        draw_water(water_grid, resources);
     }
+
+    draw_wires(wire_grid);
 
     if should_draw_objects {
         draw_objects(objects, width, height, resources, highlighting_object);
@@ -203,11 +197,13 @@ fn draw_fake_sea() {
     draw_rect_at(vec2(0.0, 0.0), 500.0, DARKBLUE);
 }
 
-fn draw_water(grid: &WaterGrid, resources: &Resources) {
-    let (width, height) = grid.size();
-
+fn draw_background(width: usize, height: usize, resources: &Resources) {
     let top_left = to_screen_coords(0, 0, width, height) - vec2(0.5, 0.5);
     draw_texture(resources.sub_background, top_left.x, top_left.y, WHITE);
+}
+
+fn draw_water(grid: &WaterGrid, resources: &Resources) {
+    let (width, height) = grid.size();
 
     for i in 0..width {
         for j in 0..height {
@@ -261,6 +257,42 @@ fn draw_water(grid: &WaterGrid, resources: &Resources) {
     }
 }
 
+fn draw_wires(grid: &WireGrid) {
+    let (width, height) = grid.size();
+
+    for x in 0..width {
+        for y in 0..height {
+            let pos = to_screen_coords(x, y, width, height);
+
+            let size = 0.5;
+
+            let cell = grid.cell(x, y);
+
+            let colors = &[
+                (WireColor::Orange, ORANGE),
+                (WireColor::Brown, BROWN),
+                (WireColor::Blue, BLUE),
+                (WireColor::Green, GREEN),
+            ];
+
+            for (wire_color, color) in colors {
+                let value = match cell.value(*wire_color) {
+                    crate::wires::WireValue::NotConnected => continue,
+                    crate::wires::WireValue::NoSignal => 0,
+                    crate::wires::WireValue::Power { value, .. } => *value,
+                    crate::wires::WireValue::Logic { value, .. } => *value,
+                };
+
+                let value = value.saturating_add(u8::MAX / 2) as f32 / u8::MAX as f32;
+                let signal = cell.value(*wire_color).signal() as f32 / 256.0;
+
+                draw_rect_at(pos, size * value, *color);
+                draw_rect_at(pos, size * signal * 0.25, BLACK);
+            }
+        }
+    }
+}
+
 pub(crate) fn object_rect(object: &Object, width: usize, height: usize) -> Rect {
     let pos = to_screen_coords(
         object.position_x as usize,
@@ -288,6 +320,8 @@ fn draw_objects(
         let texture = match object.object_type {
             ObjectType::Door { .. } => resources.door,
             ObjectType::VerticalDoor { .. } => resources.vertical_door,
+            ObjectType::Reactor { .. } => resources.reactor,
+            ObjectType::Lamp => resources.lamp,
         };
 
         // Textures are vertically split into equally-sized animation frames
