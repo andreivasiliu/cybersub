@@ -19,7 +19,7 @@ pub(crate) enum WireValue {
     NotConnected,
     NoSignal,
     Power { value: u8, signal: u16 },
-    Logic { value: u8, signal: u16 },
+    Logic { value: i8, signal: u16 },
 }
 
 #[derive(Clone, Copy)]
@@ -30,12 +30,7 @@ pub(crate) enum WireColor {
     Green = 3,
 }
 
-const NEIGHBOUR_OFFSETS: &[(i32, i32)] = &[
-    (1, 0),
-    (0, 1),
-    (-1, 0),
-    (0, -1),
-];
+const NEIGHBOUR_OFFSETS: &[(i32, i32)] = &[(1, 0), (0, 1), (-1, 0), (0, -1)];
 
 const COLORS: usize = 4;
 
@@ -114,10 +109,6 @@ impl WireGrid {
 
                     if connected_wires > 2 {
                         new_value = WireValue::NotConnected;
-                    } else if connected_wires == 1 {
-                        new_value = WireValue::NoSignal;
-                    } else if connected_wires == 0 {
-                        
                     }
 
                     self.cell_mut(x, y).value[wire_color] = new_value;
@@ -133,11 +124,66 @@ impl WireCell {
     }
 
     pub fn make_powered_wire(&mut self, color: WireColor) {
-        self.value[color as usize] = WireValue::Power { value: 200, signal: 256 };
+        self.value[color as usize] = WireValue::Power {
+            value: 200,
+            signal: 256,
+        };
     }
 
     pub fn value(&self, color: WireColor) -> &WireValue {
         &self.value[color as usize]
+    }
+
+    pub fn receive_logic(&self) -> Option<i8> {
+        for wire_color in 0..COLORS {
+            match self.value[wire_color] {
+                WireValue::NotConnected => (),
+                WireValue::NoSignal => (),
+                WireValue::Power { .. } => (),
+                WireValue::Logic { value, .. } => return Some(value),
+            };
+        }
+        None
+    }
+
+    pub fn receive_power(&self) -> Option<u8> {
+        for wire_color in 0..COLORS {
+            match self.value[wire_color] {
+                WireValue::NotConnected => (),
+                WireValue::NoSignal => (),
+                WireValue::Power { value, .. } => return Some(value),
+                WireValue::Logic { .. } => (),
+            };
+        }
+        None
+    }
+
+    pub fn send_logic(&mut self, logic_value: i8) {
+        for wire_color in 0..COLORS {
+            let wire_value = &mut self.value[wire_color];
+
+            if wire_value.connected() {
+                *wire_value = WireValue::Logic {
+                    value: logic_value,
+                    signal: 256,
+                };
+            }
+        }
+    }
+
+    pub fn send_power(&mut self, power_value: u8) {
+        for wire_color in 0..COLORS {
+            let wire_value = &mut self.value[wire_color];
+
+            if wire_value.connected() {
+                *wire_value = WireValue::Power {
+                    value: power_value,
+                    signal: 256,
+                };
+                // Send to at most one wire.
+                break;
+            }
+        }
     }
 }
 
@@ -155,8 +201,14 @@ impl WireValue {
         let new_signal = match self {
             WireValue::NotConnected => WireValue::NotConnected,
             WireValue::NoSignal => WireValue::NoSignal,
-            WireValue::Power { value, signal } => WireValue::Power { value: *value, signal: signal.saturating_sub(1) },
-            WireValue::Logic { value, signal } => WireValue::Logic { value: *value, signal: signal.saturating_sub(1) },
+            WireValue::Power { value, signal } => WireValue::Power {
+                value: *value,
+                signal: signal.saturating_sub(1),
+            },
+            WireValue::Logic { value, signal } => WireValue::Logic {
+                value: *value,
+                signal: signal.saturating_sub(1),
+            },
         };
 
         match new_signal {

@@ -3,7 +3,13 @@ use macroquad::prelude::{
     is_mouse_button_released, mouse_position, mouse_wheel, KeyCode, MouseButton, Rect, Vec2,
 };
 
-use crate::{app::Tool, draw::{object_rect, to_screen_coords, Camera}, objects::{interact_with_object, Object}, water::WaterGrid, wires::{WireColor, WireGrid}};
+use crate::{
+    app::Tool,
+    draw::{object_rect, to_screen_coords, Camera},
+    objects::{interact_with_object, Object},
+    water::WaterGrid,
+    wires::{WireColor, WireGrid},
+};
 
 pub(crate) fn handle_keyboard_input(camera: &mut Camera, current_tool: &mut Tool) {
     if is_key_down(KeyCode::A) || is_key_down(KeyCode::Left) {

@@ -1,4 +1,13 @@
-use crate::{Resources, draw::{draw_game, Camera}, input::{handle_keyboard_input, handle_pointer_input}, objects::{update_objects, Object}, saveload::{load_objects, load_png_from_bytes, load_wires}, ui::{draw_ui, UiState}, water::WaterGrid, wires::WireGrid};
+use crate::{
+    draw::{draw_game, Camera},
+    input::{handle_keyboard_input, handle_pointer_input},
+    objects::{update_objects, Object},
+    saveload::{load_objects, load_png_from_bytes, load_wires},
+    ui::{draw_ui, UiState},
+    water::WaterGrid,
+    wires::WireGrid,
+    Resources,
+};
 
 pub struct CyberSubApp {
     ui_state: UiState,
@@ -106,10 +115,14 @@ impl CyberSubApp {
                     self.game_settings.enable_gravity,
                     self.game_settings.enable_inertia,
                 );
-                for _ in 0..2 {
+                for _ in 0..3 {
                     self.game_state.wire_grid.update();
                 }
-                update_objects(&mut self.game_state.objects, &mut self.game_state.water_grid, &mut self.game_state.wire_grid);
+                update_objects(
+                    &mut self.game_state.objects,
+                    &mut self.game_state.water_grid,
+                    &mut self.game_state.wire_grid,
+                );
             }
         }
         *last_update = Some(game_time);

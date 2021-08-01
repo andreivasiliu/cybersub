@@ -1,4 +1,7 @@
-use crate::{water::WaterGrid, wires::{WireColor, WireGrid}};
+use crate::{
+    water::WaterGrid,
+    wires::{WireColor, WireGrid},
+};
 
 pub(crate) struct Object {
     pub object_type: ObjectType,
@@ -9,11 +12,27 @@ pub(crate) struct Object {
 }
 
 pub(crate) enum ObjectType {
-    Door { state: DoorState, progress: u8 },
-    VerticalDoor { state: DoorState, progress: u8 },
-    Reactor { active: bool },
+    Door {
+        state: DoorState,
+        progress: u8,
+    },
+    VerticalDoor {
+        state: DoorState,
+        progress: u8,
+    },
+    Reactor {
+        active: bool,
+    },
     Lamp,
+    Gauge {
+        value: i8,
+    },
     // SmallPump,
+    LargePump {
+        target_speed: i8,
+        speed: i8,
+        progress: u8,
+    },
 }
 
 pub(crate) enum DoorState {
@@ -28,12 +47,18 @@ impl Object {
             ObjectType::VerticalDoor { .. } => (5, 17),
             ObjectType::Reactor { .. } => (32, 17),
             ObjectType::Lamp => (5, 4),
+            ObjectType::Gauge { .. } => (7, 7),
+            ObjectType::LargePump { .. } => (30, 18),
         }
     }
 }
 
 // What an object does on every physics update tick.
-pub(crate) fn update_objects(objects: &mut Vec<Object>, water_grid: &mut WaterGrid, wire_grid: &mut WireGrid) {
+pub(crate) fn update_objects(
+    objects: &mut Vec<Object>,
+    water_grid: &mut WaterGrid,
+    wire_grid: &mut WireGrid,
+) {
     for object in objects {
         match &mut object.object_type {
             ObjectType::Door { state, progress } => {
@@ -121,12 +146,11 @@ pub(crate) fn update_objects(objects: &mut Vec<Object>, water_grid: &mut WaterGr
 
                 if *active {
                     object.current_frame = 0;
-                    cell.make_powered_wire(WireColor::Brown);
+                    cell.send_power(200);
                 } else {
                     object.current_frame = 1;
-                    cell.make_wire(WireColor::Brown);
                 }
-            },
+            }
             ObjectType::Lamp => {
                 let cell_x = object.position_x + 3;
                 let cell_y = object.position_y + 1;
@@ -138,7 +162,70 @@ pub(crate) fn update_objects(objects: &mut Vec<Object>, water_grid: &mut WaterGr
                 } else {
                     object.current_frame = 0;
                 }
-            },
+            }
+            ObjectType::Gauge { value } => {
+                let cell_x = object.position_x + 4;
+                let cell_y = object.position_y + 1;
+
+                let cell = wire_grid.cell(cell_x as usize, cell_y as usize);
+                if let Some(logic_value) = cell.receive_logic() {
+                    *value = logic_value;
+                }
+                let cell = wire_grid.cell_mut(cell_x as usize, cell_y as usize + 5);
+                cell.send_logic(*value);
+
+                object.current_frame = match *value {
+                    -128..=-96 => 0,
+                    -95..=-32 => 1,
+                    -31..=31 => 2,
+                    32..=95 => 3,
+                    96..=127 => 4,
+                };
+            }
+            ObjectType::LargePump {
+                target_speed,
+                speed,
+                progress,
+            } => {
+                let cell_x = object.position_x + 10;
+                let cell_y = object.position_y + 2;
+
+                let cell = wire_grid.cell(cell_x as usize + 3, cell_y as usize);
+                if let Some(logic_value) = cell.receive_logic() {
+                    *target_speed = logic_value;
+                }
+                let cell = wire_grid.cell(cell_x as usize, cell_y as usize);
+                let target_speed = if let Some(power_value) = cell.receive_power() {
+                    if power_value > 100 {
+                        *target_speed
+                    } else {
+                        0
+                    }
+                } else {
+                    0
+                };
+
+                *speed = ((*speed as i16 + target_speed as i16) / 2) as i8;
+
+                if *speed >= 0 {
+                    *progress = progress.wrapping_add((*speed / 4) as u8);
+                } else {
+                    *progress = progress.wrapping_sub((speed.abs() / 4) as u8);
+                }
+
+                object.current_frame = (*progress as u8 / (u8::MAX / 4)).clamp(0, 3) as u16;
+
+                for y in 0..4 {
+                    for x in 0..4 {
+                        let cell_x = object.position_x + 24 + x;
+                        let cell_y = object.position_y + 12 + y;
+
+                        let cell = water_grid.cell_mut(cell_x as usize, cell_y as usize);
+
+                        cell.add_level(*speed as i32 * 8);
+                    }
+                }
+            }
         }
     }
 }
@@ -154,5 +241,18 @@ pub(crate) fn interact_with_object(object: &mut Object) {
         }
         ObjectType::Reactor { active } => *active = !*active,
         ObjectType::Lamp => (),
+        ObjectType::Gauge { value } => cycle_i8(value),
+        ObjectType::LargePump { target_speed, .. } => cycle_i8(target_speed),
     }
+}
+
+fn cycle_i8(value: &mut i8) {
+    *value = match *value {
+        0 => 64,
+        64 => 127,
+        127 => -128,
+        -128 => -64,
+        -64 => 0,
+        _ => 0,
+    };
 }

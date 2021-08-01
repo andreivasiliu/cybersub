@@ -3,7 +3,11 @@ use std::io::Read;
 use flate2::read::GzDecoder;
 use png::{BitDepth, ColorType, Decoder, Encoder};
 
-use crate::{objects::{DoorState, Object, ObjectType}, water::WaterGrid, wires::{WireColor, WireGrid}};
+use crate::{
+    objects::{DoorState, Object, ObjectType},
+    water::WaterGrid,
+    wires::{WireColor, WireGrid},
+};
 
 pub(crate) fn save(grid: &WaterGrid) -> Result<(), String> {
     if cfg!(target_arch = "wasm32") {
@@ -181,9 +185,7 @@ pub(crate) fn load_objects() -> Vec<Object> {
     }
 
     objects.push(Object {
-        object_type: ObjectType::Reactor {
-            active: false,
-        },
+        object_type: ObjectType::Reactor { active: false },
         position_x: 112,
         position_y: 76,
         current_frame: 1,
@@ -197,6 +199,34 @@ pub(crate) fn load_objects() -> Vec<Object> {
         current_frame: 0,
         frames: 2,
     });
+
+    let gauges = &[(115, 52), (73, 70), (240, 70)];
+
+    for gauge in gauges {
+        objects.push(Object {
+            object_type: ObjectType::Gauge { value: 0 },
+            position_x: gauge.0,
+            position_y: gauge.1,
+            current_frame: 2,
+            frames: 5,
+        });
+    }
+
+    let pumps = &[(68, 76), (282, 76)];
+
+    for pump in pumps {
+        objects.push(Object {
+            object_type: ObjectType::LargePump {
+                target_speed: 0,
+                speed: 0,
+                progress: 0,
+            },
+            position_x: pump.0,
+            position_y: pump.1,
+            current_frame: 0,
+            frames: 4,
+        });
+    }
 
     objects
 }

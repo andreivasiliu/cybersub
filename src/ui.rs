@@ -58,7 +58,9 @@ pub(crate) fn draw_ui(
         ..
     } = settings;
 
-    let GameState { water_grid: grid, .. } = state;
+    let GameState {
+        water_grid: grid, ..
+    } = state;
 
     if *show_ui {
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {

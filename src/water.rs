@@ -293,6 +293,20 @@ impl WaterCell {
         }
     }
 
+    pub fn add_level(&mut self, difference: i32) {
+        match self.cell_type {
+            CellType::Inside { ref mut level } => {
+                if difference >= 0 {
+                    *level = level.saturating_add(difference as u32);
+                } else {
+                    *level = level.saturating_sub(difference.abs() as u32);
+                }
+            }
+            CellType::Wall { .. } => (),
+            CellType::Sea => (),
+        }
+    }
+
     fn set_level(&mut self, new_level: u32) {
         match self.cell_type {
             CellType::Inside { ref mut level } => *level = new_level,

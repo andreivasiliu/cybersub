@@ -1,6 +1,19 @@
-use macroquad::{miniquad::{BlendFactor, BlendState, BlendValue, Equation}, prelude::{BLACK, BLUE, BROWN, Camera2D, Color, DARKBLUE, DrawTextureParams, FilterMode, GRAY, GREEN, ImageFormat, Material, MaterialParams, ORANGE, PipelineParams, Rect, SKYBLUE, Texture2D, UniformType, Vec2, WHITE, draw_line, draw_rectangle, draw_texture, draw_texture_ex, get_time, gl_use_default_material, gl_use_material, load_material, screen_height, screen_width, set_camera, vec2}};
+use macroquad::{
+    miniquad::{BlendFactor, BlendState, BlendValue, Equation},
+    prelude::{
+        draw_line, draw_rectangle, draw_texture, draw_texture_ex, get_time,
+        gl_use_default_material, gl_use_material, load_material, screen_height, screen_width,
+        set_camera, vec2, Camera2D, Color, DrawTextureParams, FilterMode, ImageFormat, Material,
+        MaterialParams, PipelineParams, Rect, Texture2D, UniformType, Vec2, BLACK, BLUE, BROWN,
+        DARKBLUE, GRAY, GREEN, ORANGE, SKYBLUE, WHITE,
+    },
+};
 
-use crate::{objects::{Object, ObjectType}, water::WaterGrid, wires::{WireColor, WireGrid}};
+use crate::{
+    objects::{Object, ObjectType},
+    water::WaterGrid,
+    wires::{WireColor, WireGrid},
+};
 
 #[derive(Debug, Default)]
 pub(crate) struct Camera {
@@ -22,6 +35,8 @@ pub struct Resources {
     vertical_door: Texture2D,
     reactor: Texture2D,
     lamp: Texture2D,
+    gauge: Texture2D,
+    large_pump: Texture2D,
     hover_highlight: Material,
     sea_water: Material,
 }
@@ -82,10 +97,7 @@ impl ResourcesBuilder {
         .expect("Could not load material");
 
         fn load_texture(bytes: &[u8]) -> Texture2D {
-            let texture = Texture2D::from_file_with_format(
-                bytes,
-                Some(ImageFormat::Png),
-            );
+            let texture = Texture2D::from_file_with_format(bytes, Some(ImageFormat::Png));
             texture.set_filter(FilterMode::Nearest);
             texture
         }
@@ -95,6 +107,8 @@ impl ResourcesBuilder {
         let vertical_door = load_texture(include_bytes!("../resources/vertical_door.png"));
         let reactor = load_texture(include_bytes!("../resources/reactor.png"));
         let lamp = load_texture(include_bytes!("../resources/lamp.png"));
+        let gauge = load_texture(include_bytes!("../resources/gauge.png"));
+        let large_pump = load_texture(include_bytes!("../resources/largepump.png"));
 
         let hover_highlight = load_material(
             include_str!("vertex.glsl"),
@@ -132,6 +146,8 @@ impl ResourcesBuilder {
             vertical_door,
             reactor,
             lamp,
+            gauge,
+            large_pump,
             hover_highlight,
         }
     }
@@ -279,11 +295,13 @@ fn draw_wires(grid: &WireGrid) {
                 let value = match cell.value(*wire_color) {
                     crate::wires::WireValue::NotConnected => continue,
                     crate::wires::WireValue::NoSignal => 0,
-                    crate::wires::WireValue::Power { value, .. } => *value,
-                    crate::wires::WireValue::Logic { value, .. } => *value,
+                    crate::wires::WireValue::Power { value, .. } => *value.min(&100),
+                    crate::wires::WireValue::Logic { value, .. } => {
+                        value.clamp(&-100, &100).abs() as u8
+                    }
                 };
 
-                let value = value.saturating_add(u8::MAX / 2) as f32 / u8::MAX as f32;
+                let value = (value + 128) as f32 / u8::MAX as f32;
                 let signal = cell.value(*wire_color).signal() as f32 / 256.0;
 
                 draw_rect_at(pos, size * value, *color);
@@ -322,6 +340,8 @@ fn draw_objects(
             ObjectType::VerticalDoor { .. } => resources.vertical_door,
             ObjectType::Reactor { .. } => resources.reactor,
             ObjectType::Lamp => resources.lamp,
+            ObjectType::Gauge { .. } => resources.gauge,
+            ObjectType::LargePump { .. } => resources.large_pump,
         };
 
         // Textures are vertically split into equally-sized animation frames
