@@ -1,26 +1,36 @@
+// Shamelessly stolen from https://www.shadertoy.com/view/MdlXz8
+// Here just temporarily to test that shaders work; the sea water shader I have
+// in my head looks way different (particles in 3 planes moving in parallax
+// with the sub), but I don't know enough GLSL to do it yet.
+
 #version 100
 
-precision highp float;
-
-varying lowp vec2 uv;
-
-uniform sampler2D sea_dust;
-uniform vec2 time_offset;
-uniform vec2 camera_offset;
-uniform float time;
-uniform vec2 resolution;
-
+#define SHOW_TILING
 
 #define TAU 6.28318530718
 #define MAX_ITER 30
 
+precision highp float;
+
+uniform float time;
+uniform vec2 resolution;
+
+varying lowp vec2 uv;
+
+// out vec4 fragColor;
+// in vec2 fragCoord;
+
 vec4 mainImage( vec2 fragCoord ) 
 {
-	float scaled_time = time * 0.1 + 23.0;
+	float scaled_time = time * .2 + 23.0;
     // uv should be the 0-1 uv of texture...
 	vec2 uv = fragCoord.xy / resolution.xy;
     
+#ifdef SHOW_TILING
+	vec2 p = mod(uv*TAU*2.0, TAU)-250.0;
+#else
     vec2 p = mod(uv*TAU, TAU)-250.0;
+#endif
 	vec2 i = vec2(p);
 	float c = 1.0;
 	float inten = .005;
@@ -53,9 +63,9 @@ vec4 mainImage( vec2 fragCoord )
 	return fragColor;
 }
 
-void main() {
-	vec4 a = texture2D(sea_dust, fract(uv * 6.0 + time_offset / 1.0 + camera_offset * 0.2));
-	vec4 b = texture2D(sea_dust, fract(uv * 6.0 + vec2(0.5, 0.2) + time_offset / 1.5 + camera_offset * 1.5));
-	vec4 c = texture2D(sea_dust, fract(uv * 6.0 + vec2(0.2, 0.5) + time_offset / 3.0 + camera_offset * 2.0));
-	gl_FragColor = max(max(a, b), c) + vec4(0.0235, 0.0235, 0.1255, 0.0) + mainImage(fract(uv + time_offset / 3.0)) * 0.2;
+
+void main()
+{
+	// mainImage(fragColor, fragCoord);
+	gl_FragColor = mainImage(uv);
 }

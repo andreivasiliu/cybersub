@@ -117,7 +117,7 @@ impl CyberSubApp {
                     self.game_settings.enable_gravity,
                     self.game_settings.enable_inertia,
                 );
-                for _ in 0..3 {
+                for _ in 0..2 {
                     self.game_state.wire_grid.update();
                 }
                 update_objects(

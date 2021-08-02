@@ -1,18 +1,14 @@
-use macroquad::{
-    miniquad::{BlendFactor, BlendState, BlendValue, Equation},
-    prelude::{
-        draw_line, draw_rectangle, draw_texture, draw_texture_ex, get_time,
-        gl_use_default_material, gl_use_material, load_material, screen_height, screen_width,
-        set_camera, vec2, vec3, Camera2D, Color, DrawTextureParams, FilterMode, ImageFormat,
-        Material, MaterialParams, PipelineParams, Rect, Texture2D, UniformType, Vec2, BLACK,
-        DARKBLUE, GRAY, WHITE,
-    },
+use macroquad::prelude::{
+    draw_line, draw_rectangle, draw_texture, draw_texture_ex, get_time, gl_use_default_material,
+    gl_use_material, screen_height, screen_width, set_camera, vec2, vec3, Camera2D, Color,
+    DrawTextureParams, Rect, Vec2, BLACK, DARKBLUE, GRAY, WHITE,
 };
 
 use crate::{
     objects::{Object, ObjectType},
     water::WaterGrid,
     wires::{WireColor, WireGrid},
+    Resources,
 };
 
 #[derive(Debug, Default)]
@@ -23,26 +19,6 @@ pub(crate) struct Camera {
     pub dragging_from: (f32, f32),
     pub scrolling_from: f32,
     pub pointing_at: (usize, usize),
-}
-
-pub struct ResourcesBuilder {
-    sub_background: Option<Texture2D>,
-}
-
-pub struct Resources {
-    sea_water: Material,
-    hover_highlight: Material,
-    wire_material: Material,
-    wires: Texture2D,
-    sub_background: Texture2D,
-    wall: Texture2D,
-    door: Texture2D,
-    vertical_door: Texture2D,
-    reactor: Texture2D,
-    lamp: Texture2D,
-    gauge: Texture2D,
-    large_pump: Texture2D,
-    junction_box: Texture2D,
 }
 
 impl Camera {
@@ -64,127 +40,6 @@ impl Camera {
 
     fn user_zoom(&self) -> f32 {
         1.0 / (1.0 - self.zoom as f32 / 64.0)
-    }
-}
-
-impl ResourcesBuilder {
-    pub fn new() -> Self {
-        ResourcesBuilder {
-            sub_background: None,
-        }
-    }
-
-    pub fn sub_background(mut self, bytes: &[u8]) -> Self {
-        self.sub_background = Some(Texture2D::from_file_with_format(
-            bytes,
-            Some(ImageFormat::Png),
-        ));
-        self.sub_background
-            .as_mut()
-            .unwrap()
-            .set_filter(FilterMode::Nearest);
-        self
-    }
-
-    pub fn build(self) -> Resources {
-        let sea_water = load_material(
-            include_str!("vertex.glsl"),
-            include_str!("water.glsl"),
-            MaterialParams {
-                uniforms: vec![
-                    ("iTime".to_string(), UniformType::Float1),
-                    ("iResolution".to_string(), UniformType::Float2),
-                ],
-                ..Default::default()
-            },
-        )
-        .expect("Could not load material");
-
-        fn load_texture(bytes: &[u8]) -> Texture2D {
-            let texture = Texture2D::from_file_with_format(bytes, Some(ImageFormat::Png));
-            texture.set_filter(FilterMode::Nearest);
-            texture
-        }
-
-        let wires = load_texture(include_bytes!("../resources/wires.png"));
-        let wall = load_texture(include_bytes!("../resources/wall.png"));
-        let door = load_texture(include_bytes!("../resources/door.png"));
-        let vertical_door = load_texture(include_bytes!("../resources/vertical_door.png"));
-        let reactor = load_texture(include_bytes!("../resources/reactor.png"));
-        let lamp = load_texture(include_bytes!("../resources/lamp.png"));
-        let gauge = load_texture(include_bytes!("../resources/gauge.png"));
-        let large_pump = load_texture(include_bytes!("../resources/largepump.png"));
-        let junction_box = load_texture(include_bytes!("../resources/junctionbox.png"));
-
-        let hover_highlight = load_material(
-            include_str!("vertex.glsl"),
-            include_str!("highlight.glsl"),
-            MaterialParams {
-                uniforms: vec![
-                    ("input_resolution".to_string(), UniformType::Float2),
-                    ("frame_y".to_string(), UniformType::Float1),
-                    ("frame_height".to_string(), UniformType::Float1),
-                    ("clicked".to_string(), UniformType::Float1),
-                ],
-                textures: vec!["input_texture".to_string()],
-                pipeline_params: PipelineParams {
-                    color_blend: Some(BlendState::new(
-                        Equation::Add,
-                        BlendFactor::Value(BlendValue::SourceAlpha),
-                        BlendFactor::OneMinusValue(BlendValue::SourceAlpha),
-                    )),
-                    alpha_blend: Some(BlendState::new(
-                        Equation::Add,
-                        BlendFactor::Zero,
-                        BlendFactor::One,
-                    )),
-                    ..Default::default()
-                },
-            },
-        )
-        .expect("Could not load door highlight material");
-
-        let wire_material = load_material(
-            include_str!("vertex.glsl"),
-            include_str!("wires.glsl"),
-            MaterialParams {
-                uniforms: vec![
-                    ("wire_color".to_string(), UniformType::Float3),
-                    ("signal".to_string(), UniformType::Float1),
-                ],
-                textures: vec!["wires_texture".to_string()],
-                pipeline_params: PipelineParams {
-                    color_blend: Some(BlendState::new(
-                        Equation::Add,
-                        BlendFactor::Value(BlendValue::SourceAlpha),
-                        BlendFactor::OneMinusValue(BlendValue::SourceAlpha),
-                    )),
-                    alpha_blend: Some(BlendState::new(
-                        Equation::Add,
-                        BlendFactor::Zero,
-                        BlendFactor::One,
-                    )),
-                    ..Default::default()
-                },
-            },
-        )
-        .expect("Could not load door highlight material");
-
-        Resources {
-            sea_water,
-            hover_highlight,
-            wire_material,
-            wires,
-            sub_background: self.sub_background.expect("Sub Background not provided"),
-            wall,
-            door,
-            vertical_door,
-            reactor,
-            lamp,
-            gauge,
-            large_pump,
-            junction_box,
-        }
     }
 }
 
@@ -210,11 +65,10 @@ pub(crate) fn draw_game(
     resources: &Resources,
     highlighting_object: &Option<(usize, bool)>,
 ) {
-    let camera = camera.to_macroquad_camera();
-    set_camera(&camera);
+    set_camera(&camera.to_macroquad_camera());
 
     if draw_sea_water {
-        draw_sea(resources);
+        draw_sea(&camera, resources);
     } else {
         draw_fake_sea();
     }
@@ -223,6 +77,8 @@ pub(crate) fn draw_game(
 
     draw_background(width, height, resources);
 
+    draw_walls(water_grid, resources);
+
     draw_wires(wire_grid, resources);
 
     if should_draw_objects {
@@ -230,15 +86,36 @@ pub(crate) fn draw_game(
     }
 
     if draw_water_grid {
-        draw_water(water_grid, resources);
+        draw_water(water_grid);
     }
 }
 
-fn draw_sea(resources: &Resources) {
+/*
+fn draw_sea_caustics(resources: &Resources) {
     resources.sea_water.set_uniform("iTime", get_time() as f32);
     resources
         .sea_water
         .set_uniform("iResolution", vec2(0.3, 0.3));
+    gl_use_material(resources.sea_water);
+    draw_rect_at(vec2(0.0, 0.0), 500.0, DARKBLUE);
+    gl_use_default_material();
+}
+*/
+
+fn draw_sea(camera: &Camera, resources: &Resources) {
+    let time_offset = vec2(0.1, 1.0) * get_time() as f32 * 0.03;
+    let camera_offset = vec2(camera.offset_x, camera.offset_y) / 300.0;
+    resources.sea_water.set_uniform("time_offset", time_offset);
+    resources
+        .sea_water
+        .set_uniform("camera_offset", camera_offset);
+    resources.sea_water.set_uniform("time", get_time() as f32);
+    resources
+        .sea_water
+        .set_uniform("resolution", vec2(0.3, 0.3));
+    resources
+        .sea_water
+        .set_texture("sea_dust", resources.sea_dust);
     gl_use_material(resources.sea_water);
     draw_rect_at(vec2(0.0, 0.0), 500.0, DARKBLUE);
     gl_use_default_material();
@@ -253,7 +130,31 @@ fn draw_background(width: usize, height: usize, resources: &Resources) {
     draw_texture(resources.sub_background, top_left.x, top_left.y, WHITE);
 }
 
-fn draw_water(grid: &WaterGrid, resources: &Resources) {
+fn draw_walls(grid: &WaterGrid, resources: &Resources) {
+    let (width, height) = grid.size();
+
+    for i in 0..width {
+        for j in 0..height {
+            let cell = grid.cell(i, j);
+
+            if cell.is_wall() {
+                let pos = to_screen_coords(i, j, width, height);
+                draw_texture_ex(
+                    resources.wall,
+                    pos.x - 0.5,
+                    pos.y - 0.5,
+                    GRAY,
+                    DrawTextureParams {
+                        dest_size: Some(vec2(1.0, 1.0)),
+                        ..Default::default()
+                    },
+                );
+            }
+        }
+    }
+}
+
+fn draw_water(grid: &WaterGrid) {
     let (width, height) = grid.size();
 
     for i in 0..width {
@@ -276,17 +177,7 @@ fn draw_water(grid: &WaterGrid, resources: &Resources) {
             let transparent_blue = Color::new(0.40, 0.75, 1.00, 0.75);
 
             if cell.is_wall() {
-                draw_texture_ex(
-                    resources.wall,
-                    pos.x - 0.5,
-                    pos.y - 0.5,
-                    GRAY,
-                    DrawTextureParams {
-                        dest_size: Some(vec2(1.0, 1.0)),
-                        ..Default::default()
-                    },
-                );
-                //draw_rect_at(pos, size, GRAY);
+                // Drawn in draw_walls()
             } else if level > 0.0 && !cell.is_sea() {
                 draw_rect_at(pos, size * level, transparent_blue);
                 draw_rect_at(pos, size * overlevel, DARKBLUE);

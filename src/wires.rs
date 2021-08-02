@@ -110,7 +110,7 @@ impl WireGrid {
                         continue;
                     }
 
-                    let mut new_value = old_value.clone().decay().decay();
+                    let mut new_value = old_value.clone().decay(2);
                     let mut connected_wires = 0;
 
                     for neighbour in old_grid.neighbours(x, y) {
@@ -119,7 +119,7 @@ impl WireGrid {
                             connected_wires += 1;
 
                             if neighbour_wire_value.signal() > new_value.signal() + 3 {
-                                new_value = neighbour_wire_value.decay();
+                                new_value = neighbour_wire_value.decay(1);
                             }
                         }
                     }
@@ -214,17 +214,17 @@ impl WireValue {
         }
     }
 
-    fn decay(&self) -> WireValue {
+    fn decay(&self, amount: u16) -> WireValue {
         let new_signal = match self {
             WireValue::NotConnected => WireValue::NotConnected,
             WireValue::NoSignal => WireValue::NoSignal,
             WireValue::Power { value, signal } => WireValue::Power {
                 value: *value,
-                signal: signal.saturating_sub(1),
+                signal: signal.saturating_sub(amount),
             },
             WireValue::Logic { value, signal } => WireValue::Logic {
                 value: *value,
-                signal: signal.saturating_sub(1),
+                signal: signal.saturating_sub(amount),
             },
         };
 
