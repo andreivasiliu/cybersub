@@ -5,6 +5,7 @@ mod draw;
 mod input;
 mod objects;
 mod resources;
+mod rocks;
 mod saveload;
 mod ui;
 mod water;

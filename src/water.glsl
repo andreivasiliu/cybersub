@@ -8,17 +8,20 @@ uniform sampler2D sea_dust;
 uniform vec2 time_offset;
 uniform vec2 camera_offset;
 uniform float time;
-uniform vec2 resolution;
+uniform vec2 world_size;
+uniform vec2 sea_dust_size;
 
 
 #define TAU 6.28318530718
 #define MAX_ITER 30
 
-vec4 mainImage( vec2 fragCoord ) 
-{
+// Source: https://www.shadertoy.com/view/MdlXz8 by Dave Hoskins.
+// Probably way too complex for what I need, so this is here just until I
+// figure out enough GLSL to make my own.
+vec4 caustics(vec2 dust_uv) {
 	float scaled_time = time * 0.1 + 23.0;
     // uv should be the 0-1 uv of texture...
-	vec2 uv = fragCoord.xy / resolution.xy;
+	vec2 uv = dust_uv;
     
     vec2 p = mod(uv*TAU, TAU)-250.0;
 	vec2 i = vec2(p);
@@ -34,28 +37,19 @@ vec4 mainImage( vec2 fragCoord )
 	c /= float(MAX_ITER);
 	c = 1.17-pow(c, 1.4);
 	vec3 colour = vec3(pow(abs(c), 8.0));
-    // colour = clamp(colour + vec3(0.1608, 0.0118, 0.2784), 0.0, 1.0);
     colour = clamp((colour + vec3(0.0078, 0.3569, 0.7529)) / 4.0, 0.0, 1.0);
     
-
-	#ifdef SHOW_TILING
-	// Flash tile borders...
-	vec2 pixel = 2.0 / resolution.xy;
-	uv *= 2.0;
-
-	float f = floor(mod(time*.5, 2.0)); 	// Flash value.
-	vec2 first = step(pixel, uv) * f;		   	// Rule out first screen pixels and flash.
-	uv  = step(fract(uv), pixel);				// Add one line of pixels per tile.
-	colour = mix(colour, vec3(1.0, 0.0, 0.0), (uv.x + uv.y) * first.x * first.y); // Yellow line
-	
-	#endif
-	vec4 fragColor = vec4(colour, 1.0);
-	return fragColor;
+	return vec4(colour, 1.0);
 }
 
 void main() {
-	vec4 a = texture2D(sea_dust, fract(uv * 6.0 + time_offset / 1.0 + camera_offset * 0.2));
-	vec4 b = texture2D(sea_dust, fract(uv * 6.0 + vec2(0.5, 0.2) + time_offset / 1.5 + camera_offset * 1.5));
-	vec4 c = texture2D(sea_dust, fract(uv * 6.0 + vec2(0.2, 0.5) + time_offset / 3.0 + camera_offset * 2.0));
-	gl_FragColor = max(max(a, b), c) + vec4(0.0235, 0.0235, 0.1255, 0.0) + mainImage(fract(uv + time_offset / 3.0)) * 0.2;
+	vec2 dust_uv = uv * sea_dust_size / world_size;
+	vec4 a = texture2D(sea_dust, fract(dust_uv + time_offset / 1.0 + camera_offset * 0.2));
+	vec4 b = texture2D(sea_dust, fract(dust_uv + time_offset / 1.5 + camera_offset * 1.5).yx);
+	vec4 c = texture2D(sea_dust, fract(-(dust_uv + time_offset / 3.0 + camera_offset * 2.0)));
+
+	vec4 background = vec4(0.0235, 0.0235, 0.1255, 0.0);
+	vec4 dust = max(max(a, b), c);
+	vec4 caustics = caustics(fract(dust_uv + time_offset / 3.0)) * 0.3;
+	gl_FragColor = background + dust + caustics;
 }

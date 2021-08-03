@@ -11,10 +11,12 @@ pub struct Resources {
     pub(crate) hover_highlight: Material,
     pub(crate) wire_material: Material,
     pub(crate) wall_material: Material,
+    pub(crate) rock_material: Material,
     pub(crate) wires: Texture2D,
     pub(crate) sub_background: Texture2D,
     pub(crate) sea_dust: Texture2D,
     pub(crate) wall: Texture2D,
+    pub(crate) rocks: Texture2D,
     pub(crate) door: Texture2D,
     pub(crate) vertical_door: Texture2D,
     pub(crate) reactor: Texture2D,
@@ -30,6 +32,8 @@ pub struct ResourcesBuilder {
 
 pub struct MutableResources {
     pub(crate) sub_walls: Texture2D,
+    pub(crate) sea_rocks: Texture2D,
+    pub(crate) sea_rocks_updated: bool,
 }
 
 impl ResourcesBuilder {
@@ -60,7 +64,8 @@ impl ResourcesBuilder {
                     ("time_offset".to_string(), UniformType::Float2),
                     ("camera_offset".to_string(), UniformType::Float2),
                     ("time".to_string(), UniformType::Float1),
-                    ("resolution".to_string(), UniformType::Float2),
+                    ("world_size".to_string(), UniformType::Float2),
+                    ("sea_dust_size".to_string(), UniformType::Float2),
                 ],
                 textures: vec!["sea_dust".to_string()],
                 ..Default::default()
@@ -77,6 +82,7 @@ impl ResourcesBuilder {
         let sea_dust = load_texture(include_bytes!("../resources/seadust.png"));
         let wires = load_texture(include_bytes!("../resources/wires.png"));
         let wall = load_texture(include_bytes!("../resources/wall.png"));
+        let rocks = load_texture(include_bytes!("../resources/rocks.png"));
         let door = load_texture(include_bytes!("../resources/door.png"));
         let vertical_door = load_texture(include_bytes!("../resources/vertical_door.png"));
         let reactor = load_texture(include_bytes!("../resources/reactor.png"));
@@ -86,6 +92,20 @@ impl ResourcesBuilder {
         let junction_box = load_texture(include_bytes!("../resources/junctionbox.png"));
 
         sea_dust.set_filter(FilterMode::Linear);
+
+        let blend_alpha = PipelineParams {
+            color_blend: Some(BlendState::new(
+                Equation::Add,
+                BlendFactor::Value(BlendValue::SourceAlpha),
+                BlendFactor::OneMinusValue(BlendValue::SourceAlpha),
+            )),
+            alpha_blend: Some(BlendState::new(
+                Equation::Add,
+                BlendFactor::Zero,
+                BlendFactor::One,
+            )),
+            ..Default::default()
+        };
 
         let hover_highlight = load_material(
             include_str!("vertex.glsl"),
@@ -98,19 +118,7 @@ impl ResourcesBuilder {
                     ("clicked".to_string(), UniformType::Float1),
                 ],
                 textures: vec!["input_texture".to_string()],
-                pipeline_params: PipelineParams {
-                    color_blend: Some(BlendState::new(
-                        Equation::Add,
-                        BlendFactor::Value(BlendValue::SourceAlpha),
-                        BlendFactor::OneMinusValue(BlendValue::SourceAlpha),
-                    )),
-                    alpha_blend: Some(BlendState::new(
-                        Equation::Add,
-                        BlendFactor::Zero,
-                        BlendFactor::One,
-                    )),
-                    ..Default::default()
-                },
+                pipeline_params: blend_alpha,
             },
         )
         .expect("Could not load door highlight material");
@@ -124,22 +132,10 @@ impl ResourcesBuilder {
                     ("signal".to_string(), UniformType::Float1),
                 ],
                 textures: vec!["wires_texture".to_string()],
-                pipeline_params: PipelineParams {
-                    color_blend: Some(BlendState::new(
-                        Equation::Add,
-                        BlendFactor::Value(BlendValue::SourceAlpha),
-                        BlendFactor::OneMinusValue(BlendValue::SourceAlpha),
-                    )),
-                    alpha_blend: Some(BlendState::new(
-                        Equation::Add,
-                        BlendFactor::Zero,
-                        BlendFactor::One,
-                    )),
-                    ..Default::default()
-                },
+                pipeline_params: blend_alpha,
             },
         )
-        .expect("Could not load door highlight material");
+        .expect("Could not load wire material");
 
         let wall_material = load_material(
             include_str!("vertex.glsl"),
@@ -147,32 +143,33 @@ impl ResourcesBuilder {
             MaterialParams {
                 uniforms: vec![("walls_size".to_string(), UniformType::Float2)],
                 textures: vec!["wall_texture".to_string(), "walls".to_string()],
-                pipeline_params: PipelineParams {
-                    color_blend: Some(BlendState::new(
-                        Equation::Add,
-                        BlendFactor::Value(BlendValue::SourceAlpha),
-                        BlendFactor::OneMinusValue(BlendValue::SourceAlpha),
-                    )),
-                    alpha_blend: Some(BlendState::new(
-                        Equation::Add,
-                        BlendFactor::Zero,
-                        BlendFactor::One,
-                    )),
-                    ..Default::default()
-                },
+                pipeline_params: blend_alpha,
             },
         )
-        .expect("Could not load door highlight material");
+        .expect("Could not load wall material");
+
+        let rock_material = load_material(
+            include_str!("vertex.glsl"),
+            include_str!("rocks.glsl"),
+            MaterialParams {
+                uniforms: vec![("sea_rocks_size".to_string(), UniformType::Float2)],
+                textures: vec!["rocks_texture".to_string(), "sea_rocks".to_string()],
+                pipeline_params: blend_alpha,
+            },
+        )
+        .expect("Could not load rock material");
 
         Resources {
             sea_water,
             hover_highlight,
             wire_material,
             wall_material,
+            rock_material,
             wires,
             sub_background: self.sub_background.expect("Sub Background not provided"),
             sea_dust,
             wall,
+            rocks,
             door,
             vertical_door,
             reactor,
@@ -188,6 +185,8 @@ impl MutableResources {
     pub fn new() -> Self {
         MutableResources {
             sub_walls: Texture2D::empty(),
+            sea_rocks: Texture2D::empty(),
+            sea_rocks_updated: false,
         }
     }
 }

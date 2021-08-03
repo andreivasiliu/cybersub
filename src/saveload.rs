@@ -1,10 +1,12 @@
 use std::io::Read;
 
 use flate2::read::GzDecoder;
+use macroquad::prelude::{Image, ImageFormat, BLACK};
 use png::{BitDepth, ColorType, Decoder, Encoder};
 
 use crate::{
     objects::{DoorState, Object, ObjectType},
+    rocks::{RockGrid, RockType},
     water::WaterGrid,
     wires::{WireColor, WireGrid},
 };
@@ -302,4 +304,49 @@ pub(crate) fn load_wires(grid: &mut WireGrid) {
             }
         }
     }
+}
+
+pub(crate) fn load_rocks_from_png(bytes: &[u8]) -> RockGrid {
+    let image = Image::from_file_with_format(bytes, Some(ImageFormat::Png));
+    load_rocks_from_image(image)
+}
+
+fn load_rocks_from_image(image: Image) -> RockGrid {
+    let width = image.width() / 2;
+    let height = image.height() / 2;
+
+    let mut grid = RockGrid::new(width, height);
+
+    for y in 0..height {
+        for x in 0..width {
+            let cell = grid.cell_mut(x, y);
+
+            let (x, y) = (x as u32, y as u32);
+            let colors = [
+                image.get_pixel(x * 2, y * 2) == BLACK,
+                image.get_pixel(x * 2 + 1, y * 2) == BLACK,
+                image.get_pixel(x * 2, y * 2 + 1) == BLACK,
+                image.get_pixel(x * 2 + 1, y * 2 + 1) == BLACK,
+            ];
+
+            let rock_type = match colors {
+                // Upper-left, upper-right, lower-left, lower-right
+                [false, false, false, false] => RockType::Empty,
+                [true, true, true, true] => RockType::WallFilled,
+                [true, false, true, true] => RockType::WallLowerLeft,
+                [false, false, true, false] => RockType::WallLowerLeft,
+                [false, true, true, true] => RockType::WallLowerRight,
+                [false, false, false, true] => RockType::WallLowerRight,
+                [true, true, true, false] => RockType::WallUpperLeft,
+                [true, false, false, false] => RockType::WallUpperLeft,
+                [true, true, false, true] => RockType::WallUpperRight,
+                [false, true, false, false] => RockType::WallUpperRight,
+                _ => RockType::WallFilled,
+            };
+
+            cell.set_type(rock_type);
+        }
+    }
+
+    grid
 }

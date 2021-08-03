@@ -3,7 +3,8 @@ use crate::{
     input::{handle_keyboard_input, handle_pointer_input},
     objects::{update_objects, Object},
     resources::MutableResources,
-    saveload::{load_objects, load_png_from_bytes, load_wires},
+    rocks::RockGrid,
+    saveload::{load_objects, load_png_from_bytes, load_rocks_from_png, load_wires},
     ui::{draw_ui, UiState},
     water::WaterGrid,
     wires::WireGrid,
@@ -33,6 +34,7 @@ pub(crate) struct GameState {
     pub water_grid: WaterGrid,
     pub wire_grid: WireGrid,
     pub objects: Vec<Object>,
+    pub rock_grid: RockGrid,
 }
 
 #[derive(PartialEq, Eq)]
@@ -80,10 +82,12 @@ impl Default for CyberSubApp {
                 water_grid: WaterGrid::new(WIDTH, HEIGHT),
                 wire_grid: WireGrid::new(WIDTH, HEIGHT),
                 objects: Vec::new(),
+                rock_grid: RockGrid::new(WIDTH, HEIGHT),
                 last_update: None,
             },
             draw_settings: DrawSettings {
                 draw_sea: true,
+                draw_rocks: true,
                 draw_objects: true,
                 draw_walls: true,
                 draw_wires: true,
@@ -96,7 +100,7 @@ impl Default for CyberSubApp {
 }
 
 impl CyberSubApp {
-    pub fn load_grid(&mut self, grid_bytes: Vec<u8>) {
+    pub fn load_grid(&mut self, grid_bytes: &[u8]) {
         self.game_state.water_grid = load_png_from_bytes(&grid_bytes).expect("Could not load grid");
         let (width, height) = self.game_state.water_grid.size();
         self.game_state.wire_grid = WireGrid::new(width, height);
@@ -105,6 +109,10 @@ impl CyberSubApp {
     pub fn load_objects(&mut self) {
         self.game_state.objects = load_objects();
         load_wires(&mut self.game_state.wire_grid);
+    }
+
+    pub fn load_rocks(&mut self, world_bytes: &[u8]) {
+        self.game_state.rock_grid = load_rocks_from_png(world_bytes);
     }
 
     pub fn update_game(&mut self, game_time: f64) {
@@ -173,6 +181,7 @@ impl CyberSubApp {
         draw_game(
             &self.game_state.water_grid,
             &self.game_state.wire_grid,
+            &self.game_state.rock_grid,
             &self.game_settings.camera,
             &self.draw_settings,
             &self.game_state.objects,

@@ -7,6 +7,7 @@ use macroquad::prelude::{
 use crate::{
     objects::{Object, ObjectType},
     resources::MutableResources,
+    rocks::RockGrid,
     water::WaterGrid,
     wires::{WireColor, WireGrid},
     Resources,
@@ -14,6 +15,7 @@ use crate::{
 
 pub(crate) struct DrawSettings {
     pub draw_sea: bool,
+    pub draw_rocks: bool,
     pub draw_objects: bool,
     pub draw_walls: bool,
     pub draw_wires: bool,
@@ -66,6 +68,7 @@ pub(crate) fn to_screen_coords(x: usize, y: usize, width: usize, height: usize) 
 pub(crate) fn draw_game(
     water_grid: &WaterGrid,
     wire_grid: &WireGrid,
+    rock_grid: &RockGrid,
     camera: &Camera,
     draw_settings: &DrawSettings,
     objects: &Vec<Object>,
@@ -75,10 +78,16 @@ pub(crate) fn draw_game(
 ) {
     set_camera(&camera.to_macroquad_camera());
 
+    update_rocks_texture(rock_grid, mutable_resources);
+
     if draw_settings.draw_sea {
-        draw_sea(&camera, resources);
+        draw_sea(&camera, resources, rock_grid.size());
     } else {
         draw_fake_sea();
+    }
+
+    if draw_settings.draw_rocks {
+        draw_rocks(rock_grid, resources, mutable_resources);
     }
 
     let (width, height) = water_grid.size();
@@ -102,19 +111,8 @@ pub(crate) fn draw_game(
     }
 }
 
-/*
-fn draw_sea_caustics(resources: &Resources) {
-    resources.sea_water.set_uniform("iTime", get_time() as f32);
-    resources
-        .sea_water
-        .set_uniform("iResolution", vec2(0.3, 0.3));
-    gl_use_material(resources.sea_water);
-    draw_rect_at(vec2(0.0, 0.0), 500.0, DARKBLUE);
-    gl_use_default_material();
-}
-*/
-
-fn draw_sea(camera: &Camera, resources: &Resources) {
+fn draw_sea(camera: &Camera, resources: &Resources, world_size: (usize, usize)) {
+    let (width, height) = world_size;
     let time_offset = vec2(0.1, 1.0) * get_time() as f32 * 0.03;
     let camera_offset = vec2(camera.offset_x, camera.offset_y) / 300.0;
     resources.sea_water.set_uniform("time_offset", time_offset);
@@ -124,12 +122,19 @@ fn draw_sea(camera: &Camera, resources: &Resources) {
     resources.sea_water.set_uniform("time", get_time() as f32);
     resources
         .sea_water
-        .set_uniform("resolution", vec2(0.3, 0.3));
+        .set_uniform("world_size", vec2((width / 16) as f32, (height / 16) as f32));
+    resources
+        .sea_water
+        .set_uniform("sea_dust_size", vec2(resources.sea_dust.width(), resources.sea_dust.height()));
     resources
         .sea_water
         .set_texture("sea_dust", resources.sea_dust);
+
+    let middle = vec2((width / 2) as f32, (height / 2) as f32);
+    let pos = to_screen_coords(0, 0, width, height) - middle * 16.0;
+
     gl_use_material(resources.sea_water);
-    draw_rect_at(vec2(0.0, 0.0), 500.0, DARKBLUE);
+    draw_rectangle(pos.x - 0.5, pos.y - 0.5, (width * 16) as f32, (height * 16) as f32, WHITE);
     gl_use_default_material();
 }
 
@@ -194,18 +199,6 @@ fn draw_walls(grid: &WaterGrid, resources: &Resources, mutable_resources: &mut M
     );
 
     gl_use_default_material();
-
-    // let pos = to_screen_coords(i, j, width, height);
-    // draw_texture_ex(
-    //     resources.wall,
-    //     pos.x - 0.5,
-    //     pos.y - 0.5,
-    //     GRAY,
-    //     DrawTextureParams {
-    //         dest_size: Some(vec2(1.0, 1.0)),
-    //         ..Default::default()
-    //     },
-    // );
 }
 
 fn draw_water(grid: &WaterGrid) {
@@ -406,4 +399,77 @@ fn draw_objects(
             }
         }
     }
+}
+
+fn update_rocks_texture(grid: &RockGrid, mutable_resources: &mut MutableResources) {
+    if mutable_resources.sea_rocks_updated {
+        return;
+    }
+
+    let (width, height) = grid.size();
+
+    let mut image = Image::gen_image_color(width as u16, height as u16, BLANK);
+
+    for y in 0..height {
+        for x in 0..width {
+            let cell = grid.cell(x, y);
+
+            if !cell.is_wall() {
+                continue;
+            }
+
+            // Encode the tile as a color for the shader to use.
+            let frame_offset = cell.rock_type() as usize;
+            image.set_pixel(
+                x as u32,
+                y as u32,
+                Color::new(frame_offset as f32 / 16.0, 0.0, 0.0, 1.0),
+            );
+        }
+    }
+
+    let img_width = mutable_resources.sea_rocks.width() as usize;
+    let img_height = mutable_resources.sea_rocks.height() as usize;
+
+    if img_width != width || img_height != height {
+        mutable_resources.sea_rocks.delete();
+        mutable_resources.sea_rocks = Texture2D::from_image(&image);
+        mutable_resources.sea_rocks.set_filter(FilterMode::Nearest);
+    } else {
+        mutable_resources.sea_rocks.update(&image);
+    }
+
+    mutable_resources.sea_rocks_updated = true;
+}
+
+fn draw_rocks(grid: &RockGrid, resources: &Resources, mutable_resources: &mut MutableResources) {
+    let (width, height) = grid.size();
+
+    resources
+        .rock_material
+        .set_texture("rocks_texture", resources.rocks);
+    resources
+        .rock_material
+        .set_texture("sea_rocks", mutable_resources.sea_rocks);
+    resources
+        .rock_material
+        .set_uniform("sea_rocks_size", vec2(width as f32, height as f32));
+    gl_use_material(resources.rock_material);
+
+    let middle = vec2((width / 2) as f32, (height / 2) as f32);
+    let pos = to_screen_coords(0, 0, width, height) - middle * 16.0;
+
+    draw_texture_ex(
+        mutable_resources.sea_rocks,
+        pos.x - 0.5,
+        pos.y - 0.5,
+        WHITE,
+        DrawTextureParams {
+            dest_size: Some(vec2(width as f32, height as f32) * 16.0),
+            // source: Some(Rect::new(0.0, 0.0, width as f32 * 5.0, height as f32 * 5.0)),
+            ..Default::default()
+        },
+    );
+
+    gl_use_default_material();
 }

@@ -121,8 +121,10 @@ impl WaterGrid {
                 if let CellType::Inside { level } = cell.cell_type {
                     total += level;
                 } else if let CellType::Wall { ref wall_reflect } = cell.cell_type {
-                    for dir in 0..DIRECTIONS {
-                        total += wall_reflect[dir];
+                    for (dir, neighbour) in self.neighbours(x, y).enumerate() {
+                        if neighbour.is_inside() {
+                            total += wall_reflect[dir];
+                        }
                     }
                 }
             }

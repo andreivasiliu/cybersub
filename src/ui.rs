@@ -66,6 +66,7 @@ pub(crate) fn draw_ui(
 
     let DrawSettings {
         draw_sea,
+        draw_rocks,
         draw_objects,
         draw_walls,
         draw_wires,
@@ -193,6 +194,7 @@ pub(crate) fn draw_ui(
     if *show_draw_settings {
         egui::Window::new("Draw settings").show(ctx, |ui| {
             ui.checkbox(draw_sea, "Enable sea shader");
+            ui.checkbox(draw_rocks, "Draw rocks");
             ui.checkbox(draw_objects, "Draw objects");
             ui.checkbox(draw_walls, "Draw walls");
             ui.checkbox(draw_wires, "Draw wires");
