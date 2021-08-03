@@ -1,5 +1,5 @@
 use crate::{
-    draw::{draw_game, Camera},
+    draw::{draw_game, Camera, DrawSettings},
     input::{handle_keyboard_input, handle_pointer_input},
     objects::{update_objects, Object},
     saveload::{load_objects, load_png_from_bytes, load_wires},
@@ -13,6 +13,7 @@ pub struct CyberSubApp {
     ui_state: UiState,
     game_state: GameState,
     game_settings: GameSettings,
+    draw_settings: DrawSettings,
     pub timings: Timings,
 }
 
@@ -21,9 +22,6 @@ pub(crate) struct GameSettings {
     pub enable_inertia: bool,
     pub camera: Camera,
     pub current_tool: Tool,
-    pub draw_sea_water: bool,
-    pub draw_objects: bool,
-    pub draw_water_grid: bool,
     pub quit_game: bool,
     pub dragging_object: bool,
     pub highlighting_object: Option<(usize, bool)>,
@@ -74,9 +72,6 @@ impl Default for CyberSubApp {
                 },
                 current_tool: Tool::AddWater,
                 quit_game: false,
-                draw_sea_water: true,
-                draw_objects: true,
-                draw_water_grid: true,
                 dragging_object: false,
                 highlighting_object: None,
             },
@@ -85,6 +80,13 @@ impl Default for CyberSubApp {
                 wire_grid: WireGrid::new(WIDTH, HEIGHT),
                 objects: Vec::new(),
                 last_update: None,
+            },
+            draw_settings: DrawSettings {
+                draw_sea: true,
+                draw_objects: true,
+                draw_walls: true,
+                draw_wires: true,
+                draw_water: true,
             },
             ui_state: UiState::default(),
             timings: Timings::default(),
@@ -138,6 +140,7 @@ impl CyberSubApp {
             &mut self.ui_state,
             &mut self.game_settings,
             &mut self.game_state,
+            &mut self.draw_settings,
             &self.timings,
         );
     }
@@ -170,9 +173,7 @@ impl CyberSubApp {
             &self.game_state.water_grid,
             &self.game_state.wire_grid,
             &self.game_settings.camera,
-            self.game_settings.draw_sea_water,
-            self.game_settings.draw_objects,
-            self.game_settings.draw_water_grid,
+            &self.draw_settings,
             &self.game_state.objects,
             resources,
             &self.game_settings.highlighting_object,

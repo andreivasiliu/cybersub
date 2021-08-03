@@ -263,10 +263,6 @@ impl WaterCell {
         matches!(self.cell_type, CellType::Wall { .. })
     }
 
-    pub fn is_sea(&self) -> bool {
-        matches!(self.cell_type, CellType::Sea)
-    }
-
     pub fn is_inside(&self) -> bool {
         matches!(self.cell_type, CellType::Inside { .. })
     }

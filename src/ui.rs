@@ -2,6 +2,7 @@ use egui::{vec2, Color32, Label, Slider};
 
 use crate::{
     app::{GameSettings, GameState, Tool},
+    draw::DrawSettings,
     saveload::{load, load_png, save, save_png},
     Timings,
 };
@@ -12,6 +13,7 @@ pub(crate) struct UiState {
     show_ui: bool,
     show_help: bool,
     show_timings: bool,
+    show_draw_settings: bool,
     error_message: Option<String>,
 }
 
@@ -23,6 +25,7 @@ impl Default for UiState {
             show_ui: true,
             show_help: false,
             show_timings: false,
+            show_draw_settings: false,
             error_message: None,
         }
     }
@@ -35,6 +38,7 @@ pub(crate) fn draw_ui(
     ui_state: &mut UiState,
     settings: &mut GameSettings,
     state: &mut GameState,
+    draw_settings: &mut DrawSettings,
     timings: &Timings,
 ) {
     let UiState {
@@ -43,6 +47,7 @@ pub(crate) fn draw_ui(
         show_ui,
         show_help,
         show_timings,
+        show_draw_settings,
         error_message,
     } = ui_state;
 
@@ -51,9 +56,6 @@ pub(crate) fn draw_ui(
         enable_inertia,
         camera,
         current_tool,
-        draw_sea_water,
-        draw_objects,
-        draw_water_grid,
         quit_game,
         ..
     } = settings;
@@ -61,6 +63,14 @@ pub(crate) fn draw_ui(
     let GameState {
         water_grid: grid, ..
     } = state;
+
+    let DrawSettings {
+        draw_sea,
+        draw_objects,
+        draw_walls,
+        draw_wires,
+        draw_water,
+    } = draw_settings;
 
     if *show_ui {
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
@@ -152,9 +162,8 @@ pub(crate) fn draw_ui(
         ui.checkbox(show_ui, "Show UI");
         ui.checkbox(enable_gravity, "Enable gravity");
         ui.checkbox(enable_inertia, "Enable inertia");
-        ui.checkbox(draw_sea_water, "Enable sea shader");
-        ui.checkbox(draw_objects, "Draw objects");
-        ui.checkbox(draw_water_grid, "Draw water grid");
+        ui.checkbox(show_draw_settings, "Show draw settings");
+        ui.checkbox(show_timings, "Show timings");
         ui.horizontal(|ui| {
             ui.label("Zoom:");
             ui.add(Slider::new(&mut camera.zoom, -512..=36));
@@ -177,6 +186,20 @@ pub(crate) fn draw_ui(
             ui.radio_value(current_tool, Tool::RemoveWall, "Remove Walls");
         });
     });
+
+    if *show_draw_settings {
+        egui::Window::new("Draw settings").show(ctx, |ui| {
+            ui.checkbox(draw_sea, "Enable sea shader");
+            ui.checkbox(draw_objects, "Draw objects");
+            ui.checkbox(draw_walls, "Draw walls");
+            ui.checkbox(draw_wires, "Draw wires");
+            ui.checkbox(draw_water, "Draw water");
+
+            if ui.button("Close").clicked() {
+                *show_draw_settings = false;
+            }
+        });
+    }
 
     if *show_timings {
         egui::Window::new("Timings").show(ctx, |ui| {

@@ -11,6 +11,14 @@ use crate::{
     Resources,
 };
 
+pub(crate) struct DrawSettings {
+    pub draw_sea: bool,
+    pub draw_objects: bool,
+    pub draw_walls: bool,
+    pub draw_wires: bool,
+    pub draw_water: bool,
+}
+
 #[derive(Debug, Default)]
 pub(crate) struct Camera {
     pub offset_x: f32,
@@ -58,16 +66,14 @@ pub(crate) fn draw_game(
     water_grid: &WaterGrid,
     wire_grid: &WireGrid,
     camera: &Camera,
-    draw_sea_water: bool,
-    should_draw_objects: bool,
-    draw_water_grid: bool,
+    draw_settings: &DrawSettings,
     objects: &Vec<Object>,
     resources: &Resources,
     highlighting_object: &Option<(usize, bool)>,
 ) {
     set_camera(&camera.to_macroquad_camera());
 
-    if draw_sea_water {
+    if draw_settings.draw_sea {
         draw_sea(&camera, resources);
     } else {
         draw_fake_sea();
@@ -77,15 +83,19 @@ pub(crate) fn draw_game(
 
     draw_background(width, height, resources);
 
-    draw_walls(water_grid, resources);
+    if draw_settings.draw_walls {
+        draw_walls(water_grid, resources);
+    }
 
-    draw_wires(wire_grid, resources);
+    if draw_settings.draw_wires {
+        draw_wires(wire_grid, resources);
+    }
 
-    if should_draw_objects {
+    if draw_settings.draw_objects {
         draw_objects(objects, width, height, resources, highlighting_object);
     }
 
-    if draw_water_grid {
+    if draw_settings.draw_water {
         draw_water(water_grid);
     }
 }
@@ -137,19 +147,21 @@ fn draw_walls(grid: &WaterGrid, resources: &Resources) {
         for j in 0..height {
             let cell = grid.cell(i, j);
 
-            if cell.is_wall() {
-                let pos = to_screen_coords(i, j, width, height);
-                draw_texture_ex(
-                    resources.wall,
-                    pos.x - 0.5,
-                    pos.y - 0.5,
-                    GRAY,
-                    DrawTextureParams {
-                        dest_size: Some(vec2(1.0, 1.0)),
-                        ..Default::default()
-                    },
-                );
+            if !cell.is_wall() {
+                continue;
             }
+
+            let pos = to_screen_coords(i, j, width, height);
+            draw_texture_ex(
+                resources.wall,
+                pos.x - 0.5,
+                pos.y - 0.5,
+                GRAY,
+                DrawTextureParams {
+                    dest_size: Some(vec2(1.0, 1.0)),
+                    ..Default::default()
+                },
+            );
         }
     }
 }
@@ -159,6 +171,12 @@ fn draw_water(grid: &WaterGrid) {
 
     for i in 0..width {
         for j in 0..height {
+            let cell = grid.cell(i, j);
+
+            if !cell.is_inside() {
+                continue;
+            }
+
             let pos = to_screen_coords(i, j, width, height);
             let level = grid.cell(i, j).amount_filled();
             let overlevel = grid.cell(i, j).amount_overfilled();
@@ -172,18 +190,12 @@ fn draw_water(grid: &WaterGrid) {
 
             let size = 0.5;
 
-            let cell = grid.cell(i, j);
-
             let transparent_blue = Color::new(0.40, 0.75, 1.00, 0.75);
 
-            if cell.is_wall() {
-                // Drawn in draw_walls()
-            } else if level > 0.0 && !cell.is_sea() {
+            if level > 0.0 {
                 draw_rect_at(pos, size * level, transparent_blue);
                 draw_rect_at(pos, size * overlevel, DARKBLUE);
-            }
 
-            if !cell.is_sea() && !cell.is_wall() && level != 0.0 {
                 let velocity = vec2(velocity.0, velocity.1).normalize_or_zero() * 0.35;
 
                 if velocity != vec2(0.0, 0.0) {
