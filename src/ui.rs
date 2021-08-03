@@ -163,7 +163,10 @@ pub(crate) fn draw_ui(
         ui.checkbox(enable_gravity, "Enable gravity");
         ui.checkbox(enable_inertia, "Enable inertia");
         ui.checkbox(show_draw_settings, "Show draw settings");
-        ui.checkbox(show_timings, "Show timings");
+        if cfg!(not(target_arch = "wasm32")) {
+            // Timing not available in browsers
+            ui.checkbox(show_timings, "Show timings");
+        }
         ui.horizontal(|ui| {
             ui.label("Zoom:");
             ui.add(Slider::new(&mut camera.zoom, -512..=36));

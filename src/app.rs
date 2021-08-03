@@ -2,6 +2,7 @@ use crate::{
     draw::{draw_game, Camera, DrawSettings},
     input::{handle_keyboard_input, handle_pointer_input},
     objects::{update_objects, Object},
+    resources::MutableResources,
     saveload::{load_objects, load_png_from_bytes, load_wires},
     ui::{draw_ui, UiState},
     water::WaterGrid,
@@ -168,7 +169,7 @@ impl CyberSubApp {
         );
     }
 
-    pub fn draw_game(&self, resources: &Resources) {
+    pub fn draw_game(&self, resources: &Resources, mutable_resources: &mut MutableResources) {
         draw_game(
             &self.game_state.water_grid,
             &self.game_state.wire_grid,
@@ -176,6 +177,7 @@ impl CyberSubApp {
             &self.draw_settings,
             &self.game_state.objects,
             resources,
+            mutable_resources,
             &self.game_settings.highlighting_object,
         );
     }

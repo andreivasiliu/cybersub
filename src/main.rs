@@ -2,7 +2,7 @@
 
 use std::time::Instant;
 
-use cybersub::{CyberSubApp, ResourcesBuilder};
+use cybersub::{CyberSubApp, MutableResources, ResourcesBuilder};
 use macroquad::prelude::{
     clear_background, get_fps, get_frame_time, get_time, load_file, next_frame, Conf, BLACK,
 };
@@ -32,6 +32,8 @@ async fn main() {
     let resources = ResourcesBuilder::new()
         .sub_background(&background_bytes)
         .build();
+
+    let mut mutable_resources = MutableResources::new();
 
     let mut last_time = None;
     let mut delta_time = || {
@@ -69,7 +71,7 @@ async fn main() {
         cybersub_app.update_game(get_time());
         cybersub_app.timings.game_update = delta_time();
 
-        cybersub_app.draw_game(&resources);
+        cybersub_app.draw_game(&resources, &mut mutable_resources);
         cybersub_app.timings.game_layout = delta_time();
 
         egui_macroquad::draw();

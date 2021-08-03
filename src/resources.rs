@@ -10,6 +10,7 @@ pub struct Resources {
     pub(crate) sea_water: Material,
     pub(crate) hover_highlight: Material,
     pub(crate) wire_material: Material,
+    pub(crate) wall_material: Material,
     pub(crate) wires: Texture2D,
     pub(crate) sub_background: Texture2D,
     pub(crate) sea_dust: Texture2D,
@@ -25,6 +26,10 @@ pub struct Resources {
 
 pub struct ResourcesBuilder {
     sub_background: Option<Texture2D>,
+}
+
+pub struct MutableResources {
+    pub(crate) sub_walls: Texture2D,
 }
 
 impl ResourcesBuilder {
@@ -136,10 +141,34 @@ impl ResourcesBuilder {
         )
         .expect("Could not load door highlight material");
 
+        let wall_material = load_material(
+            include_str!("vertex.glsl"),
+            include_str!("walls.glsl"),
+            MaterialParams {
+                uniforms: vec![("walls_size".to_string(), UniformType::Float2)],
+                textures: vec!["wall_texture".to_string(), "walls".to_string()],
+                pipeline_params: PipelineParams {
+                    color_blend: Some(BlendState::new(
+                        Equation::Add,
+                        BlendFactor::Value(BlendValue::SourceAlpha),
+                        BlendFactor::OneMinusValue(BlendValue::SourceAlpha),
+                    )),
+                    alpha_blend: Some(BlendState::new(
+                        Equation::Add,
+                        BlendFactor::Zero,
+                        BlendFactor::One,
+                    )),
+                    ..Default::default()
+                },
+            },
+        )
+        .expect("Could not load door highlight material");
+
         Resources {
             sea_water,
             hover_highlight,
             wire_material,
+            wall_material,
             wires,
             sub_background: self.sub_background.expect("Sub Background not provided"),
             sea_dust,
@@ -151,6 +180,14 @@ impl ResourcesBuilder {
             gauge,
             large_pump,
             junction_box,
+        }
+    }
+}
+
+impl MutableResources {
+    pub fn new() -> Self {
+        MutableResources {
+            sub_walls: Texture2D::empty(),
         }
     }
 }

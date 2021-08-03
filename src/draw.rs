@@ -1,11 +1,12 @@
 use macroquad::prelude::{
     draw_line, draw_rectangle, draw_texture, draw_texture_ex, get_time, gl_use_default_material,
     gl_use_material, screen_height, screen_width, set_camera, vec2, vec3, Camera2D, Color,
-    DrawTextureParams, Rect, Vec2, BLACK, DARKBLUE, GRAY, WHITE,
+    DrawTextureParams, FilterMode, Image, Rect, Texture2D, Vec2, BLACK, BLANK, DARKBLUE, WHITE,
 };
 
 use crate::{
     objects::{Object, ObjectType},
+    resources::MutableResources,
     water::WaterGrid,
     wires::{WireColor, WireGrid},
     Resources,
@@ -69,6 +70,7 @@ pub(crate) fn draw_game(
     draw_settings: &DrawSettings,
     objects: &Vec<Object>,
     resources: &Resources,
+    mutable_resources: &mut MutableResources,
     highlighting_object: &Option<(usize, bool)>,
 ) {
     set_camera(&camera.to_macroquad_camera());
@@ -84,7 +86,7 @@ pub(crate) fn draw_game(
     draw_background(width, height, resources);
 
     if draw_settings.draw_walls {
-        draw_walls(water_grid, resources);
+        draw_walls(water_grid, resources, mutable_resources);
     }
 
     if draw_settings.draw_wires {
@@ -140,30 +142,70 @@ fn draw_background(width: usize, height: usize, resources: &Resources) {
     draw_texture(resources.sub_background, top_left.x, top_left.y, WHITE);
 }
 
-fn draw_walls(grid: &WaterGrid, resources: &Resources) {
+fn draw_walls(grid: &WaterGrid, resources: &Resources, mutable_resources: &mut MutableResources) {
     let (width, height) = grid.size();
 
-    for i in 0..width {
-        for j in 0..height {
-            let cell = grid.cell(i, j);
+    let mut image = Image::gen_image_color(width as u16, height as u16, BLANK);
 
-            if !cell.is_wall() {
-                continue;
+    for y in 0..height {
+        for x in 0..width {
+            let cell = grid.cell(x, y);
+
+            if cell.is_wall() {
+                image.set_pixel(x as u32, y as u32, WHITE);
             }
-
-            let pos = to_screen_coords(i, j, width, height);
-            draw_texture_ex(
-                resources.wall,
-                pos.x - 0.5,
-                pos.y - 0.5,
-                GRAY,
-                DrawTextureParams {
-                    dest_size: Some(vec2(1.0, 1.0)),
-                    ..Default::default()
-                },
-            );
         }
     }
+
+    let img_width = mutable_resources.sub_walls.width() as usize;
+    let img_height = mutable_resources.sub_walls.height() as usize;
+
+    if img_width != width || img_height != height {
+        mutable_resources.sub_walls.delete();
+        mutable_resources.sub_walls = Texture2D::from_image(&image);
+        mutable_resources.sub_walls.set_filter(FilterMode::Nearest);
+    } else {
+        mutable_resources.sub_walls.update(&image);
+    }
+
+    resources
+        .wall_material
+        .set_texture("wall_texture", resources.wall);
+    resources
+        .wall_material
+        .set_texture("walls", mutable_resources.sub_walls);
+    resources
+        .wall_material
+        .set_uniform("walls_size", vec2(width as f32, height as f32));
+    gl_use_material(resources.wall_material);
+
+    let pos = to_screen_coords(0, 0, width, height);
+
+    draw_texture_ex(
+        mutable_resources.sub_walls,
+        pos.x - 0.5,
+        pos.y - 0.5,
+        WHITE,
+        DrawTextureParams {
+            dest_size: Some(vec2(width as f32, height as f32)),
+            // source: Some(Rect::new(0.0, 0.0, width as f32 * 5.0, height as f32 * 5.0)),
+            ..Default::default()
+        },
+    );
+
+    gl_use_default_material();
+
+    // let pos = to_screen_coords(i, j, width, height);
+    // draw_texture_ex(
+    //     resources.wall,
+    //     pos.x - 0.5,
+    //     pos.y - 0.5,
+    //     GRAY,
+    //     DrawTextureParams {
+    //         dest_size: Some(vec2(1.0, 1.0)),
+    //         ..Default::default()
+    //     },
+    // );
 }
 
 fn draw_water(grid: &WaterGrid) {

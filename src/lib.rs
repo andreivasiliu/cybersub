@@ -11,4 +11,4 @@ mod water;
 mod wires;
 
 pub use app::{CyberSubApp, Timings};
-pub use resources::{Resources, ResourcesBuilder};
+pub use resources::{MutableResources, Resources, ResourcesBuilder};
