@@ -61,10 +61,7 @@ pub(crate) fn draw_ui(
         ..
     } = settings;
 
-    let GameState {
-        submarines,
-        ..
-    } = state;
+    let GameState { submarines, .. } = state;
 
     let DrawSettings {
         draw_sea,
@@ -175,7 +172,10 @@ pub(crate) fn draw_ui(
 
                 if *show_total_water {
                     if let Some(submarine) = submarines.get(*current_submarine) {
-                        ui.label(format!("Total water: {}", submarine.water_grid.total_water()));
+                        ui.label(format!(
+                            "Total water: {}",
+                            submarine.water_grid.total_water()
+                        ));
                     }
                 }
             });

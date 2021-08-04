@@ -1,10 +1,22 @@
-use macroquad::{camera::{pop_camera_state, push_camera_state}, prelude::{
-    draw_line, draw_rectangle, draw_texture, draw_texture_ex, get_time, gl_use_default_material,
-    gl_use_material, screen_height, screen_width, set_camera, vec2, vec3, Camera2D, Color,
-    DrawTextureParams, FilterMode, Image, Rect, Texture2D, Vec2, BLACK, BLANK, DARKBLUE, WHITE,
-}};
+use macroquad::{
+    camera::{pop_camera_state, push_camera_state},
+    prelude::{
+        draw_line, draw_rectangle, draw_texture, draw_texture_ex, get_time,
+        gl_use_default_material, gl_use_material, screen_height, screen_width, set_camera, vec2,
+        vec3, Camera2D, Color, DrawTextureParams, FilterMode, Image, Rect, Texture2D, Vec2, BLACK,
+        BLANK, DARKBLUE, WHITE,
+    },
+};
 
-use crate::{Resources, app::SubmarineState, objects::{Object, ObjectType}, resources::MutableResources, rocks::RockGrid, water::WaterGrid, wires::{WireColor, WireGrid}};
+use crate::{
+    app::SubmarineState,
+    objects::{Object, ObjectType},
+    resources::MutableResources,
+    rocks::RockGrid,
+    water::WaterGrid,
+    wires::{WireColor, WireGrid},
+    Resources,
+};
 
 pub(crate) struct DrawSettings {
     pub draw_sea: bool,
@@ -96,23 +108,29 @@ pub(crate) fn draw_game(
 
     for submarine in submarines {
         set_camera(&camera.to_macroquad_camera(Some(submarine.position)));
-    
+
         let (width, height) = submarine.water_grid.size();
-    
+
         draw_background(width, height, resources);
-    
+
         if draw_settings.draw_walls {
             draw_walls(&submarine.water_grid, resources, mutable_resources);
         }
-    
+
         if draw_settings.draw_wires {
             draw_wires(&submarine.wire_grid, resources);
         }
-    
+
         if draw_settings.draw_objects {
-            draw_objects(&submarine.objects, width, height, resources, highlighting_object);
+            draw_objects(
+                &submarine.objects,
+                width,
+                height,
+                resources,
+                highlighting_object,
+            );
         }
-    
+
         if draw_settings.draw_water {
             draw_water(&submarine.water_grid);
         }
@@ -130,12 +148,14 @@ fn draw_sea(camera: &Camera, resources: &Resources, world_size: (usize, usize)) 
         .sea_water
         .set_uniform("camera_offset", camera_offset);
     resources.sea_water.set_uniform("time", get_time() as f32);
-    resources
-        .sea_water
-        .set_uniform("world_size", vec2((width / 16) as f32, (height / 16) as f32));
-    resources
-        .sea_water
-        .set_uniform("sea_dust_size", vec2(resources.sea_dust.width(), resources.sea_dust.height()));
+    resources.sea_water.set_uniform(
+        "world_size",
+        vec2((width / 16) as f32, (height / 16) as f32),
+    );
+    resources.sea_water.set_uniform(
+        "sea_dust_size",
+        vec2(resources.sea_dust.width(), resources.sea_dust.height()),
+    );
     resources
         .sea_water
         .set_texture("sea_dust", resources.sea_dust);
@@ -144,7 +164,13 @@ fn draw_sea(camera: &Camera, resources: &Resources, world_size: (usize, usize)) 
     let pos = to_screen_coords(0, 0, width, height) - middle * 16.0;
 
     gl_use_material(resources.sea_water);
-    draw_rectangle(pos.x, pos.y, (width * 16) as f32, (height * 16) as f32, WHITE);
+    draw_rectangle(
+        pos.x,
+        pos.y,
+        (width * 16) as f32,
+        (height * 16) as f32,
+        WHITE,
+    );
     gl_use_default_material();
 }
 
@@ -153,7 +179,13 @@ fn draw_fake_sea(world_size: (usize, usize)) {
     let middle = vec2((width / 2) as f32, (height / 2) as f32);
     let pos = to_screen_coords(0, 0, width, height) - middle * 16.0;
 
-    draw_rectangle(pos.x, pos.y, (width * 16) as f32, (height * 16) as f32, DARKBLUE);
+    draw_rectangle(
+        pos.x,
+        pos.y,
+        (width * 16) as f32,
+        (height * 16) as f32,
+        DARKBLUE,
+    );
 }
 
 fn draw_background(width: usize, height: usize, resources: &Resources) {
@@ -373,6 +405,7 @@ fn draw_objects(
             ObjectType::Gauge { .. } => resources.gauge,
             ObjectType::LargePump { .. } => resources.large_pump,
             ObjectType::JunctionBox => resources.junction_box,
+            ObjectType::NavController { .. } => resources.nav_controller,
         };
 
         // Textures are vertically split into equally-sized animation frames

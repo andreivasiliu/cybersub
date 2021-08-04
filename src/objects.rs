@@ -1,4 +1,4 @@
-use crate::{water::WaterGrid, wires::WireGrid};
+use crate::app::SubmarineState;
 
 pub(crate) struct Object {
     pub object_type: ObjectType,
@@ -31,6 +31,10 @@ pub(crate) enum ObjectType {
         progress: u8,
     },
     JunctionBox,
+    NavController {
+        active: bool,
+        progress: u8,
+    },
 }
 
 pub(crate) enum DoorState {
@@ -48,16 +52,20 @@ impl Object {
             ObjectType::Gauge { .. } => (7, 7),
             ObjectType::LargePump { .. } => (30, 18),
             ObjectType::JunctionBox => (6, 8),
+            ObjectType::NavController { .. } => (9, 15),
         }
     }
 }
 
 // What an object does on every physics update tick.
-pub(crate) fn update_objects(
-    objects: &mut Vec<Object>,
-    water_grid: &mut WaterGrid,
-    wire_grid: &mut WireGrid,
-) {
+pub(crate) fn update_objects(submarine: &mut SubmarineState) {
+    let SubmarineState {
+        objects,
+        water_grid,
+        wire_grid,
+        ..
+    } = submarine;
+
     for object in objects {
         match &mut object.object_type {
             ObjectType::Door { state, progress } => {
@@ -231,7 +239,7 @@ pub(crate) fn update_objects(
                 let cell_x = object.position_x as usize + 3;
                 let cell_y = object.position_y as usize + 1;
 
-                let outputs = &[(3, 1), (3, 2), (3, 3), (3, 4)];
+                let outputs = &[(3, 2), (3, 3), (3, 4), (3, 5)];
 
                 let cell = wire_grid.cell(cell_x, cell_y);
                 if let Some(logic_value) = cell.receive_logic() {
@@ -248,6 +256,44 @@ pub(crate) fn update_objects(
                         wire_grid
                             .cell_mut(cell_x + output.0, cell_y + output.1)
                             .send_power(power_value);
+                    }
+                }
+            }
+            ObjectType::NavController { active, progress } => {
+                let cell_x = object.position_x as usize + 2;
+                let cell_y = object.position_y as usize + 4;
+
+                object.current_frame = 0;
+                let cell = wire_grid.cell(cell_x, cell_y);
+                if let Some(power_value) = cell.receive_power() {
+                    if power_value > 50 && *active {
+                        let target_speed = 0;
+
+                        let target_acceleration = match submarine.speed.1 - target_speed {
+                            (i32::MIN..=-255) => 2,
+                            (-256..=-15) => 1,
+                            (-16..=15) => 0,
+                            (16..=255) => -1,
+                            (256..=i32::MAX) => -2,
+                        };
+
+                        let pump_speed = match target_acceleration - submarine.acceleration.1 {
+                            (i32::MIN..=-4) => -3,
+                            (-3..=-2) => -2,
+                            -1 => -1,
+                            0 => 0,
+                            1 => 1,
+                            (2..=3) => 2,
+                            (4..=i32::MAX) => 3,
+                        };
+
+                        wire_grid
+                            .cell_mut(cell_x + 7, cell_y)
+                            .send_logic(pump_speed * 32);
+
+                        *progress = (*progress + 1) % (8 * 5);
+
+                        object.current_frame = (*progress as u16 / 8) % 5 + 1;
                     }
                 }
             }
@@ -269,6 +315,7 @@ pub(crate) fn interact_with_object(object: &mut Object) {
         ObjectType::Gauge { value } => cycle_i8(value),
         ObjectType::LargePump { target_speed, .. } => cycle_i8(target_speed),
         ObjectType::JunctionBox => (),
+        ObjectType::NavController { active, .. } => *active = !*active,
     }
 }
 

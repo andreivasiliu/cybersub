@@ -3,7 +3,12 @@ use macroquad::prelude::{
     is_mouse_button_released, mouse_position, mouse_wheel, KeyCode, MouseButton, Vec2,
 };
 
-use crate::{app::{SubmarineState, Tool}, draw::{object_rect, Camera}, objects::interact_with_object, wires::WireColor};
+use crate::{
+    app::{SubmarineState, Tool},
+    draw::{object_rect, Camera},
+    objects::interact_with_object,
+    wires::WireColor,
+};
 
 fn from_screen_coords(pos: Vec2, width: usize, height: usize) -> (usize, usize) {
     (

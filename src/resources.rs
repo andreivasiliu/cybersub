@@ -24,6 +24,7 @@ pub struct Resources {
     pub(crate) gauge: Texture2D,
     pub(crate) large_pump: Texture2D,
     pub(crate) junction_box: Texture2D,
+    pub(crate) nav_controller: Texture2D,
 }
 
 pub struct ResourcesBuilder {
@@ -90,6 +91,7 @@ impl ResourcesBuilder {
         let gauge = load_texture(include_bytes!("../resources/gauge.png"));
         let large_pump = load_texture(include_bytes!("../resources/largepump.png"));
         let junction_box = load_texture(include_bytes!("../resources/junctionbox.png"));
+        let nav_controller = load_texture(include_bytes!("../resources/navcontroller.png"));
 
         sea_dust.set_filter(FilterMode::Linear);
 
@@ -177,6 +179,7 @@ impl ResourcesBuilder {
             gauge,
             large_pump,
             junction_box,
+            nav_controller,
         }
     }
 }

@@ -138,10 +138,15 @@ impl CyberSubApp {
                 delta -= 1.0 / 30.0;
 
                 for submarine in &mut self.game_state.submarines {
-                    submarine.acceleration.1 = ((submarine.water_grid.total_water() as i32 - 1_500_000) as f32 / 3_000_00.0 / 1.0) as i32;
+                    submarine.acceleration.1 = ((submarine.water_grid.total_water() as i32
+                        - 1_500_000) as f32
+                        / 3_000_00.0
+                        / 1.0) as i32;
 
-                    submarine.speed.0 = (submarine.speed.0 + submarine.acceleration.0).clamp(-1024, 1024);
-                    submarine.speed.1 = (submarine.speed.1 + submarine.acceleration.1).clamp(-1024, 1024);
+                    submarine.speed.0 =
+                        (submarine.speed.0 + submarine.acceleration.0).clamp(-1024, 1024);
+                    submarine.speed.1 =
+                        (submarine.speed.1 + submarine.acceleration.1).clamp(-1024, 1024);
 
                     submarine.position.0 += submarine.speed.0 / 256;
                     submarine.position.1 += submarine.speed.1 / 256;
@@ -150,17 +155,14 @@ impl CyberSubApp {
                         self.game_settings.enable_gravity,
                         self.game_settings.enable_inertia,
                     );
-                    for _ in 0..2 {
+                    for _ in 0..3 {
                         submarine.wire_grid.update();
                     }
-                    update_objects(
-                        &mut submarine.objects,
-                        &mut submarine.water_grid,
-                        &mut submarine.wire_grid,
-                    );
+                    update_objects(submarine);
                 }
 
-                let submarine_camera = self.game_state
+                let submarine_camera = self
+                    .game_state
                     .submarines
                     .get(self.game_settings.current_submarine)
                     .map(|submarine| submarine.position);

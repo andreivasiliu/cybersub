@@ -251,6 +251,17 @@ pub(crate) fn load_objects() -> Vec<Object> {
         });
     }
 
+    objects.push(Object {
+        object_type: ObjectType::NavController {
+            active: true,
+            progress: 0,
+        },
+        position_x: 95,
+        position_y: 50,
+        current_frame: 0,
+        frames: 6,
+    });
+
     objects
 }
 
@@ -259,50 +270,111 @@ pub(crate) fn load_wires(width: usize, height: usize) -> WireGrid {
 
     let wires = &[
         // Reactor to first junction box
-        (141..=141, 71..=81, WireColor::Blue),
-        (141..=183, 71..=71, WireColor::Blue),
-        (183..=183, 71..=73, WireColor::Blue),
+        (
+            WireColor::Blue,
+            &[(141, 81), (141, 71), (183, 71), (183, 73)][..],
+        ),
         // First junction box to lamp
-        (186..=187, 74..=74, WireColor::Green),
-        (187..=187, 71..=74, WireColor::Green),
-        (163..=187, 71..=71, WireColor::Green),
-        (163..=163, 71..=74, WireColor::Green),
+        (
+            WireColor::Green,
+            &[(186, 74), (187, 74), (187, 71), (163, 71), (163, 74)],
+        ),
         // First junction box to left large pump
-        (186..=187, 75..=75, WireColor::Brown),
-        (187..=187, 71..=75, WireColor::Brown),
-        (78..=187, 71..=71, WireColor::Brown),
-        (78..=78, 71..=80, WireColor::Brown),
+        (
+            WireColor::Brown,
+            &[(186, 75), (187, 75), (187, 71), (78, 71), (78, 80)],
+        ),
         // First junction box to right large pump
-        (186..=187, 76..=76, WireColor::Orange),
-        (187..=187, 71..=76, WireColor::Orange),
-        (187..=292, 71..=71, WireColor::Orange),
-        (292..=292, 71..=80, WireColor::Orange),
-        // Main gauge to second junction box
-        (119..=119, 58..=60, WireColor::Green),
-        (119..=124, 60..=60, WireColor::Green),
-        (124..=124, 47..=60, WireColor::Green),
-        (124..=224, 47..=47, WireColor::Green),
-        (224..=224, 47..=71, WireColor::Green),
-        (190..=224, 71..=71, WireColor::Green),
-        (190..=190, 71..=72, WireColor::Green),
-        // Second junction box to right pump gauge
-        (193..=194, 75..=75, WireColor::Blue),
-        (194..=194, 71..=75, WireColor::Blue),
-        (194..=279, 71..=71, WireColor::Blue),
-        (279..=279, 71..=73, WireColor::Blue),
+        (
+            WireColor::Orange,
+            &[(186, 76), (187, 76), (187, 71), (292, 71), (292, 80)],
+        ),
+        // First junctin box to second junction box
+        (
+            WireColor::Blue,
+            &[(186, 77), (187, 77), (187, 71), (190, 71), (190, 72)],
+        ),
+        // Main gauge to right pump gauge
+        (
+            WireColor::Green,
+            &[
+                (119, 58),
+                (119, 60),
+                (124, 60),
+                (124, 46),
+                (224, 46),
+                (224, 71),
+                (279, 71),
+                (279, 73),
+            ],
+        ),
+        // Main gauge to left pump gauge
+        (
+            WireColor::Orange,
+            &[
+                (119, 58),
+                (119, 60),
+                (114, 60),
+                (114, 46),
+                (75, 46),
+                (75, 71),
+                (66, 71),
+                (66, 73),
+            ],
+        ),
+        // Left pump gauge to pump
+        (
+            WireColor::Green,
+            &[(66, 77), (66, 79), (71, 79), (71, 71), (81, 71), (81, 79)],
+        ),
         // Right pump gauge to pump
-        (279..=279, 76..=78, WireColor::Green),
-        (279..=282, 78..=78, WireColor::Green),
-        (282..=282, 71..=78, WireColor::Green),
-        (282..=295, 71..=71, WireColor::Green),
-        (295..=295, 71..=80, WireColor::Green),
+        (
+            WireColor::Green,
+            &[
+                (279, 76),
+                (279, 78),
+                (282, 78),
+                (282, 71),
+                (295, 71),
+                (295, 80),
+            ],
+        ),
+        // Second junction box to nav controller
+        (
+            WireColor::Brown,
+            &[
+                (193, 74),
+                (194, 74),
+                (194, 71),
+                (224, 71),
+                (224, 46),
+                (96, 46),
+                (96, 54),
+                (97, 54),
+            ],
+        ),
+        // Nav controller to main gauge
+        (
+            WireColor::Blue,
+            &[(103, 54), (115, 54), (115, 53), (119, 53), (119, 54)],
+        ),
     ];
 
-    for (x_range, y_range, color) in wires {
-        for y in y_range.clone() {
-            for x in x_range.clone() {
-                let cell = grid.cell_mut(x, y);
-                cell.make_wire(*color);
+    for (color, wire_points) in wires {
+        for pair in wire_points.windows(2) {
+            let [(x1, y1), (x2, y2)] = match pair {
+                [p1, p2] => [p1, p2],
+                _ => unreachable!(),
+            };
+
+            let (x1, x2) = (x1.min(x2), x1.max(x2));
+            let (y1, y2) = (y1.min(y2), y1.max(y2));
+
+            for y in *y1..=*y2 {
+                for x in *x1..=*x2 {
+                    let cell = grid.cell_mut(x, y);
+                    cell.make_wire(*color);
+                }
             }
         }
     }
