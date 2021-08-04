@@ -1,20 +1,14 @@
 use macroquad::prelude::{
     is_key_down, is_key_pressed, is_key_released, is_mouse_button_down, is_mouse_button_pressed,
-    is_mouse_button_released, mouse_position, mouse_wheel, KeyCode, MouseButton, Rect, Vec2,
+    is_mouse_button_released, mouse_position, mouse_wheel, KeyCode, MouseButton, Vec2,
 };
 
-use crate::{
-    app::Tool,
-    draw::{object_rect, to_screen_coords, Camera},
-    objects::{interact_with_object, Object},
-    water::WaterGrid,
-    wires::{WireColor, WireGrid},
-};
+use crate::{app::{SubmarineState, Tool}, draw::{object_rect, Camera}, objects::interact_with_object, wires::WireColor};
 
 fn from_screen_coords(pos: Vec2, width: usize, height: usize) -> (usize, usize) {
     (
-        ((pos.x + 0.5) as i32 + (width as i32 / 2)) as usize,
-        ((pos.y + 0.5) as i32 + (height as i32 / 2)) as usize,
+        (pos.x + (width as f32 / 2.0)) as usize,
+        (pos.y + (height as f32 / 2.0)) as usize,
     )
 }
 
@@ -49,16 +43,15 @@ pub(crate) fn handle_keyboard_input(camera: &mut Camera, current_tool: &mut Tool
 }
 
 pub(crate) fn handle_pointer_input(
-    water_grid: &mut WaterGrid,
-    wire_grid: &mut WireGrid,
-    objects: &mut Vec<Object>,
+    submarine: &mut SubmarineState,
     camera: &mut Camera,
     tool: &Tool,
     dragging_object: &mut bool,
     highlighting_object: &mut Option<(usize, bool)>,
 ) {
-    let macroquad_camera = camera.to_macroquad_camera();
-    let (width, height) = water_grid.size();
+    // FIXME: use actual current submarine
+    let macroquad_camera = camera.to_macroquad_camera(Some(submarine.position));
+    let (width, height) = submarine.water_grid.size();
 
     camera.pointing_at = from_screen_coords(
         macroquad_camera.screen_to_world(mouse_position().into()),
@@ -109,7 +102,7 @@ pub(crate) fn handle_pointer_input(
 
     *highlighting_object = None;
 
-    for (obj_index, object) in objects.iter_mut().enumerate() {
+    for (obj_index, object) in submarine.objects.iter_mut().enumerate() {
         let draw_rect = object_rect(object, width, height);
 
         if draw_rect.contains(mouse_position) {
@@ -129,32 +122,21 @@ pub(crate) fn handle_pointer_input(
     }
 
     // Painting the grid
-    if !is_mouse_button_down(MouseButton::Left) || *dragging_object {
-        return;
-    }
+    if is_mouse_button_down(MouseButton::Left) && !*dragging_object {
+        let (x, y) = camera.pointing_at;
 
-    // Yes, this is silly. I'm just too lazy to figure out the math to find i/j directly.
-    for x in 0..width {
-        for y in 0..height {
-            let pos = to_screen_coords(x, y, width, height);
+        if x < width && y < height {
+            let water_cell = submarine.water_grid.cell_mut(x, y);
+            let wire_cell = submarine.wire_grid.cell_mut(x, y);
 
-            let size = 0.5;
-            let rect = Rect::new(pos.x - size, pos.y - size, size * 2.0, size * 2.0);
-
-            if rect.contains(mouse_position) {
-                let water_cell = water_grid.cell_mut(x, y);
-                let wire_cell = wire_grid.cell_mut(x, y);
-
-                match tool {
-                    Tool::AddWater => water_cell.fill(),
-                    Tool::AddWall => water_cell.make_wall(),
-                    Tool::RemoveWall => water_cell.clear_wall(),
-                    Tool::AddBrownWire => wire_cell.make_wire(WireColor::Brown),
-                    Tool::AddOrangeWire => wire_cell.make_wire(WireColor::Orange),
-                    Tool::AddBlueWire => wire_cell.make_powered_wire(WireColor::Blue),
-                    Tool::AddGreenWire => wire_cell.make_powered_wire(WireColor::Green),
-                }
-                return;
+            match tool {
+                Tool::AddWater => water_cell.fill(),
+                Tool::AddWall => water_cell.make_wall(),
+                Tool::RemoveWall => water_cell.clear_wall(),
+                Tool::AddBrownWire => wire_cell.make_wire(WireColor::Brown),
+                Tool::AddOrangeWire => wire_cell.make_wire(WireColor::Orange),
+                Tool::AddBlueWire => wire_cell.make_powered_wire(WireColor::Blue),
+                Tool::AddGreenWire => wire_cell.make_powered_wire(WireColor::Green),
             }
         }
     }

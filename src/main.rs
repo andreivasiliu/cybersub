@@ -21,8 +21,7 @@ async fn main() {
     let mut cybersub_app = CyberSubApp::default();
 
     if let Ok(grid_file) = load_file("grid.png").await {
-        cybersub_app.load_grid(&grid_file);
-        cybersub_app.load_objects();
+        cybersub_app.load_submarine(&grid_file);
     }
 
     if let Ok(world_file) = load_file("world.png").await {

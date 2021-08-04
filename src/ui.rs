@@ -55,13 +55,15 @@ pub(crate) fn draw_ui(
         enable_gravity,
         enable_inertia,
         camera,
+        current_submarine,
         current_tool,
         quit_game,
         ..
     } = settings;
 
     let GameState {
-        water_grid: grid, ..
+        submarines,
+        ..
     } = state;
 
     let DrawSettings {
@@ -77,35 +79,46 @@ pub(crate) fn draw_ui(
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             egui::menu::bar(ui, |ui| {
                 egui::menu::menu(ui, "File", |ui| {
-                    if ui.button("Save grid").clicked() {
-                        match save(grid) {
-                            Ok(()) => (),
-                            Err(err) => *error_message = Some(err),
-                        }
-                    }
+                    if let Some(submarine) = submarines.get_mut(*current_submarine) {
+                        let grid = &mut submarine.water_grid;
 
-                    if ui.button("Load grid").clicked() {
-                        match load() {
-                            Ok(new_grid) => *grid = new_grid,
-                            Err(err) => *error_message = Some(err),
+                        if ui.button("Save grid").clicked() {
+                            match save(grid) {
+                                Ok(()) => (),
+                                Err(err) => *error_message = Some(err),
+                            }
                         }
-                    }
 
-                    if ui.button("Save grid as PNG").clicked() {
-                        match save_png(grid) {
-                            Ok(()) => (),
-                            Err(err) => *error_message = Some(err),
+                        if ui.button("Load grid").clicked() {
+                            match load() {
+                                Ok(new_grid) => *grid = new_grid,
+                                Err(err) => *error_message = Some(err),
+                            }
                         }
-                    }
 
-                    if ui.button("Load grid from PNG").clicked() {
-                        match load_png() {
-                            Ok(new_grid) => *grid = new_grid,
-                            Err(err) => *error_message = Some(err),
+                        if ui.button("Save grid as PNG").clicked() {
+                            match save_png(grid) {
+                                Ok(()) => (),
+                                Err(err) => *error_message = Some(err),
+                            }
                         }
+
+                        if ui.button("Load grid from PNG").clicked() {
+                            match load_png() {
+                                Ok(new_grid) => *grid = new_grid,
+                                Err(err) => *error_message = Some(err),
+                            }
+                        }
+
+                        if ui.button("Clear water").clicked() {
+                            grid.clear();
+                        }
+                    } else {
+                        ui.label("<no submarine selected>");
                     }
 
                     ui.separator();
+
                     if ui.button("Show total water").clicked() {
                         *show_total_water = !*show_total_water;
                     }
@@ -117,9 +130,6 @@ pub(crate) fn draw_ui(
                     }
                     if cfg!(not(target_arch = "wasm32")) && ui.button("Show timings").clicked() {
                         *show_timings = !*show_timings;
-                    }
-                    if ui.button("Clear water").clicked() {
-                        grid.clear();
                     }
                     if ui.button("Help").clicked() {
                         *show_help = true;
@@ -152,8 +162,21 @@ pub(crate) fn draw_ui(
                 ui.label(format!("y:"));
                 ui.colored_label(Color32::GREEN, camera.pointing_at.1.to_string());
 
+                if let Some(submarine) = submarines.get_mut(*current_submarine) {
+                    ui.label(format!("speed:"));
+                    ui.colored_label(Color32::YELLOW, submarine.speed.0.to_string());
+                    ui.label(format!("/"));
+                    ui.colored_label(Color32::YELLOW, submarine.speed.1.to_string());
+                    ui.label(format!("acceleration:"));
+                    ui.colored_label(Color32::YELLOW, submarine.acceleration.0.to_string());
+                    ui.label(format!("/"));
+                    ui.colored_label(Color32::YELLOW, submarine.acceleration.1.to_string());
+                }
+
                 if *show_total_water {
-                    ui.label(format!("Total water: {}", grid.total_water()));
+                    if let Some(submarine) = submarines.get(*current_submarine) {
+                        ui.label(format!("Total water: {}", submarine.water_grid.total_water()));
+                    }
                 }
             });
         });

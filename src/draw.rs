@@ -1,17 +1,10 @@
-use macroquad::prelude::{
+use macroquad::{camera::{pop_camera_state, push_camera_state}, prelude::{
     draw_line, draw_rectangle, draw_texture, draw_texture_ex, get_time, gl_use_default_material,
     gl_use_material, screen_height, screen_width, set_camera, vec2, vec3, Camera2D, Color,
     DrawTextureParams, FilterMode, Image, Rect, Texture2D, Vec2, BLACK, BLANK, DARKBLUE, WHITE,
-};
+}};
 
-use crate::{
-    objects::{Object, ObjectType},
-    resources::MutableResources,
-    rocks::RockGrid,
-    water::WaterGrid,
-    wires::{WireColor, WireGrid},
-    Resources,
-};
+use crate::{Resources, app::SubmarineState, objects::{Object, ObjectType}, resources::MutableResources, rocks::RockGrid, water::WaterGrid, wires::{WireColor, WireGrid}};
 
 pub(crate) struct DrawSettings {
     pub draw_sea: bool,
@@ -30,21 +23,32 @@ pub(crate) struct Camera {
     pub dragging_from: (f32, f32),
     pub scrolling_from: f32,
     pub pointing_at: (usize, usize),
+    pub current_submarine: Option<(i32, i32)>,
 }
 
 impl Camera {
-    pub fn to_macroquad_camera(&self) -> Camera2D {
+    pub fn to_macroquad_camera(&self, submarine: Option<(i32, i32)>) -> Camera2D {
         let zoom = if screen_height() < screen_width() {
             vec2(screen_height() / screen_width(), -1.0) * 1.3
         } else {
             vec2(1.0, -screen_width() / screen_height())
         };
 
-        let offset = vec2(-self.offset_x as f32 * 2.0, -self.offset_y as f32 * 2.0);
+        let mut target = vec2(-self.offset_x as f32 * 2.0, -self.offset_y as f32 * 2.0);
+
+        if let Some(submarine) = submarine {
+            target.x -= submarine.0 as f32 / 16.0;
+            target.y -= submarine.1 as f32 / 16.0;
+        }
+
+        if let Some(submarine) = self.current_submarine {
+            target.x += submarine.0 as f32 / 16.0;
+            target.y += submarine.1 as f32 / 16.0;
+        }
 
         Camera2D {
             zoom: zoom * (1.5 / 50.0) * self.user_zoom(),
-            target: offset,
+            target,
             ..Default::default()
         }
     }
@@ -66,49 +70,55 @@ pub(crate) fn to_screen_coords(x: usize, y: usize, width: usize, height: usize) 
 }
 
 pub(crate) fn draw_game(
-    water_grid: &WaterGrid,
-    wire_grid: &WireGrid,
+    submarines: &Vec<SubmarineState>,
     rock_grid: &RockGrid,
     camera: &Camera,
     draw_settings: &DrawSettings,
-    objects: &Vec<Object>,
     resources: &Resources,
     mutable_resources: &mut MutableResources,
     highlighting_object: &Option<(usize, bool)>,
 ) {
-    set_camera(&camera.to_macroquad_camera());
+    set_camera(&camera.to_macroquad_camera(None));
 
     update_rocks_texture(rock_grid, mutable_resources);
 
     if draw_settings.draw_sea {
         draw_sea(&camera, resources, rock_grid.size());
     } else {
-        draw_fake_sea();
+        draw_fake_sea(rock_grid.size());
     }
 
     if draw_settings.draw_rocks {
         draw_rocks(rock_grid, resources, mutable_resources);
     }
 
-    let (width, height) = water_grid.size();
+    push_camera_state();
 
-    draw_background(width, height, resources);
-
-    if draw_settings.draw_walls {
-        draw_walls(water_grid, resources, mutable_resources);
+    for submarine in submarines {
+        set_camera(&camera.to_macroquad_camera(Some(submarine.position)));
+    
+        let (width, height) = submarine.water_grid.size();
+    
+        draw_background(width, height, resources);
+    
+        if draw_settings.draw_walls {
+            draw_walls(&submarine.water_grid, resources, mutable_resources);
+        }
+    
+        if draw_settings.draw_wires {
+            draw_wires(&submarine.wire_grid, resources);
+        }
+    
+        if draw_settings.draw_objects {
+            draw_objects(&submarine.objects, width, height, resources, highlighting_object);
+        }
+    
+        if draw_settings.draw_water {
+            draw_water(&submarine.water_grid);
+        }
     }
 
-    if draw_settings.draw_wires {
-        draw_wires(wire_grid, resources);
-    }
-
-    if draw_settings.draw_objects {
-        draw_objects(objects, width, height, resources, highlighting_object);
-    }
-
-    if draw_settings.draw_water {
-        draw_water(water_grid);
-    }
+    pop_camera_state();
 }
 
 fn draw_sea(camera: &Camera, resources: &Resources, world_size: (usize, usize)) {
@@ -134,16 +144,20 @@ fn draw_sea(camera: &Camera, resources: &Resources, world_size: (usize, usize)) 
     let pos = to_screen_coords(0, 0, width, height) - middle * 16.0;
 
     gl_use_material(resources.sea_water);
-    draw_rectangle(pos.x - 0.5, pos.y - 0.5, (width * 16) as f32, (height * 16) as f32, WHITE);
+    draw_rectangle(pos.x, pos.y, (width * 16) as f32, (height * 16) as f32, WHITE);
     gl_use_default_material();
 }
 
-fn draw_fake_sea() {
-    draw_rect_at(vec2(0.0, 0.0), 500.0, DARKBLUE);
+fn draw_fake_sea(world_size: (usize, usize)) {
+    let (width, height) = world_size;
+    let middle = vec2((width / 2) as f32, (height / 2) as f32);
+    let pos = to_screen_coords(0, 0, width, height) - middle * 16.0;
+
+    draw_rectangle(pos.x, pos.y, (width * 16) as f32, (height * 16) as f32, DARKBLUE);
 }
 
 fn draw_background(width: usize, height: usize, resources: &Resources) {
-    let top_left = to_screen_coords(0, 0, width, height) - vec2(0.5, 0.5);
+    let top_left = to_screen_coords(0, 0, width, height);
     draw_texture(resources.sub_background, top_left.x, top_left.y, WHITE);
 }
 
@@ -188,8 +202,8 @@ fn draw_walls(grid: &WaterGrid, resources: &Resources, mutable_resources: &mut M
 
     draw_texture_ex(
         mutable_resources.sub_walls,
-        pos.x - 0.5,
-        pos.y - 0.5,
+        pos.x,
+        pos.y,
         WHITE,
         DrawTextureParams {
             dest_size: Some(vec2(width as f32, height as f32)),
@@ -212,7 +226,7 @@ fn draw_water(grid: &WaterGrid) {
                 continue;
             }
 
-            let pos = to_screen_coords(i, j, width, height);
+            let pos = to_screen_coords(i, j, width, height) + vec2(0.5, 0.5);
             let level = grid.cell(i, j).amount_filled();
             let overlevel = grid.cell(i, j).amount_overfilled();
             let velocity = grid.cell(i, j).velocity();
@@ -311,8 +325,8 @@ fn draw_wires(grid: &WireGrid, resources: &Resources) {
 
                 draw_texture_ex(
                     resources.wires,
-                    pos.x - 0.5,
-                    pos.y - 0.5,
+                    pos.x,
+                    pos.y,
                     BLACK,
                     DrawTextureParams {
                         dest_size: Some(vec2(1.0, 1.0)),
@@ -338,7 +352,7 @@ pub(crate) fn object_rect(object: &Object, width: usize, height: usize) -> Rect 
     let size = object.size();
     let size = vec2(size.0 as f32, size.1 as f32);
 
-    Rect::new(pos.x + 0.5, pos.y + 0.5, size.x, size.y)
+    Rect::new(pos.x + 1.0, pos.y + 1.0, size.x, size.y)
 }
 
 fn draw_objects(
@@ -461,8 +475,8 @@ fn draw_rocks(grid: &RockGrid, resources: &Resources, mutable_resources: &mut Mu
 
     draw_texture_ex(
         mutable_resources.sea_rocks,
-        pos.x - 0.5,
-        pos.y - 0.5,
+        pos.x,
+        pos.y,
         WHITE,
         DrawTextureParams {
             dest_size: Some(vec2(width as f32, height as f32) * 16.0),

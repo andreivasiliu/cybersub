@@ -23,6 +23,7 @@ pub(crate) struct GameSettings {
     pub enable_gravity: bool,
     pub enable_inertia: bool,
     pub camera: Camera,
+    pub current_submarine: usize,
     pub current_tool: Tool,
     pub quit_game: bool,
     pub dragging_object: bool,
@@ -31,10 +32,17 @@ pub(crate) struct GameSettings {
 
 pub(crate) struct GameState {
     pub last_update: Option<f64>,
+    pub rock_grid: RockGrid,
+    pub submarines: Vec<SubmarineState>,
+}
+
+pub(crate) struct SubmarineState {
     pub water_grid: WaterGrid,
     pub wire_grid: WireGrid,
     pub objects: Vec<Object>,
-    pub rock_grid: RockGrid,
+    pub position: (i32, i32),
+    pub speed: (i32, i32),
+    pub acceleration: (i32, i32),
 }
 
 #[derive(PartialEq, Eq)]
@@ -73,17 +81,16 @@ impl Default for CyberSubApp {
                     zoom: -200,
                     ..Default::default()
                 },
+                current_submarine: 0,
                 current_tool: Tool::AddWater,
                 quit_game: false,
                 dragging_object: false,
                 highlighting_object: None,
             },
             game_state: GameState {
-                water_grid: WaterGrid::new(WIDTH, HEIGHT),
-                wire_grid: WireGrid::new(WIDTH, HEIGHT),
-                objects: Vec::new(),
-                rock_grid: RockGrid::new(WIDTH, HEIGHT),
                 last_update: None,
+                rock_grid: RockGrid::new(WIDTH, HEIGHT),
+                submarines: Vec::new(),
             },
             draw_settings: DrawSettings {
                 draw_sea: true,
@@ -100,15 +107,20 @@ impl Default for CyberSubApp {
 }
 
 impl CyberSubApp {
-    pub fn load_grid(&mut self, grid_bytes: &[u8]) {
-        self.game_state.water_grid = load_png_from_bytes(&grid_bytes).expect("Could not load grid");
-        let (width, height) = self.game_state.water_grid.size();
-        self.game_state.wire_grid = WireGrid::new(width, height);
-    }
+    pub fn load_submarine(&mut self, grid_bytes: &[u8]) {
+        let water_grid = load_png_from_bytes(&grid_bytes).expect("Could not load grid");
+        let (width, height) = water_grid.size();
+        let wire_grid = load_wires(width, height);
+        let objects = load_objects();
 
-    pub fn load_objects(&mut self) {
-        self.game_state.objects = load_objects();
-        load_wires(&mut self.game_state.wire_grid);
+        self.game_state.submarines.push(SubmarineState {
+            water_grid,
+            wire_grid,
+            objects,
+            position: (0, 0),
+            speed: (0, 0),
+            acceleration: (0, 0),
+        });
     }
 
     pub fn load_rocks(&mut self, world_bytes: &[u8]) {
@@ -124,18 +136,36 @@ impl CyberSubApp {
             while delta > 0.0 {
                 // 30 updates per second, regardless of FPS
                 delta -= 1.0 / 30.0;
-                self.game_state.water_grid.update(
-                    self.game_settings.enable_gravity,
-                    self.game_settings.enable_inertia,
-                );
-                for _ in 0..2 {
-                    self.game_state.wire_grid.update();
+
+                for submarine in &mut self.game_state.submarines {
+                    submarine.acceleration.1 = ((submarine.water_grid.total_water() as i32 - 1_500_000) as f32 / 3_000_00.0 / 1.0) as i32;
+
+                    submarine.speed.0 = (submarine.speed.0 + submarine.acceleration.0).clamp(-1024, 1024);
+                    submarine.speed.1 = (submarine.speed.1 + submarine.acceleration.1).clamp(-1024, 1024);
+
+                    submarine.position.0 += submarine.speed.0 / 256;
+                    submarine.position.1 += submarine.speed.1 / 256;
+
+                    submarine.water_grid.update(
+                        self.game_settings.enable_gravity,
+                        self.game_settings.enable_inertia,
+                    );
+                    for _ in 0..2 {
+                        submarine.wire_grid.update();
+                    }
+                    update_objects(
+                        &mut submarine.objects,
+                        &mut submarine.water_grid,
+                        &mut submarine.wire_grid,
+                    );
                 }
-                update_objects(
-                    &mut self.game_state.objects,
-                    &mut self.game_state.water_grid,
-                    &mut self.game_state.wire_grid,
-                );
+
+                let submarine_camera = self.game_state
+                    .submarines
+                    .get(self.game_settings.current_submarine)
+                    .map(|submarine| submarine.position);
+
+                self.game_settings.camera.current_submarine = submarine_camera;
             }
         }
         *last_update = Some(game_time);
@@ -159,15 +189,15 @@ impl CyberSubApp {
     }
 
     pub fn handle_pointer_input(&mut self) {
-        handle_pointer_input(
-            &mut self.game_state.water_grid,
-            &mut self.game_state.wire_grid,
-            &mut self.game_state.objects,
-            &mut self.game_settings.camera,
-            &self.game_settings.current_tool,
-            &mut self.game_settings.dragging_object,
-            &mut self.game_settings.highlighting_object,
-        );
+        for submarine in &mut self.game_state.submarines {
+            handle_pointer_input(
+                submarine,
+                &mut self.game_settings.camera,
+                &self.game_settings.current_tool,
+                &mut self.game_settings.dragging_object,
+                &mut self.game_settings.highlighting_object,
+            );
+        }
     }
 
     pub fn handle_keyboard_input(&mut self) {
@@ -179,12 +209,10 @@ impl CyberSubApp {
 
     pub fn draw_game(&self, resources: &Resources, mutable_resources: &mut MutableResources) {
         draw_game(
-            &self.game_state.water_grid,
-            &self.game_state.wire_grid,
+            &self.game_state.submarines,
             &self.game_state.rock_grid,
             &self.game_settings.camera,
             &self.draw_settings,
-            &self.game_state.objects,
             resources,
             mutable_resources,
             &self.game_settings.highlighting_object,

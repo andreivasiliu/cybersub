@@ -5,6 +5,7 @@ pub(crate) struct WaterGrid {
     cells: Vec<WaterCell>,
     width: usize,
     height: usize,
+    total_water: u32,
 }
 
 #[derive(Default, Clone, Copy, Serialize, Deserialize)]
@@ -90,6 +91,7 @@ impl WaterGrid {
             cells,
             width,
             height,
+            total_water: 0,
         }
     }
 
@@ -112,25 +114,7 @@ impl WaterGrid {
     }
 
     pub fn total_water(&self) -> u32 {
-        let mut total = 0;
-
-        for y in 0..self.height {
-            for x in 0..self.width {
-                let cell = self.cell(x, y);
-
-                if let CellType::Inside { level } = cell.cell_type {
-                    total += level;
-                } else if let CellType::Wall { ref wall_reflect } = cell.cell_type {
-                    for (dir, neighbour) in self.neighbours(x, y).enumerate() {
-                        if neighbour.is_inside() {
-                            total += wall_reflect[dir];
-                        }
-                    }
-                }
-            }
-        }
-
-        total
+        self.total_water
     }
 
     fn neighbours(&self, x: usize, y: usize) -> impl Iterator<Item = &WaterCell> {
@@ -172,10 +156,21 @@ impl WaterGrid {
 
     pub fn update(&mut self, enable_gravity: bool, enable_inertia: bool) {
         let old_grid = self.clone();
+        let mut total_water = 0;
 
         for y in 1..old_grid.height - 1 {
             for x in 1..old_grid.width - 1 {
                 let cell = self.cell_mut(x, y);
+
+                if let CellType::Inside { level } = cell.cell_type {
+                    total_water += level;
+                } else if let CellType::Wall { ref wall_reflect } = cell.cell_type {
+                    for (dir, neighbour) in old_grid.neighbours(x, y).enumerate() {
+                        if neighbour.is_inside() {
+                            total_water += wall_reflect[dir];
+                        }
+                    }
+                }
 
                 if let CellType::Wall {
                     ref mut wall_reflect,
@@ -225,6 +220,8 @@ impl WaterGrid {
                 }
             }
         }
+
+        self.total_water = total_water;
     }
 }
 

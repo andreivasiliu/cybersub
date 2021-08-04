@@ -187,7 +187,7 @@ pub(crate) fn load_objects() -> Vec<Object> {
     }
 
     objects.push(Object {
-        object_type: ObjectType::Reactor { active: false },
+        object_type: ObjectType::Reactor { active: true },
         position_x: 112,
         position_y: 76,
         current_frame: 1,
@@ -254,7 +254,9 @@ pub(crate) fn load_objects() -> Vec<Object> {
     objects
 }
 
-pub(crate) fn load_wires(grid: &mut WireGrid) {
+pub(crate) fn load_wires(width: usize, height: usize) -> WireGrid {
+    let mut grid = WireGrid::new(width, height);
+
     let wires = &[
         // Reactor to first junction box
         (141..=141, 71..=81, WireColor::Blue),
@@ -304,6 +306,8 @@ pub(crate) fn load_wires(grid: &mut WireGrid) {
             }
         }
     }
+
+    grid
 }
 
 pub(crate) fn load_rocks_from_png(bytes: &[u8]) -> RockGrid {
