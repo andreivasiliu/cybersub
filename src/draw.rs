@@ -373,7 +373,7 @@ fn update_wires_texture(
             let cell = grid.cell(x, y);
 
             let colors = &[
-                WireColor::Orange,
+                WireColor::Purple,
                 WireColor::Brown,
                 WireColor::Blue,
                 WireColor::Green,
@@ -452,7 +452,7 @@ fn update_signals_texture(grid: &WireGrid, mutable_resources: &mut MutableSubRes
     }
 
     let colors = &[
-        WireColor::Orange,
+        WireColor::Purple,
         WireColor::Brown,
         WireColor::Blue,
         WireColor::Green,
@@ -475,7 +475,7 @@ fn update_signals_texture(grid: &WireGrid, mutable_resources: &mut MutableSubRes
                     // This will be used by a fragment shader to light up wires of that
                     // particular color.
                     match wire_color {
-                        WireColor::Orange => color.r = brightness,
+                        WireColor::Purple => color.r = brightness,
                         WireColor::Brown => color.g = brightness,
                         WireColor::Blue => color.b = brightness,
                         WireColor::Green => color.a = brightness,

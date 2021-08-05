@@ -141,7 +141,7 @@ pub(crate) fn handle_pointer_input(
                 Tool::AddWall => water_cell.make_wall(),
                 Tool::RemoveWall => water_cell.clear_wall(),
                 Tool::AddBrownWire => wire_cell.make_wire(WireColor::Brown),
-                Tool::AddOrangeWire => wire_cell.make_wire(WireColor::Orange),
+                Tool::AddPurpleWire => wire_cell.make_wire(WireColor::Purple),
                 Tool::AddBlueWire => wire_cell.make_wire(WireColor::Blue),
                 Tool::AddGreenWire => wire_cell.make_wire(WireColor::Green),
             }

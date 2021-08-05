@@ -16,8 +16,8 @@ void main() {
     float signal;
 
     if (wire_color == vec3(1.0, 1.0, 0.0)) {
-        // Orange
-        color = vec3(0.80, 0.26, 0.12);
+        // Purple
+        color = vec3(0.3333, 0.0431, 0.2588);
         signal = wire_signals.r;
     } else if (wire_color == vec3(0.0, 1.0, 1.0)) {
         // Brown

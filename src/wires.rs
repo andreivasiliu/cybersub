@@ -24,7 +24,7 @@ pub(crate) enum WireValue {
 
 #[derive(Clone, Copy)]
 pub(crate) enum WireColor {
-    Orange = 0,
+    Purple = 0,
     Brown = 1,
     Blue = 2,
     Green = 3,

@@ -297,7 +297,7 @@ pub(crate) fn load_wires(width: usize, height: usize) -> WireGrid {
         ),
         // First junction box to right large pump
         (
-            WireColor::Orange,
+            WireColor::Purple,
             &[(186, 76), (187, 76), (187, 71), (292, 71), (292, 80)],
         ),
         // First junctin box to second junction box
@@ -321,7 +321,7 @@ pub(crate) fn load_wires(width: usize, height: usize) -> WireGrid {
         ),
         // Main gauge to left pump gauge
         (
-            WireColor::Orange,
+            WireColor::Purple,
             &[
                 (119, 58),
                 (119, 60),

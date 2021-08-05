@@ -53,7 +53,7 @@ pub(crate) struct SubmarineState {
 pub(crate) enum Tool {
     AddWater,
     AddWall,
-    AddOrangeWire,
+    AddPurpleWire,
     AddBrownWire,
     AddBlueWire,
     AddGreenWire,
@@ -172,8 +172,9 @@ impl CyberSubApp {
                         self.game_settings.enable_inertia,
                     );
                     for _ in 0..3 {
-                        let signals_changed = &mut mutable_resources.signals_updated;
-                        submarine.wire_grid.update(signals_changed);
+                        submarine
+                            .wire_grid
+                            .update(&mut mutable_resources.signals_updated);
                     }
                     update_objects(submarine);
                     update_sonar(submarine, &self.game_state.rock_grid, mutable_resources);

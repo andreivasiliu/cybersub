@@ -207,7 +207,7 @@ pub(crate) fn draw_ui(
         ui.horizontal(|ui| {
             ui.radio_value(current_tool, Tool::AddWater, "Add Water");
             ui.radio_value(current_tool, Tool::AddWall, "Add Walls");
-            ui.radio_value(current_tool, Tool::AddOrangeWire, "Orange Wires");
+            ui.radio_value(current_tool, Tool::AddPurpleWire, "Purple Wires");
             ui.radio_value(current_tool, Tool::AddBrownWire, "Brown Wires");
             ui.radio_value(current_tool, Tool::AddBlueWire, "Blue Wires");
             ui.radio_value(current_tool, Tool::AddGreenWire, "Green Wires");
