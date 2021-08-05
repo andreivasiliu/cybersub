@@ -7,6 +7,7 @@ use crate::{
     app::{SubmarineState, Tool},
     draw::{object_rect, Camera},
     objects::interact_with_object,
+    resources::MutableSubResources,
     wires::WireColor,
 };
 
@@ -49,6 +50,7 @@ pub(crate) fn handle_keyboard_input(camera: &mut Camera, current_tool: &mut Tool
 
 pub(crate) fn handle_pointer_input(
     submarine: &mut SubmarineState,
+    mutable_resources: &mut MutableSubResources,
     camera: &mut Camera,
     tool: &Tool,
     dragging_object: &mut bool,
@@ -140,9 +142,12 @@ pub(crate) fn handle_pointer_input(
                 Tool::RemoveWall => water_cell.clear_wall(),
                 Tool::AddBrownWire => wire_cell.make_wire(WireColor::Brown),
                 Tool::AddOrangeWire => wire_cell.make_wire(WireColor::Orange),
-                Tool::AddBlueWire => wire_cell.make_powered_wire(WireColor::Blue),
-                Tool::AddGreenWire => wire_cell.make_powered_wire(WireColor::Green),
+                Tool::AddBlueWire => wire_cell.make_wire(WireColor::Blue),
+                Tool::AddGreenWire => wire_cell.make_wire(WireColor::Green),
             }
+
+            mutable_resources.walls_updated = true;
+            mutable_resources.wires_updated = true;
         }
     }
 }

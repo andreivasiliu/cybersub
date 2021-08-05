@@ -96,7 +96,7 @@ impl WireGrid {
         })
     }
 
-    pub fn update(&mut self) {
+    pub fn update(&mut self, signals_updated: &mut bool) {
         let old_grid = self.clone();
 
         for y in 1..old_grid.height - 1 {
@@ -128,6 +128,10 @@ impl WireGrid {
                         new_value = WireValue::NotConnected;
                     }
 
+                    if self.cell(x, y).value[wire_color].signal() != new_value.signal() {
+                        *signals_updated = true;
+                    }
+
                     self.cell_mut(x, y).value[wire_color] = new_value;
                 }
             }
@@ -138,13 +142,6 @@ impl WireGrid {
 impl WireCell {
     pub fn make_wire(&mut self, color: WireColor) {
         self.value[color as usize] = WireValue::NoSignal;
-    }
-
-    pub fn make_powered_wire(&mut self, color: WireColor) {
-        self.value[color as usize] = WireValue::Power {
-            value: 200,
-            signal: 256,
-        };
     }
 
     pub fn value(&self, color: WireColor) -> &WireValue {
@@ -244,7 +241,7 @@ impl WireValue {
         }
     }
 
-    fn connected(&self) -> bool {
+    pub fn connected(&self) -> bool {
         !matches!(self, &WireValue::NotConnected)
     }
 }

@@ -1,7 +1,7 @@
 use macroquad::{
     miniquad::{BlendFactor, BlendState, BlendValue, Equation},
     prelude::{
-        load_material, render_target, FilterMode, ImageFormat, Material, MaterialParams,
+        load_material, render_target, FilterMode, Image, ImageFormat, Material, MaterialParams,
         PipelineParams, RenderTarget, Texture2D, UniformType,
     },
 };
@@ -40,6 +40,12 @@ pub struct MutableResources {
 
 pub struct MutableSubResources {
     pub(crate) sub_walls: Texture2D,
+    pub(crate) walls_updated: bool,
+    pub(crate) sub_wires: RenderTarget,
+    pub(crate) wires_updated: bool,
+    pub(crate) sub_signals_image: Image,
+    pub(crate) sub_signals: Texture2D,
+    pub(crate) signals_updated: bool,
     pub(crate) new_sonar_target: RenderTarget,
     pub(crate) old_sonar_target: RenderTarget,
     pub(crate) sonar_updated: bool,
@@ -138,11 +144,8 @@ impl ResourcesBuilder {
             include_str!("vertex.glsl"),
             include_str!("wires.glsl"),
             MaterialParams {
-                uniforms: vec![
-                    ("wire_color".to_string(), UniformType::Float3),
-                    ("signal".to_string(), UniformType::Float1),
-                ],
-                textures: vec!["wires_texture".to_string()],
+                uniforms: vec![("grid_size".to_string(), UniformType::Float2)],
+                textures: vec!["sub_wires".to_string(), "sub_signals".to_string()],
                 pipeline_params: blend_alpha,
             },
         )
@@ -225,6 +228,12 @@ impl MutableSubResources {
     pub fn new() -> Self {
         MutableSubResources {
             sub_walls: Texture2D::empty(),
+            walls_updated: false,
+            sub_wires: render_target(0, 0),
+            wires_updated: false,
+            sub_signals: Texture2D::empty(),
+            sub_signals_image: Image::empty(),
+            signals_updated: false,
             new_sonar_target: render_target(0, 0),
             old_sonar_target: render_target(0, 0),
             sonar_updated: false,

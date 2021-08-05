@@ -5,8 +5,8 @@ use macroquad::{
     prelude::{
         clear_background, draw_circle, draw_line, draw_rectangle, draw_texture, draw_texture_ex,
         get_time, gl_use_default_material, gl_use_material, render_target, screen_height,
-        screen_width, set_camera, vec2, vec3, Camera2D, Color, DrawTextureParams, FilterMode,
-        Image, Rect, Texture2D, Vec2, BLACK, BLANK, DARKBLUE, WHITE,
+        screen_width, set_camera, vec2, Camera2D, Color, DrawTextureParams, FilterMode, Image,
+        Rect, Texture2D, Vec2, BLACK, BLANK, DARKBLUE, RED, WHITE,
     },
 };
 
@@ -127,7 +127,9 @@ pub(crate) fn draw_game(
         }
 
         if draw_settings.draw_wires {
-            draw_wires(&submarine.wire_grid, resources);
+            update_wires_texture(&submarine.wire_grid, resources, mutable_resources);
+            update_signals_texture(&submarine.wire_grid, mutable_resources);
+            draw_wires(&submarine.wire_grid, resources, mutable_resources);
         }
 
         if draw_settings.draw_objects {
@@ -219,27 +221,31 @@ fn draw_walls(
 ) {
     let (width, height) = grid.size();
 
-    let mut image = Image::gen_image_color(width as u16, height as u16, BLANK);
+    let texture = mutable_resources.sub_walls;
+    let (old_width, old_height) = (texture.width() as usize, texture.height() as usize);
 
-    for y in 0..height {
-        for x in 0..width {
-            let cell = grid.cell(x, y);
+    if mutable_resources.walls_updated || width != old_width || height != old_height {
+        mutable_resources.walls_updated = false;
 
-            if cell.is_wall() {
-                image.set_pixel(x as u32, y as u32, WHITE);
+        let mut image = Image::gen_image_color(width as u16, height as u16, BLANK);
+
+        for y in 0..height {
+            for x in 0..width {
+                let cell = grid.cell(x, y);
+
+                if cell.is_wall() {
+                    image.set_pixel(x as u32, y as u32, WHITE);
+                }
             }
         }
-    }
 
-    let img_width = mutable_resources.sub_walls.width() as usize;
-    let img_height = mutable_resources.sub_walls.height() as usize;
-
-    if img_width != width || img_height != height {
-        mutable_resources.sub_walls.delete();
-        mutable_resources.sub_walls = Texture2D::from_image(&image);
-        mutable_resources.sub_walls.set_filter(FilterMode::Nearest);
-    } else {
-        mutable_resources.sub_walls.update(&image);
+        if old_width != width || old_height != height {
+            mutable_resources.sub_walls.delete();
+            mutable_resources.sub_walls = Texture2D::from_image(&image);
+            mutable_resources.sub_walls.set_filter(FilterMode::Nearest);
+        } else {
+            mutable_resources.sub_walls.update(&image);
+        }
     }
 
     resources
@@ -317,36 +323,74 @@ fn draw_water(grid: &WaterGrid) {
     }
 }
 
-fn draw_wires(grid: &WireGrid, resources: &Resources) {
+fn update_wires_texture(
+    grid: &WireGrid,
+    resources: &Resources,
+    mutable_resources: &mut MutableSubResources,
+) {
+    let old_size = (
+        mutable_resources.sub_wires.texture.width() as usize,
+        mutable_resources.sub_wires.texture.height() as usize,
+    );
+
+    // Wire cells are 6x6 pixels each
+    let new_size = (grid.size().0 * 6, grid.size().1 * 6);
+
+    if !mutable_resources.wires_updated && old_size == new_size {
+        return;
+    }
+
+    if old_size != grid.size() {
+        mutable_resources.sub_wires = render_target(new_size.0 as u32, new_size.1 as u32);
+        mutable_resources
+            .sub_wires
+            .texture
+            .set_filter(FilterMode::Nearest);
+    }
+
+    mutable_resources.wires_updated = false;
+
     let (width, height) = grid.size();
+    let grid_size = vec2(width as f32, height as f32);
+
+    // Draw the wires' special colors to an offscreen texture
+    push_camera_state();
+
+    set_camera(&Camera2D {
+        // target: sonar_size / 2.0,
+        render_target: Some(mutable_resources.sub_wires),
+        zoom: 2.0 / grid_size,
+        offset: vec2(-1.0, -1.0),
+        ..Default::default()
+    });
+
+    clear_background(BLANK);
 
     for x in 0..width {
         for y in 0..height {
-            let pos = to_screen_coords(x, y, width, height);
+            let pos = vec2(x as f32, y as f32);
 
             let cell = grid.cell(x, y);
 
             let colors = &[
-                (WireColor::Orange, vec3(1.0, 1.0, 0.0)),
-                (WireColor::Brown, vec3(0.0, 1.0, 1.0)),
-                (WireColor::Blue, vec3(0.0, 0.0, 1.0)),
-                (WireColor::Green, vec3(0.0, 1.0, 0.0)),
+                WireColor::Orange,
+                WireColor::Brown,
+                WireColor::Blue,
+                WireColor::Green,
             ];
 
-            for (wire_color, color) in colors {
-                let value = match cell.value(*wire_color) {
-                    crate::wires::WireValue::NotConnected => continue,
-                    crate::wires::WireValue::NoSignal => 0,
-                    crate::wires::WireValue::Power { value, .. } => *value.min(&100),
-                    crate::wires::WireValue::Logic { value, .. } => {
-                        value.clamp(&-100, &100).abs() as u8
-                    }
-                };
+            for wire_color in colors {
+                if !cell.value(*wire_color).connected() {
+                    continue;
+                }
 
                 let has_neighbours = grid.has_neighbours(*wire_color, x, y);
 
-                let total_frames = 7;
-                let wire_frame = match has_neighbours {
+                let wire_color_frames = 4;
+                let wire_color_frame = *wire_color as u16;
+
+                let wire_type_frames = 7;
+                let wire_type_frame = match has_neighbours {
                     // [down, right, up, left]
                     [true, false, true, false] => 0,
                     [false, false, true, false] => 0,
@@ -361,39 +405,123 @@ fn draw_wires(grid: &WireGrid, resources: &Resources) {
                     _ => 6,
                 };
 
-                let _value = (value + 128) as f32 / u8::MAX as f32;
-                let signal = cell.value(*wire_color).signal() as f32 / 256.0;
-
-                resources.wire_material.set_uniform("wire_color", *color);
-                resources.wire_material.set_uniform("signal", signal);
-                resources
-                    .wire_material
-                    .set_texture("wires_texture", resources.wires);
-
-                gl_use_material(resources.wire_material);
-
-                // Textures are vertically split into equally-sized animation frames
-                let frame_width = resources.wires.width();
-                let frame_height = (resources.wires.height() as u16 / total_frames) as f32;
-                let frame_x = 0.0;
-                let frame_y = (frame_height as u16 * wire_frame) as f32;
+                // The wires texture is vertically split into frames by wire
+                // direction, and horizontally split by wire color
+                let frame_width = (resources.wires.width() as u16 / wire_color_frames) as f32;
+                let frame_height = (resources.wires.height() as u16 / wire_type_frames) as f32;
+                let frame_x = (frame_width as u16 * wire_color_frame) as f32;
+                let frame_y = (frame_height as u16 * wire_type_frame) as f32;
 
                 draw_texture_ex(
                     resources.wires,
                     pos.x,
                     pos.y,
-                    BLACK,
+                    WHITE,
                     DrawTextureParams {
                         dest_size: Some(vec2(1.0, 1.0)),
                         source: Some(Rect::new(frame_x, frame_y, frame_width, frame_height)),
                         ..Default::default()
                     },
                 );
-
-                gl_use_default_material();
             }
         }
     }
+
+    draw_circle(1.0, 1.0, 15.0, RED);
+
+    pop_camera_state();
+}
+
+fn update_signals_texture(grid: &WireGrid, mutable_resources: &mut MutableSubResources) {
+    let old_size = (
+        mutable_resources.sub_signals.width() as usize,
+        mutable_resources.sub_signals.height() as usize,
+    );
+
+    if !mutable_resources.signals_updated && old_size == grid.size() {
+        return;
+    }
+
+    mutable_resources.signals_updated = false;
+
+    let (width, height) = grid.size();
+
+    if old_size != grid.size() {
+        mutable_resources.sub_signals_image =
+            Image::gen_image_color(width as u16, height as u16, BLANK);
+    }
+
+    let colors = &[
+        WireColor::Orange,
+        WireColor::Brown,
+        WireColor::Blue,
+        WireColor::Green,
+    ];
+
+    let image = &mut mutable_resources.sub_signals_image;
+
+    for y in 0..height {
+        for x in 0..width {
+            let cell = grid.cell(x, y);
+
+            for wire_color in colors {
+                let signal = cell.value(*wire_color).signal();
+                let brightness = (signal as f32 / 256.0 + 0.2).clamp(0.0, 1.0);
+
+                if signal > 0 {
+                    let mut color = image.get_pixel(x as u32, y as u32);
+
+                    // Encode signal brightness as one of the RGBA components
+                    // This will be used by a fragment shader to light up wires of that
+                    // particular color.
+                    match wire_color {
+                        WireColor::Orange => color.r = brightness,
+                        WireColor::Brown => color.g = brightness,
+                        WireColor::Blue => color.b = brightness,
+                        WireColor::Green => color.a = brightness,
+                    };
+
+                    image.set_pixel(x as u32, y as u32, color);
+                }
+            }
+        }
+    }
+
+    if old_size != grid.size() {
+        mutable_resources.sub_signals = Texture2D::from_image(image);
+    } else {
+        mutable_resources.sub_signals.update(image);
+    }
+}
+
+fn draw_wires(grid: &WireGrid, resources: &Resources, mutable_resources: &MutableSubResources) {
+    let (width, height) = grid.size();
+
+    let pos = to_screen_coords(0, 0, width, height);
+    let grid_size = vec2(width as f32, height as f32);
+
+    resources
+        .wire_material
+        .set_texture("sub_wires", mutable_resources.sub_wires.texture);
+    resources
+        .wire_material
+        .set_texture("sub_signals", mutable_resources.sub_signals);
+    resources.wire_material.set_uniform("grid_size", grid_size);
+
+    gl_use_material(resources.wire_material);
+
+    draw_texture_ex(
+        mutable_resources.sub_wires.texture,
+        pos.x,
+        pos.y,
+        WHITE,
+        DrawTextureParams {
+            dest_size: Some(grid_size),
+            ..Default::default()
+        },
+    );
+
+    gl_use_default_material();
 }
 
 pub(crate) fn object_rect(object: &Object, width: usize, height: usize) -> Rect {

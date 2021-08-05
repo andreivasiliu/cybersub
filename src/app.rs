@@ -149,6 +149,11 @@ impl CyberSubApp {
 
                 for (sub_index, submarine) in &mut self.game_state.submarines.iter_mut().enumerate()
                 {
+                    let mutable_resources = self
+                        .mutable_sub_resources
+                        .get_mut(sub_index)
+                        .expect("All submarines should have a MutableSubResources instance");
+
                     submarine.acceleration.1 = ((submarine.water_grid.total_water() as i32
                         - 1_500_000) as f32
                         / 3_000_00.0
@@ -167,13 +172,10 @@ impl CyberSubApp {
                         self.game_settings.enable_inertia,
                     );
                     for _ in 0..3 {
-                        submarine.wire_grid.update();
+                        let signals_changed = &mut mutable_resources.signals_updated;
+                        submarine.wire_grid.update(signals_changed);
                     }
                     update_objects(submarine);
-                    let mutable_resources = self
-                        .mutable_sub_resources
-                        .get_mut(sub_index)
-                        .expect("All submarines should have a MutableSubResources instance");
                     update_sonar(submarine, &self.game_state.rock_grid, mutable_resources);
                 }
 
@@ -213,9 +215,14 @@ impl CyberSubApp {
     }
 
     pub fn handle_pointer_input(&mut self) {
-        for submarine in &mut self.game_state.submarines {
+        for (sub_index, submarine) in &mut self.game_state.submarines.iter_mut().enumerate() {
+            let mutable_resources = self
+                .mutable_sub_resources
+                .get_mut(sub_index)
+                .expect("All submarines should have a MutableSubResources instance");
             handle_pointer_input(
                 submarine,
+                mutable_resources,
                 &mut self.game_settings.camera,
                 &self.game_settings.current_tool,
                 &mut self.game_settings.dragging_object,
