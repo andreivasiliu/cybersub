@@ -1,8 +1,8 @@
 use macroquad::{
     miniquad::{BlendFactor, BlendState, BlendValue, Equation},
     prelude::{
-        load_material, FilterMode, ImageFormat, Material, MaterialParams, PipelineParams,
-        Texture2D, UniformType,
+        load_material, render_target, FilterMode, ImageFormat, Material, MaterialParams,
+        PipelineParams, RenderTarget, Texture2D, UniformType,
     },
 };
 
@@ -25,6 +25,7 @@ pub struct Resources {
     pub(crate) large_pump: Texture2D,
     pub(crate) junction_box: Texture2D,
     pub(crate) nav_controller: Texture2D,
+    pub(crate) sonar: Texture2D,
 }
 
 pub struct ResourcesBuilder {
@@ -35,6 +36,7 @@ pub struct MutableResources {
     pub(crate) sub_walls: Texture2D,
     pub(crate) sea_rocks: Texture2D,
     pub(crate) sea_rocks_updated: bool,
+    pub(crate) sonar_target: RenderTarget,
 }
 
 impl ResourcesBuilder {
@@ -92,6 +94,7 @@ impl ResourcesBuilder {
         let large_pump = load_texture(include_bytes!("../resources/largepump.png"));
         let junction_box = load_texture(include_bytes!("../resources/junctionbox.png"));
         let nav_controller = load_texture(include_bytes!("../resources/navcontroller.png"));
+        let sonar = load_texture(include_bytes!("../resources/sonar.png"));
 
         sea_dust.set_filter(FilterMode::Linear);
 
@@ -180,6 +183,7 @@ impl ResourcesBuilder {
             large_pump,
             junction_box,
             nav_controller,
+            sonar,
         }
     }
 }
@@ -190,6 +194,7 @@ impl MutableResources {
             sub_walls: Texture2D::empty(),
             sea_rocks: Texture2D::empty(),
             sea_rocks_updated: false,
+            sonar_target: render_target(0, 0),
         }
     }
 }

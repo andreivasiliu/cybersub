@@ -35,6 +35,9 @@ pub(crate) enum ObjectType {
         active: bool,
         progress: u8,
     },
+    Sonar {
+        active: bool,
+    },
 }
 
 pub(crate) enum DoorState {
@@ -53,7 +56,12 @@ impl Object {
             ObjectType::LargePump { .. } => (30, 18),
             ObjectType::JunctionBox => (6, 8),
             ObjectType::NavController { .. } => (9, 15),
+            ObjectType::Sonar { .. } => (19, 17),
         }
+    }
+
+    pub(crate) fn is_active_sonar(&self) -> bool {
+        matches!(self.object_type, ObjectType::Sonar { active: true })
     }
 }
 
@@ -297,6 +305,9 @@ pub(crate) fn update_objects(submarine: &mut SubmarineState) {
                     }
                 }
             }
+            ObjectType::Sonar { active } => {
+                object.current_frame = if *active { 0 } else { 1 };
+            }
         }
     }
 }
@@ -316,6 +327,7 @@ pub(crate) fn interact_with_object(object: &mut Object) {
         ObjectType::LargePump { target_speed, .. } => cycle_i8(target_speed),
         ObjectType::JunctionBox => (),
         ObjectType::NavController { active, .. } => *active = !*active,
+        ObjectType::Sonar { active } => *active = !*active,
     }
 }
 

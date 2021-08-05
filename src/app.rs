@@ -5,6 +5,7 @@ use crate::{
     resources::MutableResources,
     rocks::RockGrid,
     saveload::{load_objects, load_png_from_bytes, load_rocks_from_png, load_wires},
+    sonar::{find_visible_edge_cells, Sonar},
     ui::{draw_ui, UiState},
     water::WaterGrid,
     wires::WireGrid,
@@ -43,6 +44,7 @@ pub(crate) struct SubmarineState {
     pub position: (i32, i32),
     pub speed: (i32, i32),
     pub acceleration: (i32, i32),
+    pub sonar: Sonar,
 }
 
 #[derive(PartialEq, Eq)]
@@ -99,6 +101,7 @@ impl Default for CyberSubApp {
                 draw_walls: true,
                 draw_wires: true,
                 draw_water: true,
+                draw_sonar: true,
             },
             ui_state: UiState::default(),
             timings: Timings::default(),
@@ -120,6 +123,7 @@ impl CyberSubApp {
             position: (0, 0),
             speed: (0, 0),
             acceleration: (0, 0),
+            sonar: Sonar::default(),
         });
     }
 
@@ -159,6 +163,7 @@ impl CyberSubApp {
                         submarine.wire_grid.update();
                     }
                     update_objects(submarine);
+                    update_sonar(submarine, &self.game_state.rock_grid);
                 }
 
                 let submarine_camera = self
@@ -220,4 +225,19 @@ impl CyberSubApp {
             &self.game_settings.highlighting_object,
         );
     }
+}
+
+fn update_sonar(submarine: &mut SubmarineState, rock_grid: &RockGrid) {
+    let (width, height) = rock_grid.size();
+    let (sub_width, sub_height) = submarine.water_grid.size();
+    let center_x =
+        (width as i32 / 2 + submarine.position.0 / 16 / 16) as usize + sub_width / 16 / 2;
+    let center_y =
+        (height as i32 / 2 + submarine.position.1 / 16 / 16) as usize + sub_height / 16 / 2;
+
+    if submarine.sonar.pulse == 0 {
+        find_visible_edge_cells(&mut submarine.sonar, (center_x, center_y), rock_grid);
+    }
+
+    submarine.sonar.pulse = (submarine.sonar.pulse + 1) % (30 * 3);
 }

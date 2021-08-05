@@ -11,6 +11,7 @@ pub(crate) struct RockGrid {
 #[derive(Default, Clone)]
 pub(crate) struct RockCell {
     rock_type: RockType,
+    edge: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -22,6 +23,9 @@ pub(crate) enum RockType {
     WallUpperLeft = 4,  // ◤
     WallUpperRight = 5, // ◥
 }
+
+// Offsets: (y, x), x goes rightwards, y goes downwards
+const NEIGHBOUR_OFFSETS: &[(i32, i32)] = &[(1, 0), (0, 1), (-1, 0), (0, -1)];
 
 impl Default for RockType {
     fn default() -> Self {
@@ -63,6 +67,28 @@ impl RockGrid {
 
         &mut self.cells[y * self.width + x]
     }
+
+    fn neighbours(&self, x: usize, y: usize) -> impl Iterator<Item = &RockCell> {
+        NEIGHBOUR_OFFSETS.iter().map(move |(y_offset, x_offset)| {
+            self.cell(
+                (x as i32 + x_offset) as usize,
+                (y as i32 + y_offset) as usize,
+            )
+        })
+    }
+
+    pub fn update_edges(&mut self) {
+        for y in 1..self.height - 1 {
+            for x in 1..self.width - 1 {
+                self.cell_mut(x, y).edge = if self.cell(x, y).is_wall() {
+                    let edge = self.neighbours(x, y).any(|cell| !cell.is_wall());
+                    edge
+                } else {
+                    false
+                };
+            }
+        }
+    }
 }
 
 impl RockCell {
@@ -76,5 +102,9 @@ impl RockCell {
 
     pub fn is_wall(&self) -> bool {
         !matches!(self.rock_type, RockType::Empty)
+    }
+
+    pub fn is_edge(&self) -> bool {
+        self.edge
     }
 }

@@ -1,10 +1,10 @@
 use macroquad::{
     camera::{pop_camera_state, push_camera_state},
     prelude::{
-        draw_line, draw_rectangle, draw_texture, draw_texture_ex, get_time,
-        gl_use_default_material, gl_use_material, screen_height, screen_width, set_camera, vec2,
-        vec3, Camera2D, Color, DrawTextureParams, FilterMode, Image, Rect, Texture2D, Vec2, BLACK,
-        BLANK, DARKBLUE, WHITE,
+        clear_background, draw_circle, draw_line, draw_rectangle, draw_texture, draw_texture_ex,
+        get_time, gl_use_default_material, gl_use_material, render_target, screen_height,
+        screen_width, set_camera, vec2, vec3, Camera2D, Color, DrawTextureParams, FilterMode,
+        Image, Rect, Texture2D, Vec2, BLACK, BLANK, DARKBLUE, SKYBLUE, WHITE,
     },
 };
 
@@ -13,6 +13,7 @@ use crate::{
     objects::{Object, ObjectType},
     resources::MutableResources,
     rocks::RockGrid,
+    sonar::Sonar,
     water::WaterGrid,
     wires::{WireColor, WireGrid},
     Resources,
@@ -25,6 +26,7 @@ pub(crate) struct DrawSettings {
     pub draw_walls: bool,
     pub draw_wires: bool,
     pub draw_water: bool,
+    pub draw_sonar: bool,
 }
 
 #[derive(Debug, Default)]
@@ -36,6 +38,7 @@ pub(crate) struct Camera {
     pub scrolling_from: f32,
     pub pointing_at: (usize, usize),
     pub current_submarine: Option<(i32, i32)>,
+    pub current_submarine_center: Option<(i32, i32)>,
 }
 
 impl Camera {
@@ -128,6 +131,15 @@ pub(crate) fn draw_game(
                 height,
                 resources,
                 highlighting_object,
+            );
+        }
+
+        if draw_settings.draw_sonar {
+            draw_sonar(
+                &submarine.objects,
+                submarine.water_grid.size(),
+                &submarine.sonar,
+                mutable_resources,
             );
         }
 
@@ -406,6 +418,7 @@ fn draw_objects(
             ObjectType::LargePump { .. } => resources.large_pump,
             ObjectType::JunctionBox => resources.junction_box,
             ObjectType::NavController { .. } => resources.nav_controller,
+            ObjectType::Sonar { .. } => resources.sonar,
         };
 
         // Textures are vertically split into equally-sized animation frames
@@ -519,4 +532,96 @@ fn draw_rocks(grid: &RockGrid, resources: &Resources, mutable_resources: &mut Mu
     );
 
     gl_use_default_material();
+}
+
+fn draw_sonar(
+    objects: &Vec<Object>,
+    grid_size: (usize, usize),
+    sonar: &Sonar,
+    mutable_resources: &mut MutableResources,
+) {
+    let resolution = 16.0;
+
+    // 13 cells, 6 pixels each
+    let sonar_size = vec2(13.0 * resolution, 13.0 * resolution);
+    let (width, height) = (13 * resolution as u32, 13 * resolution as u32);
+
+    let old_size = vec2(
+        mutable_resources.sonar_target.texture.width(),
+        mutable_resources.sonar_target.texture.height(),
+    );
+
+    if sonar_size != old_size {
+        mutable_resources.sonar_target = render_target(width, height);
+        mutable_resources
+            .sonar_target
+            .texture
+            .set_filter(FilterMode::Nearest);
+    }
+
+    // Draw the sonar's contents to an offscreen texture
+    if sonar.pulse == 1 || sonar_size != old_size {
+        push_camera_state();
+
+        set_camera(&Camera2D {
+            // target: sonar_size / 2.0,
+            render_target: Some(mutable_resources.sonar_target),
+            zoom: 1.0 / sonar_size,
+            ..Default::default()
+        });
+
+        clear_background(BLANK);
+
+        // Rock edges up to 75 rock-cells away
+        for (x, y) in sonar.visible_edge_cells() {
+            // A rock-cell is 16 bigger than a normal one
+            let pos = vec2(
+                -*x as f32 * 16.0 * resolution / 75.0,
+                -*y as f32 * 16.0 * resolution / 75.0,
+            );
+            let sonar_radius_squared = (sonar_size.x * sonar_size.x) * 0.95;
+
+            if pos.length_squared() >= sonar_radius_squared {
+                continue;
+            }
+
+            let normal = pos.normalize_or_zero();
+
+            draw_circle(pos.x, pos.y, resolution / 2.0, SKYBLUE);
+
+            for shadow in 1..5 {
+                let pos = pos + normal * (shadow as f32) * resolution * 0.7;
+                let color = Color::new(0.00, 0.32, 0.67, 1.0 - shadow as f32 / 10.0);
+                if pos.length_squared() < sonar_radius_squared {
+                    draw_circle(pos.x, pos.y, resolution / 3.0, color);
+                }
+            }
+        }
+
+        pop_camera_state();
+    }
+
+    // Draw the offscreen texture to all sonar objects in the current submarine
+    let (width, height) = grid_size;
+    let texture = mutable_resources.sonar_target.texture;
+
+    for object in objects {
+        if !object.is_active_sonar() {
+            continue;
+        }
+
+        let draw_rect = object_rect(object, width, height);
+        let pos = draw_rect.point() + vec2(4.0, 2.0);
+
+        draw_texture_ex(
+            texture,
+            pos.x,
+            pos.y,
+            WHITE,
+            DrawTextureParams {
+                dest_size: Some(vec2(11.0, 11.0)),
+                ..Default::default()
+            },
+        )
+    }
 }

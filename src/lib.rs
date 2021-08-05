@@ -7,6 +7,7 @@ mod objects;
 mod resources;
 mod rocks;
 mod saveload;
+mod sonar;
 mod ui;
 mod water;
 mod wires;

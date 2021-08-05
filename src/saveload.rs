@@ -262,6 +262,14 @@ pub(crate) fn load_objects() -> Vec<Object> {
         frames: 6,
     });
 
+    objects.push(Object {
+        object_type: ObjectType::Sonar { active: true },
+        position_x: 130,
+        position_y: 48,
+        current_frame: 0,
+        frames: 2,
+    });
+
     objects
 }
 
@@ -423,6 +431,8 @@ fn load_rocks_from_image(image: Image) -> RockGrid {
             cell.set_type(rock_type);
         }
     }
+
+    grid.update_edges();
 
     grid
 }
