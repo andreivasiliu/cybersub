@@ -2,7 +2,7 @@ use crate::{
     draw::{draw_game, Camera, DrawSettings},
     input::{handle_keyboard_input, handle_pointer_input},
     objects::{update_objects, Object},
-    resources::MutableResources,
+    resources::{MutableResources, MutableSubResources},
     rocks::RockGrid,
     saveload::{load_objects, load_png_from_bytes, load_rocks_from_png, load_wires},
     sonar::{find_visible_edge_cells, Sonar},
@@ -13,11 +13,13 @@ use crate::{
 };
 
 pub struct CyberSubApp {
+    pub timings: Timings,
     ui_state: UiState,
     game_state: GameState,
     game_settings: GameSettings,
     draw_settings: DrawSettings,
-    pub timings: Timings,
+    mutable_resources: MutableResources,
+    mutable_sub_resources: Vec<MutableSubResources>,
 }
 
 pub(crate) struct GameSettings {
@@ -76,6 +78,7 @@ const HEIGHT: usize = 100;
 impl Default for CyberSubApp {
     fn default() -> Self {
         Self {
+            timings: Timings::default(),
             game_settings: GameSettings {
                 enable_gravity: true,
                 enable_inertia: true,
@@ -104,7 +107,8 @@ impl Default for CyberSubApp {
                 draw_sonar: true,
             },
             ui_state: UiState::default(),
-            timings: Timings::default(),
+            mutable_resources: MutableResources::new(),
+            mutable_sub_resources: Vec::new(),
         }
     }
 }
@@ -125,6 +129,8 @@ impl CyberSubApp {
             acceleration: (0, 0),
             sonar: Sonar::default(),
         });
+
+        self.mutable_sub_resources.push(MutableSubResources::new());
     }
 
     pub fn load_rocks(&mut self, world_bytes: &[u8]) {
@@ -141,7 +147,8 @@ impl CyberSubApp {
                 // 30 updates per second, regardless of FPS
                 delta -= 1.0 / 30.0;
 
-                for submarine in &mut self.game_state.submarines {
+                for (sub_index, submarine) in &mut self.game_state.submarines.iter_mut().enumerate()
+                {
                     submarine.acceleration.1 = ((submarine.water_grid.total_water() as i32
                         - 1_500_000) as f32
                         / 3_000_00.0
@@ -163,14 +170,24 @@ impl CyberSubApp {
                         submarine.wire_grid.update();
                     }
                     update_objects(submarine);
-                    update_sonar(submarine, &self.game_state.rock_grid);
+                    let mutable_resources = self
+                        .mutable_sub_resources
+                        .get_mut(sub_index)
+                        .expect("All submarines should have a MutableSubResources instance");
+                    update_sonar(submarine, &self.game_state.rock_grid, mutable_resources);
                 }
 
                 let submarine_camera = self
                     .game_state
                     .submarines
                     .get(self.game_settings.current_submarine)
-                    .map(|submarine| submarine.position);
+                    .map(|submarine| {
+                        let (width, height) = submarine.water_grid.size();
+                        (
+                            submarine.position.0 + width as i32 / 2,
+                            submarine.position.1 + height as i32 / 2,
+                        )
+                    });
 
                 self.game_settings.camera.current_submarine = submarine_camera;
             }
@@ -214,30 +231,33 @@ impl CyberSubApp {
         );
     }
 
-    pub fn draw_game(&self, resources: &Resources, mutable_resources: &mut MutableResources) {
+    pub fn draw_game(&mut self, resources: &Resources) {
         draw_game(
             &self.game_state.submarines,
             &self.game_state.rock_grid,
             &self.game_settings.camera,
             &self.draw_settings,
             resources,
-            mutable_resources,
+            &mut self.mutable_resources,
+            &mut self.mutable_sub_resources,
             &self.game_settings.highlighting_object,
         );
     }
 }
 
-fn update_sonar(submarine: &mut SubmarineState, rock_grid: &RockGrid) {
+fn update_sonar(
+    submarine: &mut SubmarineState,
+    rock_grid: &RockGrid,
+    mutable_resources: &mut MutableSubResources,
+) {
     let (width, height) = rock_grid.size();
-    let (sub_width, sub_height) = submarine.water_grid.size();
-    let center_x =
-        (width as i32 / 2 + submarine.position.0 / 16 / 16) as usize + sub_width / 16 / 2;
-    let center_y =
-        (height as i32 / 2 + submarine.position.1 / 16 / 16) as usize + sub_height / 16 / 2;
+    let center_x = (width as i32 / 2 + submarine.position.0 / 16 / 16) as usize;
+    let center_y = (height as i32 / 2 + submarine.position.1 / 16 / 16) as usize;
+
+    submarine.sonar.increase_pulse();
 
     if submarine.sonar.should_update() {
         find_visible_edge_cells(&mut submarine.sonar, (center_x, center_y), rock_grid);
+        mutable_resources.sonar_updated = true;
     }
-
-    submarine.sonar.increase_pulse();
 }

@@ -34,11 +34,15 @@ pub struct ResourcesBuilder {
 }
 
 pub struct MutableResources {
-    pub(crate) sub_walls: Texture2D,
     pub(crate) sea_rocks: Texture2D,
     pub(crate) sea_rocks_updated: bool,
+}
+
+pub struct MutableSubResources {
+    pub(crate) sub_walls: Texture2D,
     pub(crate) new_sonar_target: RenderTarget,
     pub(crate) old_sonar_target: RenderTarget,
+    pub(crate) sonar_updated: bool,
 }
 
 impl ResourcesBuilder {
@@ -211,11 +215,19 @@ impl ResourcesBuilder {
 impl MutableResources {
     pub fn new() -> Self {
         MutableResources {
-            sub_walls: Texture2D::empty(),
             sea_rocks: Texture2D::empty(),
             sea_rocks_updated: false,
+        }
+    }
+}
+
+impl MutableSubResources {
+    pub fn new() -> Self {
+        MutableSubResources {
+            sub_walls: Texture2D::empty(),
             new_sonar_target: render_target(0, 0),
             old_sonar_target: render_target(0, 0),
+            sonar_updated: false,
         }
     }
 }

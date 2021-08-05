@@ -6,14 +6,14 @@ use macroquad::{
         clear_background, draw_circle, draw_line, draw_rectangle, draw_texture, draw_texture_ex,
         get_time, gl_use_default_material, gl_use_material, render_target, screen_height,
         screen_width, set_camera, vec2, vec3, Camera2D, Color, DrawTextureParams, FilterMode,
-        Image, Rect, Texture2D, Vec2, BLACK, BLANK, DARKBLUE, SKYBLUE, WHITE,
+        Image, Rect, Texture2D, Vec2, BLACK, BLANK, DARKBLUE, WHITE,
     },
 };
 
 use crate::{
     app::SubmarineState,
     objects::{Object, ObjectType},
-    resources::MutableResources,
+    resources::{MutableResources, MutableSubResources},
     rocks::RockGrid,
     sonar::Sonar,
     water::WaterGrid,
@@ -93,6 +93,7 @@ pub(crate) fn draw_game(
     draw_settings: &DrawSettings,
     resources: &Resources,
     mutable_resources: &mut MutableResources,
+    mutable_sub_resources: &mut Vec<MutableSubResources>,
     highlighting_object: &Option<(usize, bool)>,
 ) {
     set_camera(&camera.to_macroquad_camera(None));
@@ -111,10 +112,13 @@ pub(crate) fn draw_game(
 
     push_camera_state();
 
-    for submarine in submarines {
+    for (sub_index, submarine) in submarines.iter().enumerate() {
         set_camera(&camera.to_macroquad_camera(Some(submarine.position)));
 
         let (width, height) = submarine.water_grid.size();
+        let mutable_resources = mutable_sub_resources
+            .get_mut(sub_index)
+            .expect("All submarines should have their own MutableSubResources instance");
 
         draw_background(width, height, resources);
 
@@ -208,7 +212,11 @@ fn draw_background(width: usize, height: usize, resources: &Resources) {
     draw_texture(resources.sub_background, top_left.x, top_left.y, WHITE);
 }
 
-fn draw_walls(grid: &WaterGrid, resources: &Resources, mutable_resources: &mut MutableResources) {
+fn draw_walls(
+    grid: &WaterGrid,
+    resources: &Resources,
+    mutable_resources: &mut MutableSubResources,
+) {
     let (width, height) = grid.size();
 
     let mut image = Image::gen_image_color(width as u16, height as u16, BLANK);
@@ -520,7 +528,7 @@ fn draw_rocks(grid: &RockGrid, resources: &Resources, mutable_resources: &mut Mu
     gl_use_material(resources.rock_material);
 
     let middle = vec2((width / 2) as f32, (height / 2) as f32);
-    let pos = to_screen_coords(0, 0, width, height) - middle * 16.0;
+    let pos = -middle * 16.0;
 
     draw_texture_ex(
         mutable_resources.sea_rocks,
@@ -542,7 +550,7 @@ fn draw_sonar(
     grid_size: (usize, usize),
     sonar: &Sonar,
     resources: &Resources,
-    mutable_resources: &mut MutableResources,
+    mutable_resources: &mut MutableSubResources,
 ) {
     let resolution = 16.0;
 
@@ -568,7 +576,9 @@ fn draw_sonar(
     }
 
     // Draw the sonar's contents to an offscreen texture
-    if sonar.should_redraw() || sonar_size != old_size {
+    if mutable_resources.sonar_updated || sonar_size != old_size {
+        mutable_resources.sonar_updated = false;
+
         push_camera_state();
 
         swap(
@@ -585,6 +595,8 @@ fn draw_sonar(
 
         clear_background(BLANK);
 
+        let sonar_radius_squared = (sonar_size.x * sonar_size.x) * 0.95;
+
         // Rock edges up to 75 rock-cells away
         for (x, y) in sonar.visible_edge_cells() {
             // A rock-cell is 16 bigger than a normal one
@@ -592,21 +604,36 @@ fn draw_sonar(
                 -*x as f32 * 16.0 * resolution / 75.0,
                 -*y as f32 * 16.0 * resolution / 75.0,
             );
-            let sonar_radius_squared = (sonar_size.x * sonar_size.x) * 0.95;
 
             if pos.length_squared() >= sonar_radius_squared {
                 continue;
             }
 
-            let normal = pos.normalize_or_zero();
+            // Red encodes brightness
+            let red = 1.0;
+            // Green encodes distance; shared by the shadows, so that the whole
+            // point and all its shadows appear simultaneously
+            let green = pos.length() / resolution / 16.0;
 
-            draw_circle(pos.x, pos.y, resolution / 2.0, SKYBLUE);
+            draw_circle(
+                pos.x,
+                pos.y,
+                resolution / 3.0,
+                Color::new(red, green, 0.0, 1.0),
+            );
+
+            let normal = pos.normalize_or_zero();
 
             for shadow in 1..5 {
                 let pos = pos + normal * (shadow as f32) * resolution * 0.7;
-                let color = Color::new(0.00, 0.32, 0.67, 1.0 - shadow as f32 / 5.0);
+                let red = (1.0 - shadow as f32 / 5.0) * 0.7;
                 if pos.length_squared() < sonar_radius_squared {
-                    draw_circle(pos.x, pos.y, resolution / 3.0, color);
+                    draw_circle(
+                        pos.x,
+                        pos.y,
+                        resolution / 4.0,
+                        Color::new(red, green, 0.0, 1.0),
+                    );
                 }
             }
         }

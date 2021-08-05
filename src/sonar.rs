@@ -25,11 +25,6 @@ impl Sonar {
     pub(crate) fn should_update(&self) -> bool {
         self.pulse == 0
     }
-
-    pub(crate) fn should_redraw(&self) -> bool {
-        // TODO: Vulnerable to frame-skips; need to figure out an alternative
-        self.pulse == 0
-    }
 }
 
 pub(crate) fn find_visible_edge_cells(
