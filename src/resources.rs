@@ -12,6 +12,7 @@ pub struct Resources {
     pub(crate) wire_material: Material,
     pub(crate) wall_material: Material,
     pub(crate) rock_material: Material,
+    pub(crate) sonar_material: Material,
     pub(crate) wires: Texture2D,
     pub(crate) sub_background: Texture2D,
     pub(crate) sea_dust: Texture2D,
@@ -36,7 +37,8 @@ pub struct MutableResources {
     pub(crate) sub_walls: Texture2D,
     pub(crate) sea_rocks: Texture2D,
     pub(crate) sea_rocks_updated: bool,
-    pub(crate) sonar_target: RenderTarget,
+    pub(crate) new_sonar_target: RenderTarget,
+    pub(crate) old_sonar_target: RenderTarget,
 }
 
 impl ResourcesBuilder {
@@ -164,12 +166,30 @@ impl ResourcesBuilder {
         )
         .expect("Could not load rock material");
 
+        let sonar_material = load_material(
+            include_str!("vertex.glsl"),
+            include_str!("sonar.glsl"),
+            MaterialParams {
+                uniforms: vec![
+                    ("sonar_texture_size".to_string(), UniformType::Float2),
+                    ("pulse".to_string(), UniformType::Float1),
+                ],
+                textures: vec![
+                    "new_sonar_texture".to_string(),
+                    "old_sonar_texture".to_string(),
+                ],
+                pipeline_params: blend_alpha,
+            },
+        )
+        .expect("Could not load sonar material");
+
         Resources {
             sea_water,
             hover_highlight,
             wire_material,
             wall_material,
             rock_material,
+            sonar_material,
             wires,
             sub_background: self.sub_background.expect("Sub Background not provided"),
             sea_dust,
@@ -194,7 +214,8 @@ impl MutableResources {
             sub_walls: Texture2D::empty(),
             sea_rocks: Texture2D::empty(),
             sea_rocks_updated: false,
-            sonar_target: render_target(0, 0),
+            new_sonar_target: render_target(0, 0),
+            old_sonar_target: render_target(0, 0),
         }
     }
 }

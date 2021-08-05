@@ -1,3 +1,5 @@
+use std::mem::swap;
+
 use macroquad::{
     camera::{pop_camera_state, push_camera_state},
     prelude::{
@@ -139,6 +141,7 @@ pub(crate) fn draw_game(
                 &submarine.objects,
                 submarine.water_grid.size(),
                 &submarine.sonar,
+                resources,
                 mutable_resources,
             );
         }
@@ -538,6 +541,7 @@ fn draw_sonar(
     objects: &Vec<Object>,
     grid_size: (usize, usize),
     sonar: &Sonar,
+    resources: &Resources,
     mutable_resources: &mut MutableResources,
 ) {
     let resolution = 16.0;
@@ -547,25 +551,34 @@ fn draw_sonar(
     let (width, height) = (13 * resolution as u32, 13 * resolution as u32);
 
     let old_size = vec2(
-        mutable_resources.sonar_target.texture.width(),
-        mutable_resources.sonar_target.texture.height(),
+        mutable_resources.old_sonar_target.texture.width(),
+        mutable_resources.old_sonar_target.texture.height(),
     );
 
     if sonar_size != old_size {
-        mutable_resources.sonar_target = render_target(width, height);
-        mutable_resources
-            .sonar_target
-            .texture
-            .set_filter(FilterMode::Nearest);
+        let mut targets = [
+            &mut mutable_resources.old_sonar_target,
+            &mut mutable_resources.new_sonar_target,
+        ];
+
+        for target in &mut targets {
+            **target = render_target(width, height);
+            target.texture.set_filter(FilterMode::Nearest);
+        }
     }
 
     // Draw the sonar's contents to an offscreen texture
-    if sonar.pulse == 1 || sonar_size != old_size {
+    if sonar.should_redraw() || sonar_size != old_size {
         push_camera_state();
+
+        swap(
+            &mut mutable_resources.old_sonar_target,
+            &mut mutable_resources.new_sonar_target,
+        );
 
         set_camera(&Camera2D {
             // target: sonar_size / 2.0,
-            render_target: Some(mutable_resources.sonar_target),
+            render_target: Some(mutable_resources.new_sonar_target),
             zoom: 1.0 / sonar_size,
             ..Default::default()
         });
@@ -591,7 +604,7 @@ fn draw_sonar(
 
             for shadow in 1..5 {
                 let pos = pos + normal * (shadow as f32) * resolution * 0.7;
-                let color = Color::new(0.00, 0.32, 0.67, 1.0 - shadow as f32 / 10.0);
+                let color = Color::new(0.00, 0.32, 0.67, 1.0 - shadow as f32 / 5.0);
                 if pos.length_squared() < sonar_radius_squared {
                     draw_circle(pos.x, pos.y, resolution / 3.0, color);
                 }
@@ -603,7 +616,7 @@ fn draw_sonar(
 
     // Draw the offscreen texture to all sonar objects in the current submarine
     let (width, height) = grid_size;
-    let texture = mutable_resources.sonar_target.texture;
+    let texture = mutable_resources.new_sonar_target.texture;
 
     for object in objects {
         if !object.is_active_sonar() {
@@ -612,6 +625,20 @@ fn draw_sonar(
 
         let draw_rect = object_rect(object, width, height);
         let pos = draw_rect.point() + vec2(4.0, 2.0);
+
+        resources
+            .sonar_material
+            .set_texture("new_sonar_texture", texture);
+        resources.sonar_material.set_texture(
+            "old_sonar_texture",
+            mutable_resources.old_sonar_target.texture,
+        );
+        resources
+            .sonar_material
+            .set_uniform("sonar_texture_size", sonar_size);
+        resources.sonar_material.set_uniform("pulse", sonar.pulse());
+
+        gl_use_material(resources.sonar_material);
 
         draw_texture_ex(
             texture,
@@ -622,6 +649,24 @@ fn draw_sonar(
                 dest_size: Some(vec2(11.0, 11.0)),
                 ..Default::default()
             },
-        )
+        );
+
+        gl_use_default_material();
+
+        // Mini representation of the submarine
+        let sub_size = vec2(width as f32, height as f32) / 16.0 / resolution;
+        let sub_pos = pos + vec2(5.5, 5.5) - sub_size / 2.0;
+        let sub_color = Color::new(0.40, 0.75, 1.00, 0.50);
+
+        draw_texture_ex(
+            resources.sub_background,
+            sub_pos.x,
+            sub_pos.y,
+            sub_color,
+            DrawTextureParams {
+                dest_size: Some(sub_size),
+                ..Default::default()
+            },
+        );
     }
 }

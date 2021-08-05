@@ -235,9 +235,9 @@ fn update_sonar(submarine: &mut SubmarineState, rock_grid: &RockGrid) {
     let center_y =
         (height as i32 / 2 + submarine.position.1 / 16 / 16) as usize + sub_height / 16 / 2;
 
-    if submarine.sonar.pulse == 0 {
+    if submarine.sonar.should_update() {
         find_visible_edge_cells(&mut submarine.sonar, (center_x, center_y), rock_grid);
     }
 
-    submarine.sonar.pulse = (submarine.sonar.pulse + 1) % (30 * 3);
+    submarine.sonar.increase_pulse();
 }

@@ -6,12 +6,29 @@ use crate::rocks::RockGrid;
 #[derive(Default)]
 pub(crate) struct Sonar {
     visible_edge_cells: Vec<(i16, i16)>,
-    pub pulse: usize,
+    pulse: usize,
 }
 
 impl Sonar {
     pub(crate) fn visible_edge_cells(&self) -> &Vec<(i16, i16)> {
         &self.visible_edge_cells
+    }
+
+    pub(crate) fn increase_pulse(&mut self) {
+        self.pulse = (self.pulse + 1) % (4 * 30);
+    }
+
+    pub(crate) fn pulse(&self) -> f32 {
+        self.pulse as f32 / (4.0 * 30.0)
+    }
+
+    pub(crate) fn should_update(&self) -> bool {
+        self.pulse == 0
+    }
+
+    pub(crate) fn should_redraw(&self) -> bool {
+        // TODO: Vulnerable to frame-skips; need to figure out an alternative
+        self.pulse == 0
     }
 }
 

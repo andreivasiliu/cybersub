@@ -37,6 +37,7 @@ pub(crate) enum ObjectType {
     },
     Sonar {
         active: bool,
+        powered: bool,
     },
 }
 
@@ -61,7 +62,13 @@ impl Object {
     }
 
     pub(crate) fn is_active_sonar(&self) -> bool {
-        matches!(self.object_type, ObjectType::Sonar { active: true })
+        matches!(
+            self.object_type,
+            ObjectType::Sonar {
+                active: true,
+                powered: true
+            }
+        )
     }
 }
 
@@ -174,10 +181,8 @@ pub(crate) fn update_objects(submarine: &mut SubmarineState) {
 
                 object.current_frame = 0;
 
-                if let Some(power_value) = cell.receive_power() {
-                    if power_value > 10 {
-                        object.current_frame = 1;
-                    }
+                if cell.minimum_power(10) {
+                    object.current_frame = 1;
                 }
             }
             ObjectType::Gauge { value } => {
@@ -212,12 +217,8 @@ pub(crate) fn update_objects(submarine: &mut SubmarineState) {
                     *target_speed = logic_value;
                 }
                 let cell = wire_grid.cell(cell_x as usize, cell_y as usize);
-                let target_speed = if let Some(power_value) = cell.receive_power() {
-                    if power_value > 100 {
-                        *target_speed
-                    } else {
-                        0
-                    }
+                let target_speed = if cell.minimum_power(100) {
+                    *target_speed
                 } else {
                     0
                 };
@@ -273,40 +274,43 @@ pub(crate) fn update_objects(submarine: &mut SubmarineState) {
 
                 object.current_frame = 0;
                 let cell = wire_grid.cell(cell_x, cell_y);
-                if let Some(power_value) = cell.receive_power() {
-                    if power_value > 50 && *active {
-                        let target_speed = 0;
+                if *active && cell.minimum_power(50) {
+                    let target_speed = 0;
 
-                        let target_acceleration = match submarine.speed.1 - target_speed {
-                            (i32::MIN..=-255) => 2,
-                            (-256..=-15) => 1,
-                            (-16..=15) => 0,
-                            (16..=255) => -1,
-                            (256..=i32::MAX) => -2,
-                        };
+                    let target_acceleration = match submarine.speed.1 - target_speed {
+                        (i32::MIN..=-255) => 2,
+                        (-256..=-15) => 1,
+                        (-16..=15) => 0,
+                        (16..=255) => -1,
+                        (256..=i32::MAX) => -2,
+                    };
 
-                        let pump_speed = match target_acceleration - submarine.acceleration.1 {
-                            (i32::MIN..=-4) => -3,
-                            (-3..=-2) => -2,
-                            -1 => -1,
-                            0 => 0,
-                            1 => 1,
-                            (2..=3) => 2,
-                            (4..=i32::MAX) => 3,
-                        };
+                    let pump_speed = match target_acceleration - submarine.acceleration.1 {
+                        (i32::MIN..=-4) => -3,
+                        (-3..=-2) => -2,
+                        -1 => -1,
+                        0 => 0,
+                        1 => 1,
+                        (2..=3) => 2,
+                        (4..=i32::MAX) => 3,
+                    };
 
-                        wire_grid
-                            .cell_mut(cell_x + 7, cell_y)
-                            .send_logic(pump_speed * 32);
+                    wire_grid
+                        .cell_mut(cell_x + 7, cell_y)
+                        .send_logic(pump_speed * 32);
 
-                        *progress = (*progress + 1) % (8 * 5);
+                    *progress = (*progress + 1) % (8 * 5);
 
-                        object.current_frame = (*progress as u16 / 8) % 5 + 1;
-                    }
+                    object.current_frame = (*progress as u16 / 8) % 5 + 1;
                 }
             }
-            ObjectType::Sonar { active } => {
-                object.current_frame = if *active { 0 } else { 1 };
+            ObjectType::Sonar { active, powered } => {
+                let x = object.position_x as usize + 2;
+                let y = object.position_y as usize + 15;
+
+                *powered = wire_grid.cell(x, y).minimum_power(100);
+
+                object.current_frame = if *powered && *active { 0 } else { 1 };
             }
         }
     }
@@ -327,7 +331,7 @@ pub(crate) fn interact_with_object(object: &mut Object) {
         ObjectType::LargePump { target_speed, .. } => cycle_i8(target_speed),
         ObjectType::JunctionBox => (),
         ObjectType::NavController { active, .. } => *active = !*active,
-        ObjectType::Sonar { active } => *active = !*active,
+        ObjectType::Sonar { active, .. } => *active = !*active,
     }
 }
 

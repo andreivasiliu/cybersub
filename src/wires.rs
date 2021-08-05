@@ -175,6 +175,13 @@ impl WireCell {
         None
     }
 
+    pub fn minimum_power(&self, minimum: u8) -> bool {
+        match self.receive_power() {
+            Some(value) => value >= minimum,
+            None => false,
+        }
+    }
+
     pub fn send_logic(&mut self, logic_value: i8) {
         for wire_color in 0..COLORS {
             let wire_value = &mut self.value[wire_color];

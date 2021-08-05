@@ -263,7 +263,10 @@ pub(crate) fn load_objects() -> Vec<Object> {
     });
 
     objects.push(Object {
-        object_type: ObjectType::Sonar { active: true },
+        object_type: ObjectType::Sonar {
+            active: true,
+            powered: false,
+        },
         position_x: 130,
         position_y: 48,
         current_frame: 0,
@@ -365,6 +368,20 @@ pub(crate) fn load_wires(width: usize, height: usize) -> WireGrid {
         (
             WireColor::Blue,
             &[(103, 54), (115, 54), (115, 53), (119, 53), (119, 54)],
+        ),
+        // Second junction box to sonar display
+        (
+            WireColor::Blue,
+            &[
+                (193, 76),
+                (194, 76),
+                (194, 71),
+                (224, 71),
+                (224, 46),
+                (131, 46),
+                (131, 63),
+                (132, 63),
+            ],
         ),
     ];
 
