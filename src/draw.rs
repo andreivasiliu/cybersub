@@ -12,7 +12,7 @@ use macroquad::{
 };
 
 use crate::{
-    app::SubmarineState,
+    app::{Navigation, SubmarineState},
     objects::{Object, ObjectType},
     resources::{MutableResources, MutableSubResources},
     rocks::RockGrid,
@@ -114,7 +114,7 @@ pub(crate) fn draw_game(
     push_camera_state();
 
     for (sub_index, submarine) in submarines.iter().enumerate() {
-        set_camera(&camera.to_macroquad_camera(Some(submarine.position)));
+        set_camera(&camera.to_macroquad_camera(Some(submarine.navigation.position)));
 
         let (width, height) = submarine.water_grid.size();
         let mutable_resources = mutable_sub_resources
@@ -148,9 +148,7 @@ pub(crate) fn draw_game(
                 &submarine.objects,
                 submarine.water_grid.size(),
                 &submarine.sonar,
-                submarine.speed,
-                submarine.target,
-                submarine.position,
+                &submarine.navigation,
                 resources,
                 mutable_resources,
             );
@@ -682,9 +680,7 @@ fn draw_sonar(
     objects: &Vec<Object>,
     grid_size: (usize, usize),
     sonar: &Sonar,
-    submarine_speed: (i32, i32),
-    submarine_target: (i32, i32),
-    submarine_position: (i32, i32),
+    navigation: &Navigation,
     resources: &Resources,
     mutable_resources: &mut MutableSubResources,
 ) {
@@ -859,8 +855,8 @@ fn draw_sonar(
 
         // Navigation target
         let target = vec2(
-            (submarine_target.0 - submarine_position.0) as f32,
-            (submarine_target.1 - submarine_position.1) as f32,
+            (navigation.target.0 - navigation.position.0) as f32,
+            (navigation.target.1 - navigation.position.1) as f32,
         );
         let target = center + target / 16.0 / 16.0 / 75.0 * 6.0;
         draw_line(center.x, center.y, target.x, target.y, 0.05, DARKGREEN);
@@ -868,8 +864,8 @@ fn draw_sonar(
 
         // Current velocity
         let speed = vec2(
-            submarine_speed.0 as f32 / 1024.0,
-            submarine_speed.1 as f32 / 1024.0,
+            navigation.speed.0 as f32 / 1024.0,
+            navigation.speed.1 as f32 / 1024.0,
         );
         let speed_line = center + speed * 1.0;
         draw_line(

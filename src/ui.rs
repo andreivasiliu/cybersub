@@ -3,6 +3,7 @@ use egui::{vec2, Color32, Label, Slider, Ui};
 use crate::{
     app::{GameSettings, GameState, Tool, UpdateSettings},
     draw::DrawSettings,
+    objects::compute_navigation,
     saveload::{load, load_png, save, save_png},
     Timings,
 };
@@ -177,13 +178,19 @@ pub(crate) fn draw_ui(
 
                 if let Some(submarine) = submarines.get_mut(*current_submarine) {
                     ui.label(format!("speed:"));
-                    ui.colored_label(Color32::YELLOW, submarine.speed.0.to_string());
+                    ui.colored_label(Color32::YELLOW, submarine.navigation.speed.0.to_string());
                     ui.label(format!("/"));
-                    ui.colored_label(Color32::YELLOW, submarine.speed.1.to_string());
+                    ui.colored_label(Color32::YELLOW, submarine.navigation.speed.1.to_string());
                     ui.label(format!("acceleration:"));
-                    ui.colored_label(Color32::YELLOW, submarine.acceleration.0.to_string());
+                    ui.colored_label(
+                        Color32::YELLOW,
+                        submarine.navigation.acceleration.0.to_string(),
+                    );
                     ui.label(format!("/"));
-                    ui.colored_label(Color32::YELLOW, submarine.acceleration.1.to_string());
+                    ui.colored_label(
+                        Color32::YELLOW,
+                        submarine.navigation.acceleration.1.to_string(),
+                    );
                 }
 
                 if *show_total_water {
@@ -233,7 +240,7 @@ pub(crate) fn draw_ui(
     });
 
     if *show_navigation_info {
-        egui::Window::new("Update settings").show(ctx, |ui| {
+        egui::Window::new("Navigation info").show(ctx, |ui| {
             if let Some(submarine) = submarines.get_mut(*current_submarine) {
                 fn add_info(ui: &mut Ui, label: &str, value: (i32, i32)) {
                     ui.horizontal(|ui| {
@@ -244,10 +251,22 @@ pub(crate) fn draw_ui(
                     });
                 }
 
-                add_info(ui, "Speed", submarine.speed);
-                add_info(ui, "Acceleration", submarine.acceleration);
-                add_info(ui, "Target", submarine.target);
-                add_info(ui, "Position", submarine.position);
+                let navigation = &submarine.navigation;
+                add_info(ui, "Speed", navigation.speed);
+                add_info(ui, "Acceleration", navigation.acceleration);
+                add_info(ui, "Target", navigation.target);
+                add_info(ui, "Position", navigation.position);
+
+                ui.separator();
+
+                let nav_control = compute_navigation(&navigation);
+                add_info(ui, "Target speed", nav_control.target_speed);
+                add_info(ui, "Target acceleration", nav_control.target_acceleration);
+                add_info(
+                    ui,
+                    "Target engine/pump speed",
+                    nav_control.engine_and_pump_speed,
+                );
             } else {
                 ui.label("No submarine selected.");
             }

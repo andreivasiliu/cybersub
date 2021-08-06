@@ -52,11 +52,16 @@ pub(crate) struct SubmarineState {
     pub water_grid: WaterGrid,
     pub wire_grid: WireGrid,
     pub objects: Vec<Object>,
+    pub sonar: Sonar,
+    pub navigation: Navigation,
+}
+
+#[derive(Default)]
+pub(crate) struct Navigation {
     pub target: (i32, i32),
     pub position: (i32, i32),
     pub speed: (i32, i32),
     pub acceleration: (i32, i32),
-    pub sonar: Sonar,
 }
 
 #[derive(PartialEq, Eq)]
@@ -141,10 +146,7 @@ impl CyberSubApp {
             water_grid,
             wire_grid,
             objects,
-            target: (0, 0),
-            position: (0, 0),
-            speed: (0, 0),
-            acceleration: (0, 0),
+            navigation: Navigation::default(),
             sonar: Sonar::default(),
         });
 
@@ -173,18 +175,19 @@ impl CyberSubApp {
                         .expect("All submarines should have a MutableSubResources instance");
 
                     if self.update_settings.update_position {
-                        submarine.acceleration.1 = ((submarine.water_grid.total_water() as i32
-                            - 1_500_000) as f32
-                            / 3_000_00.0
-                            / 1.0) as i32;
+                        let navigation = &mut submarine.navigation;
+                        navigation.acceleration.1 =
+                            ((submarine.water_grid.total_water() as i32 - 1_500_000) as f32
+                                / 3_000_00.0
+                                / 1.0) as i32;
 
-                        submarine.speed.0 =
-                            (submarine.speed.0 + submarine.acceleration.0).clamp(-2048, 2048);
-                        submarine.speed.1 =
-                            (submarine.speed.1 + submarine.acceleration.1).clamp(-2048, 2048);
+                        navigation.speed.0 =
+                            (navigation.speed.0 + navigation.acceleration.0).clamp(-2048, 2048);
+                        navigation.speed.1 =
+                            (navigation.speed.1 + navigation.acceleration.1).clamp(-2048, 2048);
 
-                        submarine.position.0 += submarine.speed.0 / 256;
-                        submarine.position.1 += submarine.speed.1 / 256;
+                        navigation.position.0 += navigation.speed.0 / 256;
+                        navigation.position.1 += navigation.speed.1 / 256;
                     }
 
                     if self.update_settings.update_water {
@@ -204,7 +207,12 @@ impl CyberSubApp {
                         update_objects(submarine);
                     }
                     if self.update_settings.update_sonar {
-                        update_sonar(submarine, &self.game_state.rock_grid, mutable_resources);
+                        update_sonar(
+                            &mut submarine.sonar,
+                            &submarine.navigation,
+                            &self.game_state.rock_grid,
+                            mutable_resources,
+                        );
                     }
                 }
 
@@ -215,8 +223,8 @@ impl CyberSubApp {
                     .map(|submarine| {
                         let (width, height) = submarine.water_grid.size();
                         (
-                            submarine.position.0 + width as i32 / 2,
-                            submarine.position.1 + height as i32 / 2,
+                            submarine.navigation.position.0 + width as i32 / 2,
+                            submarine.navigation.position.1 + height as i32 / 2,
                         )
                     });
 
@@ -283,18 +291,19 @@ impl CyberSubApp {
 }
 
 fn update_sonar(
-    submarine: &mut SubmarineState,
+    sonar: &mut Sonar,
+    navigation: &Navigation,
     rock_grid: &RockGrid,
     mutable_resources: &mut MutableSubResources,
 ) {
     let (width, height) = rock_grid.size();
-    let center_x = (width as i32 / 2 + submarine.position.0 / 16 / 16) as usize;
-    let center_y = (height as i32 / 2 + submarine.position.1 / 16 / 16) as usize;
+    let center_x = (width as i32 / 2 + navigation.position.0 / 16 / 16) as usize;
+    let center_y = (height as i32 / 2 + navigation.position.1 / 16 / 16) as usize;
 
-    submarine.sonar.increase_pulse();
+    sonar.increase_pulse();
 
-    if submarine.sonar.should_update() {
-        find_visible_edge_cells(&mut submarine.sonar, (center_x, center_y), rock_grid);
+    if sonar.should_update() {
+        find_visible_edge_cells(sonar, (center_x, center_y), rock_grid);
         mutable_resources.sonar_updated = true;
     }
 }

@@ -1,4 +1,4 @@
-use crate::app::SubmarineState;
+use crate::app::{Navigation, SubmarineState};
 
 pub(crate) struct Object {
     pub object_type: ObjectType,
@@ -56,6 +56,12 @@ pub(crate) enum DoorState {
 pub(crate) struct SonarInfo {
     pub cursor: Option<(f32, f32)>,
     pub set_target: Option<(f32, f32)>,
+}
+
+pub(crate) struct NavControl {
+    pub target_speed: (i32, i32),
+    pub target_acceleration: (i32, i32),
+    pub engine_and_pump_speed: (i32, i32),
 }
 
 impl Object {
@@ -288,24 +294,11 @@ pub(crate) fn update_objects(submarine: &mut SubmarineState) {
                 let cell_x = object.position_x as usize + 2;
                 let cell_y = object.position_y as usize + 4;
 
+                let nav_control = compute_navigation(&submarine.navigation);
                 object.current_frame = 0;
                 let cell = wire_grid.cell(cell_x, cell_y);
                 if *active && cell.minimum_power(50) {
-                    // X axis - control engine
-                    let target_speed =
-                        ((submarine.target.0 - submarine.position.0) / 4).clamp(-2048, 2048);
-
-                    let target_acceleration =
-                        ((target_speed - submarine.speed.0) / 256).clamp(-4, 4);
-                    let engine_speed = 32 * target_acceleration;
-
-                    // Y axis - control pumps in ballast tanks
-                    let target_speed =
-                        ((submarine.target.1 - submarine.position.1) / 4).clamp(-2048, 2048);
-                    let target_acceleration =
-                        ((target_speed - submarine.speed.1) / 256).clamp(-3, 3);
-                    let pump_speed =
-                        32 * (target_acceleration - submarine.acceleration.1).clamp(-4, 4);
+                    let (engine_speed, pump_speed) = nav_control.engine_and_pump_speed;
 
                     wire_grid
                         .cell_mut(cell_x + 6, cell_y + 2)
@@ -338,11 +331,11 @@ pub(crate) fn update_objects(submarine: &mut SubmarineState) {
                         // 75 rock-cells radius, on 6-pixels per cell resolution
                         let sonar_ratio = 75.0 / 6.0;
 
-                        let target_x =
-                            submarine.position.0 + (target.0 * world_ratio * sonar_ratio) as i32;
-                        let target_y =
-                            submarine.position.1 + (target.1 * world_ratio * sonar_ratio) as i32;
-                        submarine.target = (target_x, target_y);
+                        let target_x = submarine.navigation.position.0
+                            + (target.0 * world_ratio * sonar_ratio) as i32;
+                        let target_y = submarine.navigation.position.1
+                            + (target.1 * world_ratio * sonar_ratio) as i32;
+                        submarine.navigation.target = (target_x, target_y);
 
                         sonar_info.set_target = None;
                     }
@@ -383,7 +376,7 @@ pub(crate) fn update_objects(submarine: &mut SubmarineState) {
                 object.current_frame =
                     (*progress as u8 / (u8::MAX / frames)).clamp(0, frames - 1) as u16;
 
-                submarine.acceleration.0 = match *speed {
+                submarine.navigation.acceleration.0 = match *speed {
                     -128..=-96 => -4,
                     -95..=-64 => -3,
                     -63..=-32 => -2,
@@ -459,5 +452,24 @@ pub(crate) fn hover_over_object(object: &mut Object, hover_position: (f32, f32))
             };
         }
         _ => (),
+    }
+}
+
+pub(crate) fn compute_navigation(navigation: &Navigation) -> NavControl {
+    // X axis - control engine
+    let target_speed_x = ((navigation.target.0 - navigation.position.0) / 4).clamp(-2048, 2048);
+
+    let target_acceleration_x = ((target_speed_x - navigation.speed.0) / 256).clamp(-4, 4);
+    let engine_speed = 32 * target_acceleration_x;
+
+    // Y axis - control pumps in ballast tanks
+    let target_speed_y = ((navigation.target.1 - navigation.position.1) / 4).clamp(-2048, 2048);
+    let target_acceleration_y = ((target_speed_y - navigation.speed.1) / 256).clamp(-3, 3);
+    let pump_speed = 32 * (target_acceleration_y - navigation.acceleration.1).clamp(-4, 4);
+
+    NavControl {
+        target_speed: (target_speed_x, target_speed_y),
+        target_acceleration: (target_acceleration_x, target_acceleration_y),
+        engine_and_pump_speed: (engine_speed, pump_speed),
     }
 }

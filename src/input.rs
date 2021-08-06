@@ -57,7 +57,7 @@ pub(crate) fn handle_pointer_input(
     highlighting_object: &mut Option<(usize, bool)>,
 ) {
     // FIXME: use actual current submarine
-    let macroquad_camera = camera.to_macroquad_camera(Some(submarine.position));
+    let macroquad_camera = camera.to_macroquad_camera(Some(submarine.navigation.position));
     let (width, height) = submarine.water_grid.size();
 
     camera.pointing_at = from_screen_coords(
