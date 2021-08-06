@@ -1,6 +1,11 @@
-use egui::{vec2, Color32, Label, Slider};
+use egui::{vec2, Color32, Label, Slider, Ui};
 
-use crate::{Timings, app::{GameSettings, GameState, Tool, UpdateSettings}, draw::DrawSettings, saveload::{load, load_png, save, save_png}};
+use crate::{
+    app::{GameSettings, GameState, Tool, UpdateSettings},
+    draw::DrawSettings,
+    saveload::{load, load_png, save, save_png},
+    Timings,
+};
 
 pub(crate) struct UiState {
     label: String,
@@ -8,6 +13,7 @@ pub(crate) struct UiState {
     show_ui: bool,
     show_help: bool,
     show_timings: bool,
+    show_navigation_info: bool,
     show_draw_settings: bool,
     show_update_settings: bool,
     error_message: Option<String>,
@@ -21,6 +27,7 @@ impl Default for UiState {
             show_ui: true,
             show_help: false,
             show_timings: false,
+            show_navigation_info: false,
             show_draw_settings: false,
             show_update_settings: false,
             error_message: None,
@@ -45,6 +52,7 @@ pub(crate) fn draw_ui(
         show_ui,
         show_help,
         show_timings,
+        show_navigation_info,
         show_draw_settings,
         show_update_settings,
         error_message,
@@ -72,7 +80,13 @@ pub(crate) fn draw_ui(
         draw_sonar,
     } = draw_settings;
 
-    let UpdateSettings { update_water, update_wires, update_sonar, update_position, update_objects } = update_settings;
+    let UpdateSettings {
+        update_water,
+        update_wires,
+        update_sonar,
+        update_position,
+        update_objects,
+    } = update_settings;
 
     if *show_ui {
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
@@ -188,6 +202,7 @@ pub(crate) fn draw_ui(
         ui.checkbox(show_ui, "Show UI");
         ui.checkbox(enable_gravity, "Enable gravity");
         ui.checkbox(enable_inertia, "Enable inertia");
+        ui.checkbox(show_navigation_info, "Show navigation info");
         ui.checkbox(show_draw_settings, "Show draw settings");
         ui.checkbox(show_update_settings, "Show update settings");
         if cfg!(not(target_arch = "wasm32")) {
@@ -216,6 +231,32 @@ pub(crate) fn draw_ui(
             ui.radio_value(current_tool, Tool::RemoveWall, "Remove Walls");
         });
     });
+
+    if *show_navigation_info {
+        egui::Window::new("Update settings").show(ctx, |ui| {
+            if let Some(submarine) = submarines.get_mut(*current_submarine) {
+                fn add_info(ui: &mut Ui, label: &str, value: (i32, i32)) {
+                    ui.horizontal(|ui| {
+                        ui.label(format!("{}:", label));
+                        ui.colored_label(Color32::YELLOW, value.0.to_string());
+                        ui.label(format!("/"));
+                        ui.colored_label(Color32::YELLOW, value.1.to_string());
+                    });
+                }
+
+                add_info(ui, "Speed", submarine.speed);
+                add_info(ui, "Acceleration", submarine.acceleration);
+                add_info(ui, "Target", submarine.target);
+                add_info(ui, "Position", submarine.position);
+            } else {
+                ui.label("No submarine selected.");
+            }
+
+            if ui.button("Close").clicked() {
+                *show_navigation_info = false;
+            }
+        });
+    }
 
     if *show_update_settings {
         egui::Window::new("Update settings").show(ctx, |ui| {

@@ -6,7 +6,7 @@ use macroquad::prelude::{
 use crate::{
     app::{SubmarineState, Tool},
     draw::{object_rect, Camera},
-    objects::interact_with_object,
+    objects::{hover_over_object, interact_with_object},
     resources::MutableSubResources,
     wires::WireColor,
 };
@@ -114,6 +114,10 @@ pub(crate) fn handle_pointer_input(
 
         if draw_rect.contains(mouse_position) {
             *highlighting_object = Some((obj_index, false));
+
+            let hover_position = mouse_position - draw_rect.point();
+
+            hover_over_object(object, (hover_position.x, hover_position.y));
 
             if is_mouse_button_pressed(MouseButton::Left) {
                 interact_with_object(object);

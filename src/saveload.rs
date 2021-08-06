@@ -5,7 +5,7 @@ use macroquad::prelude::{Image, ImageFormat, BLACK};
 use png::{BitDepth, ColorType, Decoder, Encoder};
 
 use crate::{
-    objects::{DoorState, Object, ObjectType},
+    objects::{DoorState, Object, ObjectType, SonarInfo},
     rocks::{RockGrid, RockType},
     water::WaterGrid,
     wires::{WireColor, WireGrid},
@@ -266,6 +266,7 @@ pub(crate) fn load_objects() -> Vec<Object> {
         object_type: ObjectType::Sonar {
             active: true,
             powered: false,
+            sonar_info: SonarInfo::default(),
         },
         position_x: 130,
         position_y: 48,
@@ -399,14 +400,32 @@ pub(crate) fn load_wires(width: usize, height: usize) -> WireGrid {
         (
             WireColor::Blue,
             &[
-                (186, 76), (187, 76), (187, 71), (39, 71), (39, 67), (37, 67),
+                (186, 76),
+                (187, 76),
+                (187, 71),
+                (39, 71),
+                (39, 67),
+                (37, 67),
             ],
         ),
         // Nav controller to engine
         (
             WireColor::Green,
             &[
-                (103, 56), (104, 56), (104, 46), (64, 46), (64, 47), (51, 47), (51, 48), (46, 48), (46, 49), (42, 49), (42, 50), (39, 50), (39, 69), (37, 69),
+                (103, 56),
+                (104, 56),
+                (104, 46),
+                (64, 46),
+                (64, 47),
+                (51, 47),
+                (51, 48),
+                (46, 48),
+                (46, 49),
+                (42, 49),
+                (42, 50),
+                (39, 50),
+                (39, 69),
+                (37, 69),
             ],
         ),
     ];

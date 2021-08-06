@@ -3,10 +3,11 @@ use std::mem::swap;
 use macroquad::{
     camera::{pop_camera_state, push_camera_state},
     prelude::{
-        clear_background, draw_circle, draw_line, draw_rectangle, draw_texture, draw_texture_ex,
-        get_time, gl_use_default_material, gl_use_material, render_target, screen_height,
-        screen_width, set_camera, vec2, Camera2D, Color, DrawTextureParams, FilterMode, Image,
-        Rect, Texture2D, Vec2, BLACK, BLANK, DARKBLUE, RED, WHITE,
+        clear_background, draw_circle, draw_line, draw_rectangle, draw_rectangle_lines,
+        draw_texture, draw_texture_ex, get_time, gl_use_default_material, gl_use_material,
+        render_target, screen_height, screen_width, set_camera, vec2, Camera2D, Color,
+        DrawTextureParams, FilterMode, Image, Rect, Texture2D, Vec2, BLACK, BLANK, DARKBLUE,
+        DARKGRAY, DARKGREEN, RED, WHITE,
     },
 };
 
@@ -147,6 +148,9 @@ pub(crate) fn draw_game(
                 &submarine.objects,
                 submarine.water_grid.size(),
                 &submarine.sonar,
+                submarine.speed,
+                submarine.target,
+                submarine.position,
                 resources,
                 mutable_resources,
             );
@@ -678,6 +682,9 @@ fn draw_sonar(
     objects: &Vec<Object>,
     grid_size: (usize, usize),
     sonar: &Sonar,
+    submarine_speed: (i32, i32),
+    submarine_target: (i32, i32),
+    submarine_position: (i32, i32),
     resources: &Resources,
     mutable_resources: &mut MutableSubResources,
 ) {
@@ -775,9 +782,10 @@ fn draw_sonar(
     let texture = mutable_resources.new_sonar_target.texture;
 
     for object in objects {
-        if !object.is_active_sonar() {
-            continue;
-        }
+        let sonar_info = match object.active_sonar_info() {
+            Some(sonar_info) => sonar_info,
+            None => continue,
+        };
 
         let draw_rect = object_rect(object, width, height);
         let pos = draw_rect.point() + vec2(4.0, 2.0);
@@ -809,9 +817,11 @@ fn draw_sonar(
 
         gl_use_default_material();
 
+        let center = pos + vec2(5.5, 5.5);
+
         // Mini representation of the submarine
         let sub_size = vec2(width as f32, height as f32) / 16.0 / resolution;
-        let sub_pos = pos + vec2(5.5, 5.5) - sub_size / 2.0;
+        let sub_pos = center - sub_size / 2.0;
         let sub_color = Color::new(0.40, 0.75, 1.00, 0.50);
 
         draw_texture_ex(
@@ -823,6 +833,52 @@ fn draw_sonar(
                 dest_size: Some(sub_size),
                 ..Default::default()
             },
+        );
+
+        // Cursor (last point where mouse was)
+        if let Some(cursor) = sonar_info.cursor {
+            let cursor = center + cursor.into();
+            draw_line(
+                cursor.x - 0.2,
+                cursor.y,
+                cursor.x + 0.2,
+                cursor.y,
+                0.05,
+                DARKGREEN,
+            );
+            draw_line(
+                cursor.x,
+                cursor.y - 0.2,
+                cursor.x,
+                cursor.y + 0.2,
+                0.05,
+                DARKGREEN,
+            );
+            // draw_rectangle_lines(cursor.x - 0.2, cursor.y - 0.2, 0.4, 0.4, 0.05, DARKGREEN);
+        }
+
+        // Navigation target
+        let target = vec2(
+            (submarine_target.0 - submarine_position.0) as f32,
+            (submarine_target.1 - submarine_position.1) as f32,
+        );
+        let target = center + target / 16.0 / 16.0 / 75.0 * 6.0;
+        draw_line(center.x, center.y, target.x, target.y, 0.05, DARKGREEN);
+        draw_rectangle_lines(target.x - 0.1, target.y - 0.1, 0.2, 0.2, 0.05, DARKGREEN);
+
+        // Current velocity
+        let speed = vec2(
+            submarine_speed.0 as f32 / 1024.0,
+            submarine_speed.1 as f32 / 1024.0,
+        );
+        let speed_line = center + speed * 1.0;
+        draw_line(
+            center.x,
+            center.y,
+            speed_line.x,
+            speed_line.y,
+            0.05,
+            DARKGRAY,
         );
     }
 }

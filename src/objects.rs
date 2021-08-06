@@ -38,17 +38,24 @@ pub(crate) enum ObjectType {
     Sonar {
         active: bool,
         powered: bool,
+        sonar_info: SonarInfo,
     },
     Engine {
         target_speed: i8,
         speed: i8,
         progress: u8,
-    }
+    },
 }
 
 pub(crate) enum DoorState {
     Opening,
     Closing,
+}
+
+#[derive(Default)]
+pub(crate) struct SonarInfo {
+    pub cursor: Option<(f32, f32)>,
+    pub set_target: Option<(f32, f32)>,
 }
 
 impl Object {
@@ -67,14 +74,17 @@ impl Object {
         }
     }
 
-    pub(crate) fn is_active_sonar(&self) -> bool {
-        matches!(
-            self.object_type,
-            ObjectType::Sonar {
-                active: true,
-                powered: true
-            }
-        )
+    pub(crate) fn active_sonar_info(&self) -> Option<&SonarInfo> {
+        if let ObjectType::Sonar {
+            active: true,
+            powered: true,
+            sonar_info,
+        } = &self.object_type
+        {
+            Some(sonar_info)
+        } else {
+            None
+        }
     }
 }
 
@@ -282,73 +292,71 @@ pub(crate) fn update_objects(submarine: &mut SubmarineState) {
                 let cell = wire_grid.cell(cell_x, cell_y);
                 if *active && cell.minimum_power(50) {
                     // X axis - control engine
-                    let target_speed = match submarine.target.0 - submarine.position.0 {
-                        (i32::MIN..=-1023) => -1024,
-                        (-2048..=-15) => -256,
-                        (-16..=15) => 0,
-                        (16..=2047) => 256,
-                        (1024..=i32::MAX) => 1024,
-                    };
+                    let target_speed =
+                        ((submarine.target.0 - submarine.position.0) / 4).clamp(-2048, 2048);
 
-                    let target_acceleration = match submarine.speed.0 - target_speed {
-                        (i32::MIN..=-512) => 2,
-                        (-511..=-256) => 1,
-                        (-255..=255) => 0,
-                        (256..=511) => -1,
-                        (512..=i32::MAX) => -2,
-                    };
-
-                    let engine_speed = target_acceleration * 32;
+                    let target_acceleration =
+                        ((target_speed - submarine.speed.0) / 256).clamp(-4, 4);
+                    let engine_speed = 32 * target_acceleration;
 
                     // Y axis - control pumps in ballast tanks
-                    let target_speed = match submarine.target.1 - submarine.position.1 {
-                        (i32::MIN..=-1023) => -1024,
-                        (-2048..=-15) => -256,
-                        (-16..=15) => 0,
-                        (16..=2047) => 256,
-                        (1024..=i32::MAX) => 1024,
-                    };
-
-                    let target_acceleration = match submarine.speed.1 - target_speed {
-                        (i32::MIN..=-255) => 2,
-                        (-256..=-15) => 1,
-                        (-16..=15) => 0,
-                        (16..=255) => -1,
-                        (256..=i32::MAX) => -2,
-                    };
-
-                    let pump_speed = 32 * match target_acceleration - submarine.acceleration.1 {
-                        (i32::MIN..=-4) => -3,
-                        (-3..=-2) => -2,
-                        -1 => -1,
-                        0 => 0,
-                        1 => 1,
-                        (2..=3) => 2,
-                        (4..=i32::MAX) => 3,
-                    };
+                    let target_speed =
+                        ((submarine.target.1 - submarine.position.1) / 4).clamp(-2048, 2048);
+                    let target_acceleration =
+                        ((target_speed - submarine.speed.1) / 256).clamp(-3, 3);
+                    let pump_speed =
+                        32 * (target_acceleration - submarine.acceleration.1).clamp(-4, 4);
 
                     wire_grid
-                        .cell_mut(cell_x + 7, cell_y + 2)
-                        .send_logic(engine_speed);
+                        .cell_mut(cell_x + 6, cell_y + 2)
+                        .send_logic(engine_speed.clamp(i8::MIN.into(), i8::MAX.into()) as i8);
 
                     wire_grid
-                        .cell_mut(cell_x + 7, cell_y)
-                        .send_logic(pump_speed);
+                        .cell_mut(cell_x + 6, cell_y)
+                        .send_logic(pump_speed.clamp(i8::MIN.into(), i8::MAX.into()) as i8);
 
                     *progress = (*progress + 1) % (8 * 5);
 
                     object.current_frame = (*progress as u16 / 8) % 5 + 1;
                 }
             }
-            ObjectType::Sonar { active, powered } => {
+            ObjectType::Sonar {
+                active,
+                powered,
+                sonar_info,
+            } => {
                 let x = object.position_x as usize + 2;
                 let y = object.position_y as usize + 15;
 
                 *powered = wire_grid.cell(x, y).minimum_power(100);
 
+                if *powered && *active {
+                    object.current_frame = 0;
+                    if let Some(target) = sonar_info.set_target {
+                        // 16 sub-cells per rock-cell, 16 movement points per rock-cell
+                        let world_ratio = 16.0 * 16.0;
+                        // 75 rock-cells radius, on 6-pixels per cell resolution
+                        let sonar_ratio = 75.0 / 6.0;
+
+                        let target_x =
+                            submarine.position.0 + (target.0 * world_ratio * sonar_ratio) as i32;
+                        let target_y =
+                            submarine.position.1 + (target.1 * world_ratio * sonar_ratio) as i32;
+                        submarine.target = (target_x, target_y);
+
+                        sonar_info.set_target = None;
+                    }
+                } else {
+                    object.current_frame = 0;
+                }
+
                 object.current_frame = if *powered && *active { 0 } else { 1 };
             }
-            ObjectType::Engine { target_speed, speed, progress } => {
+            ObjectType::Engine {
+                target_speed,
+                speed,
+                progress,
+            } => {
                 let cell_x = object.position_x + 36;
                 let cell_y = object.position_y + 6;
 
@@ -372,7 +380,8 @@ pub(crate) fn update_objects(submarine: &mut SubmarineState) {
                 }
 
                 let frames = 24;
-                object.current_frame = (*progress as u8 / (u8::MAX / frames)).clamp(0, frames - 1) as u16;
+                object.current_frame =
+                    (*progress as u8 / (u8::MAX / frames)).clamp(0, frames - 1) as u16;
 
                 submarine.acceleration.0 = match *speed {
                     -128..=-96 => -4,
@@ -385,7 +394,7 @@ pub(crate) fn update_objects(submarine: &mut SubmarineState) {
                     64..=95 => 3,
                     96..=127 => 4,
                 };
-            },
+            }
         }
     }
 }
@@ -405,7 +414,15 @@ pub(crate) fn interact_with_object(object: &mut Object) {
         ObjectType::LargePump { target_speed, .. } => cycle_i8(target_speed),
         ObjectType::JunctionBox => (),
         ObjectType::NavController { active, .. } => *active = !*active,
-        ObjectType::Sonar { active, .. } => *active = !*active,
+        ObjectType::Sonar {
+            active, sonar_info, ..
+        } => {
+            if let Some(cursor) = sonar_info.cursor {
+                sonar_info.set_target = Some(cursor);
+            } else {
+                *active = !*active;
+            }
+        }
         ObjectType::Engine { target_speed, .. } => cycle_i8(target_speed),
     }
 }
@@ -419,4 +436,28 @@ fn cycle_i8(value: &mut i8) {
         -64 => 0,
         _ => 0,
     };
+}
+
+pub(crate) fn hover_over_object(object: &mut Object, hover_position: (f32, f32)) {
+    match &mut object.object_type {
+        ObjectType::Sonar {
+            active: true,
+            sonar_info,
+            ..
+        } => {
+            let sonar_middle = (9.5, 7.5);
+            let cursor = (
+                hover_position.0 - sonar_middle.0,
+                hover_position.1 - sonar_middle.1,
+            );
+
+            let length_squared = cursor.0 * cursor.0 + cursor.1 * cursor.1;
+            sonar_info.cursor = if length_squared < 5.0 * 5.0 {
+                Some(cursor)
+            } else {
+                None
+            };
+        }
+        _ => (),
+    }
 }

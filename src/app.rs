@@ -179,9 +179,9 @@ impl CyberSubApp {
                             / 1.0) as i32;
 
                         submarine.speed.0 =
-                            (submarine.speed.0 + submarine.acceleration.0).clamp(-1024, 1024);
+                            (submarine.speed.0 + submarine.acceleration.0).clamp(-2048, 2048);
                         submarine.speed.1 =
-                            (submarine.speed.1 + submarine.acceleration.1).clamp(-1024, 1024);
+                            (submarine.speed.1 + submarine.acceleration.1).clamp(-2048, 2048);
 
                         submarine.position.0 += submarine.speed.0 / 256;
                         submarine.position.1 += submarine.speed.1 / 256;
