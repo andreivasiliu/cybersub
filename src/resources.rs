@@ -27,6 +27,7 @@ pub struct Resources {
     pub(crate) junction_box: Texture2D,
     pub(crate) nav_controller: Texture2D,
     pub(crate) sonar: Texture2D,
+    pub(crate) engine: Texture2D,
 }
 
 pub struct ResourcesBuilder {
@@ -107,6 +108,7 @@ impl ResourcesBuilder {
         let junction_box = load_texture(include_bytes!("../resources/junctionbox.png"));
         let nav_controller = load_texture(include_bytes!("../resources/navcontroller.png"));
         let sonar = load_texture(include_bytes!("../resources/sonar.png"));
+        let engine = load_texture(include_bytes!("../resources/engine.png"));
 
         sea_dust.set_filter(FilterMode::Linear);
 
@@ -211,6 +213,7 @@ impl ResourcesBuilder {
             junction_box,
             nav_controller,
             sonar,
+            engine,
         }
     }
 }

@@ -273,6 +273,18 @@ pub(crate) fn load_objects() -> Vec<Object> {
         frames: 2,
     });
 
+    objects.push(Object {
+        object_type: ObjectType::Engine {
+            target_speed: 0,
+            speed: 0,
+            progress: 0,
+        },
+        position_x: 1,
+        position_y: 61,
+        current_frame: 0,
+        frames: 24,
+    });
+
     objects
 }
 
@@ -282,12 +294,12 @@ pub(crate) fn load_wires(width: usize, height: usize) -> WireGrid {
     let wires = &[
         // Reactor to first junction box
         (
-            WireColor::Blue,
+            WireColor::Green,
             &[(141, 81), (141, 71), (183, 71), (183, 73)][..],
         ),
         // First junction box to lamp
         (
-            WireColor::Green,
+            WireColor::Purple,
             &[(186, 74), (187, 74), (187, 71), (163, 71), (163, 74)],
         ),
         // First junction box to left large pump
@@ -295,14 +307,14 @@ pub(crate) fn load_wires(width: usize, height: usize) -> WireGrid {
             WireColor::Brown,
             &[(186, 75), (187, 75), (187, 71), (78, 71), (78, 80)],
         ),
-        // First junction box to right large pump
+        // Second junction box to right large pump
         (
             WireColor::Purple,
-            &[(186, 76), (187, 76), (187, 71), (292, 71), (292, 80)],
+            &[(193, 77), (194, 77), (194, 71), (292, 71), (292, 80)],
         ),
         // First junctin box to second junction box
         (
-            WireColor::Blue,
+            WireColor::Green,
             &[(186, 77), (187, 77), (187, 71), (190, 71), (190, 72)],
         ),
         // Main gauge to right pump gauge
@@ -381,6 +393,20 @@ pub(crate) fn load_wires(width: usize, height: usize) -> WireGrid {
                 (131, 46),
                 (131, 63),
                 (132, 63),
+            ],
+        ),
+        // First junction box to engine
+        (
+            WireColor::Blue,
+            &[
+                (186, 76), (187, 76), (187, 71), (39, 71), (39, 67), (37, 67),
+            ],
+        ),
+        // Nav controller to engine
+        (
+            WireColor::Green,
+            &[
+                (103, 56), (104, 56), (104, 46), (64, 46), (64, 47), (51, 47), (51, 48), (46, 48), (46, 49), (42, 49), (42, 50), (39, 50), (39, 69), (37, 69),
             ],
         ),
     ];

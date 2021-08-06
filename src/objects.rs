@@ -39,6 +39,11 @@ pub(crate) enum ObjectType {
         active: bool,
         powered: bool,
     },
+    Engine {
+        target_speed: i8,
+        speed: i8,
+        progress: u8,
+    }
 }
 
 pub(crate) enum DoorState {
@@ -58,6 +63,7 @@ impl Object {
             ObjectType::JunctionBox => (6, 8),
             ObjectType::NavController { .. } => (9, 15),
             ObjectType::Sonar { .. } => (19, 17),
+            ObjectType::Engine { .. } => (37, 20),
         }
     }
 
@@ -223,7 +229,7 @@ pub(crate) fn update_objects(submarine: &mut SubmarineState) {
                     0
                 };
 
-                *speed = ((*speed as i16 + target_speed as i16) / 2) as i8;
+                *speed = ((*speed as i16 * 9 + target_speed as i16) / 10) as i8;
 
                 if *speed >= 0 {
                     *progress = progress.wrapping_add((*speed / 4) as u8);
@@ -275,7 +281,33 @@ pub(crate) fn update_objects(submarine: &mut SubmarineState) {
                 object.current_frame = 0;
                 let cell = wire_grid.cell(cell_x, cell_y);
                 if *active && cell.minimum_power(50) {
-                    let target_speed = 0;
+                    // X axis - control engine
+                    let target_speed = match submarine.target.0 - submarine.position.0 {
+                        (i32::MIN..=-1023) => -1024,
+                        (-2048..=-15) => -256,
+                        (-16..=15) => 0,
+                        (16..=2047) => 256,
+                        (1024..=i32::MAX) => 1024,
+                    };
+
+                    let target_acceleration = match submarine.speed.0 - target_speed {
+                        (i32::MIN..=-512) => 2,
+                        (-511..=-256) => 1,
+                        (-255..=255) => 0,
+                        (256..=511) => -1,
+                        (512..=i32::MAX) => -2,
+                    };
+
+                    let engine_speed = target_acceleration * 32;
+
+                    // Y axis - control pumps in ballast tanks
+                    let target_speed = match submarine.target.1 - submarine.position.1 {
+                        (i32::MIN..=-1023) => -1024,
+                        (-2048..=-15) => -256,
+                        (-16..=15) => 0,
+                        (16..=2047) => 256,
+                        (1024..=i32::MAX) => 1024,
+                    };
 
                     let target_acceleration = match submarine.speed.1 - target_speed {
                         (i32::MIN..=-255) => 2,
@@ -285,7 +317,7 @@ pub(crate) fn update_objects(submarine: &mut SubmarineState) {
                         (256..=i32::MAX) => -2,
                     };
 
-                    let pump_speed = match target_acceleration - submarine.acceleration.1 {
+                    let pump_speed = 32 * match target_acceleration - submarine.acceleration.1 {
                         (i32::MIN..=-4) => -3,
                         (-3..=-2) => -2,
                         -1 => -1,
@@ -296,8 +328,12 @@ pub(crate) fn update_objects(submarine: &mut SubmarineState) {
                     };
 
                     wire_grid
+                        .cell_mut(cell_x + 7, cell_y + 2)
+                        .send_logic(engine_speed);
+
+                    wire_grid
                         .cell_mut(cell_x + 7, cell_y)
-                        .send_logic(pump_speed * 32);
+                        .send_logic(pump_speed);
 
                     *progress = (*progress + 1) % (8 * 5);
 
@@ -312,6 +348,44 @@ pub(crate) fn update_objects(submarine: &mut SubmarineState) {
 
                 object.current_frame = if *powered && *active { 0 } else { 1 };
             }
+            ObjectType::Engine { target_speed, speed, progress } => {
+                let cell_x = object.position_x + 36;
+                let cell_y = object.position_y + 6;
+
+                let cell = wire_grid.cell(cell_x as usize, cell_y as usize + 2);
+                if let Some(logic_value) = cell.receive_logic() {
+                    *target_speed = logic_value;
+                }
+                let cell = wire_grid.cell(cell_x as usize, cell_y as usize);
+                let target_speed = if cell.minimum_power(100) {
+                    *target_speed
+                } else {
+                    0
+                };
+
+                *speed = ((*speed as i16 * 9 + target_speed as i16) / 10) as i8;
+
+                if *speed >= 0 {
+                    *progress = progress.wrapping_add((*speed / 4) as u8);
+                } else {
+                    *progress = progress.wrapping_sub((speed.abs() / 4) as u8);
+                }
+
+                let frames = 24;
+                object.current_frame = (*progress as u8 / (u8::MAX / frames)).clamp(0, frames - 1) as u16;
+
+                submarine.acceleration.0 = match *speed {
+                    -128..=-96 => -4,
+                    -95..=-64 => -3,
+                    -63..=-32 => -2,
+                    -31..=-16 => -1,
+                    -15..=15 => 0,
+                    16..=31 => 1,
+                    32..=63 => 2,
+                    64..=95 => 3,
+                    96..=127 => 4,
+                };
+            },
         }
     }
 }
@@ -332,6 +406,7 @@ pub(crate) fn interact_with_object(object: &mut Object) {
         ObjectType::JunctionBox => (),
         ObjectType::NavController { active, .. } => *active = !*active,
         ObjectType::Sonar { active, .. } => *active = !*active,
+        ObjectType::Engine { target_speed, .. } => cycle_i8(target_speed),
     }
 }
 

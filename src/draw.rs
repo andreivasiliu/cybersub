@@ -558,6 +558,7 @@ fn draw_objects(
             ObjectType::JunctionBox => resources.junction_box,
             ObjectType::NavController { .. } => resources.nav_controller,
             ObjectType::Sonar { .. } => resources.sonar,
+            ObjectType::Engine { .. } => resources.engine,
         };
 
         // Textures are vertically split into equally-sized animation frames
