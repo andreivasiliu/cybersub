@@ -1,11 +1,6 @@
 use egui::{vec2, Color32, Label, Slider};
 
-use crate::{
-    app::{GameSettings, GameState, Tool},
-    draw::DrawSettings,
-    saveload::{load, load_png, save, save_png},
-    Timings,
-};
+use crate::{Timings, app::{GameSettings, GameState, Tool, UpdateSettings}, draw::DrawSettings, saveload::{load, load_png, save, save_png}};
 
 pub(crate) struct UiState {
     label: String,
@@ -14,6 +9,7 @@ pub(crate) struct UiState {
     show_help: bool,
     show_timings: bool,
     show_draw_settings: bool,
+    show_update_settings: bool,
     error_message: Option<String>,
 }
 
@@ -26,6 +22,7 @@ impl Default for UiState {
             show_help: false,
             show_timings: false,
             show_draw_settings: false,
+            show_update_settings: false,
             error_message: None,
         }
     }
@@ -39,6 +36,7 @@ pub(crate) fn draw_ui(
     settings: &mut GameSettings,
     state: &mut GameState,
     draw_settings: &mut DrawSettings,
+    update_settings: &mut UpdateSettings,
     timings: &Timings,
 ) {
     let UiState {
@@ -48,6 +46,7 @@ pub(crate) fn draw_ui(
         show_help,
         show_timings,
         show_draw_settings,
+        show_update_settings,
         error_message,
     } = ui_state;
 
@@ -72,6 +71,8 @@ pub(crate) fn draw_ui(
         draw_water,
         draw_sonar,
     } = draw_settings;
+
+    let UpdateSettings { update_water, update_wires, update_sonar, update_position, update_objects } = update_settings;
 
     if *show_ui {
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
@@ -188,6 +189,7 @@ pub(crate) fn draw_ui(
         ui.checkbox(enable_gravity, "Enable gravity");
         ui.checkbox(enable_inertia, "Enable inertia");
         ui.checkbox(show_draw_settings, "Show draw settings");
+        ui.checkbox(show_update_settings, "Show update settings");
         if cfg!(not(target_arch = "wasm32")) {
             // Timing not available in browsers
             ui.checkbox(show_timings, "Show timings");
@@ -214,6 +216,20 @@ pub(crate) fn draw_ui(
             ui.radio_value(current_tool, Tool::RemoveWall, "Remove Walls");
         });
     });
+
+    if *show_update_settings {
+        egui::Window::new("Update settings").show(ctx, |ui| {
+            ui.checkbox(update_water, "Update water");
+            ui.checkbox(update_wires, "Update wires");
+            ui.checkbox(update_sonar, "Update sonar");
+            ui.checkbox(update_position, "Update position");
+            ui.checkbox(update_objects, "Update objects");
+
+            if ui.button("Close").clicked() {
+                *show_update_settings = false;
+            }
+        });
+    }
 
     if *show_draw_settings {
         egui::Window::new("Draw settings").show(ctx, |ui| {

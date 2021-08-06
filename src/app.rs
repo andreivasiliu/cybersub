@@ -18,6 +18,7 @@ pub struct CyberSubApp {
     game_state: GameState,
     game_settings: GameSettings,
     draw_settings: DrawSettings,
+    update_settings: UpdateSettings,
     mutable_resources: MutableResources,
     mutable_sub_resources: Vec<MutableSubResources>,
 }
@@ -31,6 +32,14 @@ pub(crate) struct GameSettings {
     pub quit_game: bool,
     pub dragging_object: bool,
     pub highlighting_object: Option<(usize, bool)>,
+}
+
+pub(crate) struct UpdateSettings {
+    pub update_water: bool,
+    pub update_wires: bool,
+    pub update_sonar: bool,
+    pub update_position: bool,
+    pub update_objects: bool,
 }
 
 pub(crate) struct GameState {
@@ -106,6 +115,13 @@ impl Default for CyberSubApp {
                 draw_water: true,
                 draw_sonar: true,
             },
+            update_settings: UpdateSettings {
+                update_water: true,
+                update_wires: true,
+                update_sonar: true,
+                update_position: true,
+                update_objects: true,
+            },
             ui_state: UiState::default(),
             mutable_resources: MutableResources::new(),
             mutable_sub_resources: Vec::new(),
@@ -154,30 +170,40 @@ impl CyberSubApp {
                         .get_mut(sub_index)
                         .expect("All submarines should have a MutableSubResources instance");
 
-                    submarine.acceleration.1 = ((submarine.water_grid.total_water() as i32
-                        - 1_500_000) as f32
-                        / 3_000_00.0
-                        / 1.0) as i32;
+                    if self.update_settings.update_position {
+                        submarine.acceleration.1 = ((submarine.water_grid.total_water() as i32
+                            - 1_500_000) as f32
+                            / 3_000_00.0
+                            / 1.0) as i32;
 
-                    submarine.speed.0 =
-                        (submarine.speed.0 + submarine.acceleration.0).clamp(-1024, 1024);
-                    submarine.speed.1 =
-                        (submarine.speed.1 + submarine.acceleration.1).clamp(-1024, 1024);
+                        submarine.speed.0 =
+                            (submarine.speed.0 + submarine.acceleration.0).clamp(-1024, 1024);
+                        submarine.speed.1 =
+                            (submarine.speed.1 + submarine.acceleration.1).clamp(-1024, 1024);
 
-                    submarine.position.0 += submarine.speed.0 / 256;
-                    submarine.position.1 += submarine.speed.1 / 256;
-
-                    submarine.water_grid.update(
-                        self.game_settings.enable_gravity,
-                        self.game_settings.enable_inertia,
-                    );
-                    for _ in 0..3 {
-                        submarine
-                            .wire_grid
-                            .update(&mut mutable_resources.signals_updated);
+                        submarine.position.0 += submarine.speed.0 / 256;
+                        submarine.position.1 += submarine.speed.1 / 256;
                     }
-                    update_objects(submarine);
-                    update_sonar(submarine, &self.game_state.rock_grid, mutable_resources);
+
+                    if self.update_settings.update_water {
+                        submarine.water_grid.update(
+                            self.game_settings.enable_gravity,
+                            self.game_settings.enable_inertia,
+                        );
+                    }
+                    if self.update_settings.update_wires {
+                        for _ in 0..3 {
+                            submarine
+                                .wire_grid
+                                .update(&mut mutable_resources.signals_updated);
+                        }
+                    }
+                    if self.update_settings.update_objects {
+                        update_objects(submarine);
+                    }
+                    if self.update_settings.update_sonar {
+                        update_sonar(submarine, &self.game_state.rock_grid, mutable_resources);
+                    }
                 }
 
                 let submarine_camera = self
@@ -207,6 +233,7 @@ impl CyberSubApp {
             &mut self.game_settings,
             &mut self.game_state,
             &mut self.draw_settings,
+            &mut self.update_settings,
             &self.timings,
         );
     }
