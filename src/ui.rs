@@ -169,24 +169,24 @@ pub(crate) fn draw_ui(
                     egui::Hyperlink::new("https://github.com/not-fl3/macroquad/").text("macroquad"),
                 );
                 egui::warn_if_debug_build(ui);
-                ui.label(format!("FPS:"));
+                ui.label("FPS:".to_string());
                 ui.colored_label(Color32::GREEN, timings.fps.to_string());
-                ui.label(format!("x:"));
+                ui.label("x:".to_string());
                 ui.colored_label(Color32::GREEN, camera.pointing_at.0.to_string());
-                ui.label(format!("y:"));
+                ui.label("y:".to_string());
                 ui.colored_label(Color32::GREEN, camera.pointing_at.1.to_string());
 
                 if let Some(submarine) = submarines.get_mut(*current_submarine) {
-                    ui.label(format!("speed:"));
+                    ui.label("speed:".to_string());
                     ui.colored_label(Color32::YELLOW, submarine.navigation.speed.0.to_string());
-                    ui.label(format!("/"));
+                    ui.label("/".to_string());
                     ui.colored_label(Color32::YELLOW, submarine.navigation.speed.1.to_string());
-                    ui.label(format!("acceleration:"));
+                    ui.label("acceleration:".to_string());
                     ui.colored_label(
                         Color32::YELLOW,
                         submarine.navigation.acceleration.0.to_string(),
                     );
-                    ui.label(format!("/"));
+                    ui.label("/".to_string());
                     ui.colored_label(
                         Color32::YELLOW,
                         submarine.navigation.acceleration.1.to_string(),
@@ -246,7 +246,7 @@ pub(crate) fn draw_ui(
                     ui.horizontal(|ui| {
                         ui.label(format!("{}:", label));
                         ui.colored_label(Color32::YELLOW, value.0.to_string());
-                        ui.label(format!("/"));
+                        ui.label("/".to_string());
                         ui.colored_label(Color32::YELLOW, value.1.to_string());
                     });
                 }

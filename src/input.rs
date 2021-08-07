@@ -68,16 +68,16 @@ pub(crate) fn handle_pointer_input(
 
     if is_mouse_button_pressed(MouseButton::Right) {
         camera.dragging_from = mouse_position();
-        if cfg!(not(target_arch = "wasm32")) {
-            // TODO: Bugged; it makes the egui windows act weird
-            // set_cursor_grab(true);
-        }
+        // TODO: Bugged; it makes the egui windows act weird
+        // if cfg!(not(target_arch = "wasm32")) {
+        //     set_cursor_grab(true);
+        // }
     }
 
     if is_mouse_button_released(MouseButton::Right) {
-        if cfg!(not(target_arch = "wasm32")) {
-            // set_cursor_grab(false);
-        }
+        // if cfg!(not(target_arch = "wasm32")) {
+        //     set_cursor_grab(false);
+        // }
     }
 
     if is_mouse_button_down(MouseButton::Right) {

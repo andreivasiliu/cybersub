@@ -10,7 +10,7 @@ pub(crate) struct Sonar {
 }
 
 impl Sonar {
-    pub(crate) fn visible_edge_cells(&self) -> &Vec<(i16, i16)> {
+    pub(crate) fn visible_edge_cells(&self) -> &[(i16, i16)] {
         &self.visible_edge_cells
     }
 

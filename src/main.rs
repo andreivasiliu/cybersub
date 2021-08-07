@@ -41,7 +41,7 @@ async fn main() {
         if cfg!(target_arch = "wasm32") {
             0
         } else {
-            let last_time = last_time.get_or_insert_with(|| Instant::now());
+            let last_time = last_time.get_or_insert_with(Instant::now);
 
             let new_time = Instant::now();
             let delta = new_time.saturating_duration_since(*last_time).as_micros() as u32;

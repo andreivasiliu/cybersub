@@ -12,7 +12,7 @@ use macroquad::{
 };
 
 use crate::{
-    app::{Navigation, SubmarineState},
+    app::{GameSettings, GameState, Navigation},
     objects::{Object, ObjectType},
     resources::{MutableResources, MutableSubResources},
     rocks::RockGrid,
@@ -88,15 +88,24 @@ pub(crate) fn to_screen_coords(x: usize, y: usize, width: usize, height: usize) 
 }
 
 pub(crate) fn draw_game(
-    submarines: &Vec<SubmarineState>,
-    rock_grid: &RockGrid,
-    camera: &Camera,
+    game_state: &GameState,
+    game_settings: &GameSettings,
     draw_settings: &DrawSettings,
     resources: &Resources,
     mutable_resources: &mut MutableResources,
     mutable_sub_resources: &mut Vec<MutableSubResources>,
-    highlighting_object: &Option<(usize, bool)>,
 ) {
+    let GameState {
+        rock_grid,
+        submarines,
+        ..
+    } = game_state;
+    let GameSettings {
+        camera,
+        highlighting_object,
+        ..
+    } = game_settings;
+
     set_camera(&camera.to_macroquad_camera(None));
 
     update_rocks_texture(rock_grid, mutable_resources);
@@ -541,7 +550,7 @@ pub(crate) fn object_rect(object: &Object, width: usize, height: usize) -> Rect 
 }
 
 fn draw_objects(
-    objects: &Vec<Object>,
+    objects: &[Object],
     width: usize,
     height: usize,
     resources: &Resources,
@@ -677,7 +686,7 @@ fn draw_rocks(grid: &RockGrid, resources: &Resources, mutable_resources: &mut Mu
 }
 
 fn draw_sonar(
-    objects: &Vec<Object>,
+    objects: &[Object],
     grid_size: (usize, usize),
     sonar: &Sonar,
     navigation: &Navigation,

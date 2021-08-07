@@ -135,10 +135,8 @@ pub(crate) fn update_objects(submarine: &mut SubmarineState) {
                             if !cell.is_inside() {
                                 cell.make_inside();
                             }
-                        } else {
-                            if !cell.is_wall() {
-                                cell.make_wall();
-                            }
+                        } else if !cell.is_wall() {
+                            cell.make_wall();
                         }
                     }
                 }
@@ -175,10 +173,8 @@ pub(crate) fn update_objects(submarine: &mut SubmarineState) {
                         if !cell.is_inside() {
                             cell.make_inside();
                         }
-                    } else {
-                        if !cell.is_wall() {
-                            cell.make_wall();
-                        }
+                    } else if !cell.is_wall() {
+                        cell.make_wall();
                     }
                 }
             }
@@ -432,26 +428,24 @@ fn cycle_i8(value: &mut i8) {
 }
 
 pub(crate) fn hover_over_object(object: &mut Object, hover_position: (f32, f32)) {
-    match &mut object.object_type {
-        ObjectType::Sonar {
-            active: true,
-            sonar_info,
-            ..
-        } => {
-            let sonar_middle = (9.5, 7.5);
-            let cursor = (
-                hover_position.0 - sonar_middle.0,
-                hover_position.1 - sonar_middle.1,
-            );
+    if let ObjectType::Sonar {
+        active: true,
+        sonar_info,
+        ..
+    } = &mut object.object_type
+    {
+        let sonar_middle = (9.5, 7.5);
+        let cursor = (
+            hover_position.0 - sonar_middle.0,
+            hover_position.1 - sonar_middle.1,
+        );
 
-            let length_squared = cursor.0 * cursor.0 + cursor.1 * cursor.1;
-            sonar_info.cursor = if length_squared < 5.0 * 5.0 {
-                Some(cursor)
-            } else {
-                None
-            };
-        }
-        _ => (),
+        let length_squared = cursor.0 * cursor.0 + cursor.1 * cursor.1;
+        sonar_info.cursor = if length_squared < 5.0 * 5.0 {
+            Some(cursor)
+        } else {
+            None
+        };
     }
 }
 

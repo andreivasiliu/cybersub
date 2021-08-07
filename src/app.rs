@@ -178,8 +178,7 @@ impl CyberSubApp {
                         let navigation = &mut submarine.navigation;
                         navigation.acceleration.1 =
                             ((submarine.water_grid.total_water() as i32 - 1_500_000) as f32
-                                / 3_000_00.0
-                                / 1.0) as i32;
+                                / (3_000_000.0 / 10.0)) as i32;
 
                         navigation.speed.0 =
                             (navigation.speed.0 + navigation.acceleration.0).clamp(-2048, 2048);
@@ -278,14 +277,12 @@ impl CyberSubApp {
 
     pub fn draw_game(&mut self, resources: &Resources) {
         draw_game(
-            &self.game_state.submarines,
-            &self.game_state.rock_grid,
-            &self.game_settings.camera,
+            &self.game_state,
+            &self.game_settings,
             &self.draw_settings,
             resources,
             &mut self.mutable_resources,
             &mut self.mutable_sub_resources,
-            &self.game_settings.highlighting_object,
         );
     }
 }

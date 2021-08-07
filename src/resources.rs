@@ -30,6 +30,7 @@ pub struct Resources {
     pub(crate) engine: Texture2D,
 }
 
+#[derive(Default)]
 pub struct ResourcesBuilder {
     sub_background: Option<Texture2D>,
 }
@@ -54,9 +55,7 @@ pub struct MutableSubResources {
 
 impl ResourcesBuilder {
     pub fn new() -> Self {
-        ResourcesBuilder {
-            sub_background: None,
-        }
+        ResourcesBuilder::default()
     }
 
     pub fn sub_background(mut self, bytes: &[u8]) -> Self {
@@ -215,6 +214,12 @@ impl ResourcesBuilder {
             sonar,
             engine,
         }
+    }
+}
+
+impl Default for MutableResources {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
