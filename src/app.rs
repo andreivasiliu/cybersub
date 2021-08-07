@@ -32,6 +32,7 @@ pub(crate) struct GameSettings {
     pub quit_game: bool,
     pub dragging_object: bool,
     pub highlighting_object: Option<(usize, bool)>,
+    pub highlighting_settings: bool,
 }
 
 pub(crate) struct UpdateSettings {
@@ -106,6 +107,7 @@ impl Default for CyberSubApp {
                 quit_game: false,
                 dragging_object: false,
                 highlighting_object: None,
+                highlighting_settings: false,
             },
             game_state: GameState {
                 last_update: None,
@@ -113,8 +115,11 @@ impl Default for CyberSubApp {
                 submarines: Vec::new(),
             },
             draw_settings: DrawSettings {
-                draw_sea: true,
+                draw_egui: true,
+                draw_sea_dust: true,
+                draw_sea_caustics: true,
                 draw_rocks: true,
+                draw_background: true,
                 draw_objects: true,
                 draw_walls: true,
                 draw_wires: true,
@@ -236,15 +241,17 @@ impl CyberSubApp {
     /// Called each time the UI needs repainting, which may be many times per second.
     /// Put your widgets into a `SidePanel`, `TopPanel`, `CentralPanel`, `Window` or `Area`.
     pub fn draw_ui(&mut self, ctx: &egui::CtxRef) {
-        draw_ui(
-            ctx,
-            &mut self.ui_state,
-            &mut self.game_settings,
-            &mut self.game_state,
-            &mut self.draw_settings,
-            &mut self.update_settings,
-            &self.timings,
-        );
+        if self.draw_settings.draw_egui {
+            draw_ui(
+                ctx,
+                &mut self.ui_state,
+                &mut self.game_settings,
+                &mut self.game_state,
+                &mut self.draw_settings,
+                &mut self.update_settings,
+                &self.timings,
+            );
+        }
     }
 
     pub fn should_quit(&self) -> bool {
@@ -260,10 +267,8 @@ impl CyberSubApp {
             handle_pointer_input(
                 submarine,
                 mutable_resources,
-                &mut self.game_settings.camera,
-                &self.game_settings.current_tool,
-                &mut self.game_settings.dragging_object,
-                &mut self.game_settings.highlighting_object,
+                &mut self.game_settings,
+                &mut self.draw_settings.draw_egui,
             );
         }
     }
@@ -280,6 +285,7 @@ impl CyberSubApp {
             &self.game_state,
             &self.game_settings,
             &self.draw_settings,
+            &self.timings,
             resources,
             &mut self.mutable_resources,
             &mut self.mutable_sub_resources,

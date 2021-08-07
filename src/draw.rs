@@ -1,13 +1,13 @@
 use std::mem::swap;
 
 use macroquad::{
-    camera::{pop_camera_state, push_camera_state},
+    camera::{pop_camera_state, push_camera_state, set_default_camera},
     prelude::{
-        clear_background, draw_circle, draw_line, draw_rectangle, draw_rectangle_lines,
+        clear_background, draw_circle, draw_line, draw_rectangle, draw_rectangle_lines, draw_text,
         draw_texture, draw_texture_ex, get_time, gl_use_default_material, gl_use_material,
         render_target, screen_height, screen_width, set_camera, vec2, Camera2D, Color,
         DrawTextureParams, FilterMode, Image, Rect, Texture2D, Vec2, BLACK, BLANK, DARKBLUE,
-        DARKGRAY, DARKGREEN, RED, WHITE,
+        DARKGRAY, DARKGREEN, PURPLE, RED, WHITE,
     },
 };
 
@@ -19,12 +19,15 @@ use crate::{
     sonar::Sonar,
     water::WaterGrid,
     wires::{WireColor, WireGrid},
-    Resources,
+    Resources, Timings,
 };
 
 pub(crate) struct DrawSettings {
-    pub draw_sea: bool,
+    pub draw_egui: bool,
+    pub draw_sea_dust: bool,
+    pub draw_sea_caustics: bool,
     pub draw_rocks: bool,
+    pub draw_background: bool,
     pub draw_objects: bool,
     pub draw_walls: bool,
     pub draw_wires: bool,
@@ -91,6 +94,7 @@ pub(crate) fn draw_game(
     game_state: &GameState,
     game_settings: &GameSettings,
     draw_settings: &DrawSettings,
+    timings: &Timings,
     resources: &Resources,
     mutable_resources: &mut MutableResources,
     mutable_sub_resources: &mut Vec<MutableSubResources>,
@@ -108,10 +112,14 @@ pub(crate) fn draw_game(
 
     set_camera(&camera.to_macroquad_camera(None));
 
-    update_rocks_texture(rock_grid, mutable_resources);
-
-    if draw_settings.draw_sea {
-        draw_sea(camera, resources, rock_grid.size());
+    if draw_settings.draw_sea_dust || draw_settings.draw_sea_caustics {
+        draw_sea(
+            camera,
+            draw_settings.draw_sea_dust,
+            draw_settings.draw_sea_caustics,
+            resources,
+            rock_grid.size(),
+        );
     } else {
         draw_fake_sea(rock_grid.size());
     }
@@ -130,7 +138,9 @@ pub(crate) fn draw_game(
             .get_mut(sub_index)
             .expect("All submarines should have their own MutableSubResources instance");
 
-        draw_background(width, height, resources);
+        if draw_settings.draw_background {
+            draw_background(width, height, resources);
+        }
 
         if draw_settings.draw_walls {
             draw_walls(&submarine.water_grid, resources, mutable_resources);
@@ -169,12 +179,55 @@ pub(crate) fn draw_game(
     }
 
     pop_camera_state();
+
+    if !draw_settings.draw_egui {
+        set_default_camera();
+        draw_ui_alternative(timings, game_settings.highlighting_settings, resources);
+    }
 }
 
-fn draw_sea(camera: &Camera, resources: &Resources, world_size: (usize, usize)) {
+pub(crate) fn draw_ui_alternative(
+    timings: &Timings,
+    highlighting_settings: bool,
+    resources: &Resources,
+) {
+    let frame = if highlighting_settings { 1.0 } else { 0.0 };
+    draw_texture_ex(
+        resources.settings,
+        10.0,
+        10.0,
+        WHITE,
+        DrawTextureParams {
+            dest_size: Some(vec2(20.0, 20.0)),
+            source: Some(Rect::new(0.0, 60.0 * frame, 60.0, 60.0)),
+            ..Default::default()
+        },
+    );
+
+    let text = format!(
+        "fps: {}, update: {}, layout: {}",
+        timings.fps, timings.game_update, timings.game_layout
+    );
+    draw_text(&text, 40.0, 25.0, 20.0, PURPLE);
+}
+
+fn draw_sea(
+    camera: &Camera,
+    draw_sea_dust: bool,
+    draw_sea_caustics: bool,
+    resources: &Resources,
+    world_size: (usize, usize),
+) {
     let (width, height) = world_size;
     let time_offset = vec2(0.1, 1.0) * get_time() as f32 * 0.03;
     let camera_offset = vec2(camera.offset_x, camera.offset_y) / 300.0;
+    resources
+        .sea_water
+        .set_uniform("enable_dust", if draw_sea_dust { 1.0f32 } else { 0.0 });
+    resources.sea_water.set_uniform(
+        "enable_caustics",
+        if draw_sea_caustics { 1.0f32 } else { 0.0 },
+    );
     resources.sea_water.set_uniform("time_offset", time_offset);
     resources
         .sea_water
@@ -216,7 +269,7 @@ fn draw_fake_sea(world_size: (usize, usize)) {
         pos.y,
         (width * 16) as f32,
         (height * 16) as f32,
-        DARKBLUE,
+        Color::new(0.0235, 0.0235, 0.1255, 1.0),
     );
 }
 
@@ -654,6 +707,8 @@ fn update_rocks_texture(grid: &RockGrid, mutable_resources: &mut MutableResource
 }
 
 fn draw_rocks(grid: &RockGrid, resources: &Resources, mutable_resources: &mut MutableResources) {
+    update_rocks_texture(grid, mutable_resources);
+
     let (width, height) = grid.size();
 
     resources

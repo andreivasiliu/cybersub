@@ -53,6 +53,13 @@ async fn main() {
     loop {
         clear_background(BLACK);
 
+        delta_time();
+        cybersub_app.update_game(get_time());
+        cybersub_app.timings.game_update = delta_time();
+
+        cybersub_app.draw_game(&resources);
+        cybersub_app.timings.game_layout = delta_time();
+
         egui_macroquad::ui(|egui_ctx| {
             delta_time();
 
@@ -67,13 +74,6 @@ async fn main() {
             }
             cybersub_app.timings.input_handling = delta_time();
         });
-
-        delta_time();
-        cybersub_app.update_game(get_time());
-        cybersub_app.timings.game_update = delta_time();
-
-        cybersub_app.draw_game(&resources);
-        cybersub_app.timings.game_layout = delta_time();
 
         egui_macroquad::draw();
         cybersub_app.timings.egui_drawing = delta_time();

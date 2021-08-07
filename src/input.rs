@@ -1,10 +1,10 @@
 use macroquad::prelude::{
     is_key_down, is_key_pressed, is_key_released, is_mouse_button_down, is_mouse_button_pressed,
-    is_mouse_button_released, mouse_position, mouse_wheel, KeyCode, MouseButton, Vec2,
+    is_mouse_button_released, mouse_position, mouse_wheel, KeyCode, MouseButton, Rect, Vec2,
 };
 
 use crate::{
-    app::{SubmarineState, Tool},
+    app::{GameSettings, SubmarineState, Tool},
     draw::{object_rect, Camera},
     objects::{hover_over_object, interact_with_object},
     resources::MutableSubResources,
@@ -51,23 +51,31 @@ pub(crate) fn handle_keyboard_input(camera: &mut Camera, current_tool: &mut Tool
 pub(crate) fn handle_pointer_input(
     submarine: &mut SubmarineState,
     mutable_resources: &mut MutableSubResources,
-    camera: &mut Camera,
-    tool: &Tool,
-    dragging_object: &mut bool,
-    highlighting_object: &mut Option<(usize, bool)>,
+    game_settings: &mut GameSettings,
+    draw_egui: &mut bool,
 ) {
+    let GameSettings {
+        camera,
+        current_tool,
+        dragging_object,
+        highlighting_object,
+        highlighting_settings,
+        ..
+    } = game_settings;
+
     // FIXME: use actual current submarine
     let macroquad_camera = camera.to_macroquad_camera(Some(submarine.navigation.position));
     let (width, height) = submarine.water_grid.size();
+    let mouse_position = mouse_position();
 
     camera.pointing_at = from_screen_coords(
-        macroquad_camera.screen_to_world(mouse_position().into()),
+        macroquad_camera.screen_to_world(mouse_position.into()),
         width,
         height,
     );
 
     if is_mouse_button_pressed(MouseButton::Right) {
-        camera.dragging_from = mouse_position();
+        camera.dragging_from = mouse_position
         // TODO: Bugged; it makes the egui windows act weird
         // if cfg!(not(target_arch = "wasm32")) {
         //     set_cursor_grab(true);
@@ -80,8 +88,17 @@ pub(crate) fn handle_pointer_input(
         // }
     }
 
+    let settings_button = Rect::new(10.0, 10.0, 20.0, 20.0);
+    if !*draw_egui {
+        *highlighting_settings = settings_button.contains(mouse_position.into());
+    }
+
+    if is_mouse_button_pressed(MouseButton::Left) && !*draw_egui && *highlighting_settings {
+        *draw_egui = true;
+    }
+
     if is_mouse_button_down(MouseButton::Right) {
-        let new_position = mouse_position();
+        let new_position = mouse_position;
 
         let old = macroquad_camera.screen_to_world(Vec2::from(camera.dragging_from));
         let new = macroquad_camera.screen_to_world(Vec2::from(new_position));
@@ -105,7 +122,7 @@ pub(crate) fn handle_pointer_input(
         camera.zoom = (camera.zoom + (scroll * multiplier) as i32 * 4).clamp(-512, 36);
     }
 
-    let mouse_position = macroquad_camera.screen_to_world(mouse_position().into());
+    let mouse_position = macroquad_camera.screen_to_world(mouse_position.into());
 
     *highlighting_object = None;
 
@@ -140,7 +157,7 @@ pub(crate) fn handle_pointer_input(
             let water_cell = submarine.water_grid.cell_mut(x, y);
             let wire_cell = submarine.wire_grid.cell_mut(x, y);
 
-            match tool {
+            match current_tool {
                 Tool::AddWater => water_cell.fill(),
                 Tool::AddWall => water_cell.make_wall(),
                 Tool::RemoveWall => water_cell.clear_wall(),

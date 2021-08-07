@@ -7,6 +7,7 @@ use macroquad::{
 };
 
 pub struct Resources {
+    pub(crate) settings: Texture2D,
     pub(crate) sea_water: Material,
     pub(crate) hover_highlight: Material,
     pub(crate) wire_material: Material,
@@ -76,6 +77,8 @@ impl ResourcesBuilder {
             include_str!("water.glsl"),
             MaterialParams {
                 uniforms: vec![
+                    ("enable_dust".to_string(), UniformType::Float1),
+                    ("enable_caustics".to_string(), UniformType::Float1),
                     ("time_offset".to_string(), UniformType::Float2),
                     ("camera_offset".to_string(), UniformType::Float2),
                     ("time".to_string(), UniformType::Float1),
@@ -94,6 +97,7 @@ impl ResourcesBuilder {
             texture
         }
 
+        let settings = load_texture(include_bytes!("../resources/settings.png"));
         let sea_dust = load_texture(include_bytes!("../resources/seadust.png"));
         let wires = load_texture(include_bytes!("../resources/wires.png"));
         let wall = load_texture(include_bytes!("../resources/wall.png"));
@@ -192,6 +196,7 @@ impl ResourcesBuilder {
         .expect("Could not load sonar material");
 
         Resources {
+            settings,
             sea_water,
             hover_highlight,
             wire_material,

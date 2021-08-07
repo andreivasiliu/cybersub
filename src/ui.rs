@@ -1,4 +1,4 @@
-use egui::{vec2, Color32, Label, Slider, Ui};
+use egui::{vec2, Align2, Color32, Label, Slider, Ui};
 
 use crate::{
     app::{GameSettings, GameState, Tool, UpdateSettings},
@@ -9,9 +9,10 @@ use crate::{
 };
 
 pub(crate) struct UiState {
-    label: String,
     show_total_water: bool,
-    show_ui: bool,
+    show_bars: bool,
+    show_main_settings: bool,
+    show_toolbar: bool,
     show_help: bool,
     show_timings: bool,
     show_navigation_info: bool,
@@ -23,9 +24,10 @@ pub(crate) struct UiState {
 impl Default for UiState {
     fn default() -> Self {
         Self {
-            label: "Hello me!".to_owned(),
             show_total_water: false,
-            show_ui: true,
+            show_bars: true,
+            show_main_settings: true,
+            show_toolbar: true,
             show_help: false,
             show_timings: false,
             show_navigation_info: false,
@@ -48,9 +50,10 @@ pub(crate) fn draw_ui(
     timings: &Timings,
 ) {
     let UiState {
-        label,
         show_total_water,
-        show_ui,
+        show_bars,
+        show_toolbar,
+        show_main_settings,
         show_help,
         show_timings,
         show_navigation_info,
@@ -72,8 +75,11 @@ pub(crate) fn draw_ui(
     let GameState { submarines, .. } = state;
 
     let DrawSettings {
-        draw_sea,
+        draw_egui,
+        draw_sea_dust,
+        draw_sea_caustics,
         draw_rocks,
+        draw_background,
         draw_objects,
         draw_walls,
         draw_wires,
@@ -89,7 +95,7 @@ pub(crate) fn draw_ui(
         update_objects,
     } = update_settings;
 
-    if *show_ui {
+    if *show_bars {
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             egui::menu::bar(ui, |ui| {
                 egui::menu::menu(ui, "File", |ui| {
@@ -131,20 +137,11 @@ pub(crate) fn draw_ui(
                         ui.label("<no submarine selected>");
                     }
 
-                    ui.separator();
-
                     if ui.button("Show total water").clicked() {
                         *show_total_water = !*show_total_water;
                     }
-                    if ui.button("Toggle gravity").clicked() {
-                        *enable_gravity = !*enable_gravity;
-                    }
-                    if ui.button("Toggle inertia").clicked() {
-                        *enable_inertia = !*enable_inertia;
-                    }
-                    if cfg!(not(target_arch = "wasm32")) && ui.button("Show timings").clicked() {
-                        *show_timings = !*show_timings;
-                    }
+                    ui.separator();
+
                     if ui.button("Help").clicked() {
                         *show_help = true;
                     }
@@ -153,10 +150,23 @@ pub(crate) fn draw_ui(
                         *quit_game = true;
                     }
                 });
-            });
-            ui.horizontal(|ui| {
-                ui.label("Write something: ");
-                ui.text_edit_singleline(label);
+                egui::menu::menu(ui, "View", |ui| {
+                    if ui.button("Show toolbar").clicked() {
+                        *show_toolbar = !*show_toolbar;
+                    }
+                    if ui.button("Show main settings").clicked() {
+                        *show_main_settings = !*show_main_settings;
+                    }
+                    if ui.button("Show draw settings").clicked() {
+                        *show_draw_settings = !*show_draw_settings;
+                    }
+                    if ui.button("Show update settings").clicked() {
+                        *show_update_settings = !*show_update_settings;
+                    }
+                    if ui.button("Show timings").clicked() {
+                        *show_timings = !*show_timings;
+                    }
+                });
             });
         });
 
@@ -205,39 +215,42 @@ pub(crate) fn draw_ui(
         });
     }
 
-    egui::Window::new("egui ❤ macroquad").show(ctx, |ui| {
-        ui.checkbox(show_ui, "Show UI");
-        ui.checkbox(enable_gravity, "Enable gravity");
-        ui.checkbox(enable_inertia, "Enable inertia");
-        ui.checkbox(show_navigation_info, "Show navigation info");
-        ui.checkbox(show_draw_settings, "Show draw settings");
-        ui.checkbox(show_update_settings, "Show update settings");
-        if cfg!(not(target_arch = "wasm32")) {
-            // Timing not available in browsers
-            ui.checkbox(show_timings, "Show timings");
-        }
-        ui.horizontal(|ui| {
-            ui.label("Zoom:");
-            ui.add(Slider::new(&mut camera.zoom, -512..=36));
+    if *show_main_settings {
+        egui::Window::new("Settings").show(ctx, |ui| {
+            ui.checkbox(show_toolbar, "Show toolbar");
+            ui.checkbox(show_main_settings, "Show main settings");
+            ui.checkbox(show_navigation_info, "Show navigation info");
+            ui.checkbox(show_draw_settings, "Show draw settings");
+            ui.checkbox(show_update_settings, "Show update settings");
+            if cfg!(not(target_arch = "wasm32")) {
+                // Timing not available in browsers
+                ui.checkbox(show_timings, "Show timings");
+            }
+            ui.horizontal(|ui| {
+                ui.label("Zoom:");
+                ui.add(Slider::new(&mut camera.zoom, -512..=36));
+            });
         });
-    });
+    }
 
-    let toolbar = egui::Window::new("toolbar")
-        .auto_sized()
-        .title_bar(false)
-        .default_pos(ctx.available_rect().left_bottom() + vec2(16.0, -16.0 - 32.0));
+    if *show_toolbar {
+        let toolbar = egui::Window::new("toolbar")
+            .auto_sized()
+            .title_bar(false)
+            .anchor(Align2::LEFT_BOTTOM, vec2(16.0, -16.0));
 
-    toolbar.show(ctx, |ui| {
-        ui.horizontal(|ui| {
-            ui.radio_value(current_tool, Tool::AddWater, "Add Water");
-            ui.radio_value(current_tool, Tool::AddWall, "Add Walls");
-            ui.radio_value(current_tool, Tool::AddPurpleWire, "Purple Wires");
-            ui.radio_value(current_tool, Tool::AddBrownWire, "Brown Wires");
-            ui.radio_value(current_tool, Tool::AddBlueWire, "Blue Wires");
-            ui.radio_value(current_tool, Tool::AddGreenWire, "Green Wires");
-            ui.radio_value(current_tool, Tool::RemoveWall, "Remove Walls");
+        toolbar.show(ctx, |ui| {
+            ui.horizontal_wrapped(|ui| {
+                ui.radio_value(current_tool, Tool::AddWater, "Add Water");
+                ui.radio_value(current_tool, Tool::AddWall, "Add Walls");
+                ui.radio_value(current_tool, Tool::AddPurpleWire, "Purple Wires");
+                ui.radio_value(current_tool, Tool::AddBrownWire, "Brown Wires");
+                ui.radio_value(current_tool, Tool::AddBlueWire, "Blue Wires");
+                ui.radio_value(current_tool, Tool::AddGreenWire, "Green Wires");
+                ui.radio_value(current_tool, Tool::RemoveWall, "Remove Walls");
+            });
         });
-    });
+    }
 
     if *show_navigation_info {
         egui::Window::new("Navigation info").show(ctx, |ui| {
@@ -280,6 +293,11 @@ pub(crate) fn draw_ui(
     if *show_update_settings {
         egui::Window::new("Update settings").show(ctx, |ui| {
             ui.checkbox(update_water, "Update water");
+            ui.vertical(|ui| {
+                ui.set_enabled(*update_water);
+                ui.checkbox(enable_gravity, "Enable gravity");
+                ui.checkbox(enable_inertia, "Enable inertia");
+            });
             ui.checkbox(update_wires, "Update wires");
             ui.checkbox(update_sonar, "Update sonar");
             ui.checkbox(update_position, "Update position");
@@ -293,8 +311,12 @@ pub(crate) fn draw_ui(
 
     if *show_draw_settings {
         egui::Window::new("Draw settings").show(ctx, |ui| {
-            ui.checkbox(draw_sea, "Enable sea shader");
+            ui.checkbox(draw_egui, "Draw egui widgets")
+                .on_hover_text("Click the wrench button to re-enable the UI");
+            ui.checkbox(draw_sea_dust, "Draw sea dust");
+            ui.checkbox(draw_sea_caustics, "Draw sea caustics");
             ui.checkbox(draw_rocks, "Draw rocks");
+            ui.checkbox(draw_background, "Draw background");
             ui.checkbox(draw_objects, "Draw objects");
             ui.checkbox(draw_walls, "Draw walls");
             ui.checkbox(draw_wires, "Draw wires");
@@ -352,6 +374,7 @@ pub(crate) fn draw_ui(
             ui.label("On browsers, the right-click menu is disabled, in order to make scrolling easier. You can still shift-right-click.");
             ui.label("WASD, arrow keys, or hold right-click to move camera. Keypad +/- or mouse-scroll to zoom. Minus doesn't work on browsers. No idea why. There is currently no way to move the camera with a touch-screen.");
             ui.label("Use the tool controls (Add Water, Add Walls, etc) at the bottom to switch what left-click paints. Holding shift or ctrl is a shortcut for switching.");
+            ui.label("Zoom in on the sonar and click inside it to set a nagivation target.");
             ui.label("Firefox is having issues with rendering the whole thing; my phone and other browsers work fine though.");
 
             if ui.button("Close").clicked() {
