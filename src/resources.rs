@@ -29,6 +29,7 @@ pub struct Resources {
     pub(crate) nav_controller: Texture2D,
     pub(crate) sonar: Texture2D,
     pub(crate) engine: Texture2D,
+    pub(crate) turbulence: Texture2D,
 }
 
 #[derive(Default)]
@@ -36,22 +37,30 @@ pub struct ResourcesBuilder {
     sub_background: Option<Texture2D>,
 }
 
-pub struct MutableResources {
-    pub(crate) sea_rocks: Texture2D,
-    pub(crate) sea_rocks_updated: bool,
+pub(crate) struct MutableResources {
+    pub sea_rocks: Texture2D,
+    pub sea_rocks_updated: bool,
 }
 
-pub struct MutableSubResources {
-    pub(crate) sub_walls: Texture2D,
-    pub(crate) walls_updated: bool,
-    pub(crate) sub_wires: RenderTarget,
-    pub(crate) wires_updated: bool,
-    pub(crate) sub_signals_image: Image,
-    pub(crate) sub_signals: Texture2D,
-    pub(crate) signals_updated: bool,
-    pub(crate) new_sonar_target: RenderTarget,
-    pub(crate) old_sonar_target: RenderTarget,
-    pub(crate) sonar_updated: bool,
+pub(crate) struct MutableSubResources {
+    pub sub_walls: Texture2D,
+    pub walls_updated: bool,
+    pub sub_wires: RenderTarget,
+    pub wires_updated: bool,
+    pub sub_signals_image: Image,
+    pub sub_signals: Texture2D,
+    pub signals_updated: bool,
+    pub new_sonar_target: RenderTarget,
+    pub old_sonar_target: RenderTarget,
+    pub sonar_updated: bool,
+    pub turbulence_particles: Vec<TurbulenceParticle>,
+}
+
+pub(crate) struct TurbulenceParticle {
+    pub position: (f32, f32),
+    pub frame: u8,
+    pub speed: f32,
+    pub life: u8,
 }
 
 impl ResourcesBuilder {
@@ -112,6 +121,7 @@ impl ResourcesBuilder {
         let nav_controller = load_texture(include_bytes!("../resources/navcontroller.png"));
         let sonar = load_texture(include_bytes!("../resources/sonar.png"));
         let engine = load_texture(include_bytes!("../resources/engine.png"));
+        let turbulence = load_texture(include_bytes!("../resources/turbulence.png"));
 
         sea_dust.set_filter(FilterMode::Linear);
 
@@ -218,6 +228,7 @@ impl ResourcesBuilder {
             nav_controller,
             sonar,
             engine,
+            turbulence,
         }
     }
 }
@@ -250,6 +261,7 @@ impl MutableSubResources {
             new_sonar_target: render_target(0, 0),
             old_sonar_target: render_target(0, 0),
             sonar_updated: false,
+            turbulence_particles: Vec::new(),
         }
     }
 }

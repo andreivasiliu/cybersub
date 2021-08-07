@@ -85,6 +85,7 @@ pub(crate) fn draw_ui(
         draw_wires,
         draw_water,
         draw_sonar,
+        draw_engine_turbulence,
     } = draw_settings;
 
     let UpdateSettings {
@@ -324,6 +325,7 @@ pub(crate) fn draw_ui(
             ui.checkbox(draw_wires, "Draw wires");
             ui.checkbox(draw_water, "Draw water");
             ui.checkbox(draw_sonar, "Draw sonar");
+            ui.checkbox(draw_engine_turbulence, "Draw engine turbulence");
 
             if ui.button("Close").clicked() {
                 *show_draw_settings = false;

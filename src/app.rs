@@ -34,6 +34,8 @@ pub(crate) struct GameSettings {
     pub dragging_object: bool,
     pub highlighting_object: Option<(usize, bool)>,
     pub highlighting_settings: bool,
+    pub last_draw: Option<f64>,
+    pub animation_ticks: u32,
 }
 
 pub(crate) struct UpdateSettings {
@@ -110,6 +112,8 @@ impl Default for CyberSubApp {
                 dragging_object: false,
                 highlighting_object: None,
                 highlighting_settings: false,
+                last_draw: None,
+                animation_ticks: 0,
             },
             game_state: GameState {
                 last_update: None,
@@ -127,6 +131,7 @@ impl Default for CyberSubApp {
                 draw_wires: true,
                 draw_water: true,
                 draw_sonar: true,
+                draw_engine_turbulence: true,
             },
             update_settings: UpdateSettings {
                 update_water: true,
@@ -190,6 +195,19 @@ impl CyberSubApp {
 
     pub fn update_game(&mut self, game_time: f64) {
         let last_update = &mut self.game_state.last_update;
+        let last_draw = &mut self.game_settings.last_draw;
+        self.game_settings.animation_ticks = 0;
+
+        if let Some(last_draw) = last_draw {
+            let mut delta = (game_time - *last_draw).clamp(0.0, 0.5);
+
+            while delta > 0.0 {
+                // 60 animation updates per second, regardless of FPS
+
+                delta -= 1.0 / 60.0;
+                self.game_settings.animation_ticks += 1;
+            }
+        }
 
         if let Some(last_update) = last_update {
             let mut delta = (game_time - *last_update).clamp(0.0, 0.5);
@@ -197,6 +215,7 @@ impl CyberSubApp {
             while delta > 0.0 {
                 // 30 updates per second, regardless of FPS
                 delta -= 1.0 / 30.0;
+                self.game_settings.animation_ticks += 1;
 
                 for (sub_index, submarine) in &mut self.game_state.submarines.iter_mut().enumerate()
                 {
@@ -269,6 +288,7 @@ impl CyberSubApp {
                 self.game_settings.camera.current_submarine = submarine_camera;
             }
         }
+        *last_draw = Some(game_time);
         *last_update = Some(game_time);
     }
 

@@ -1,4 +1,4 @@
-use std::mem::swap;
+use std::{cell::RefCell, mem::swap};
 
 use macroquad::{
     camera::{pop_camera_state, push_camera_state, set_default_camera},
@@ -12,9 +12,9 @@ use macroquad::{
 };
 
 use crate::{
-    app::{GameSettings, GameState, Navigation},
+    app::{GameSettings, GameState, Navigation, SubmarineState},
     objects::{Object, ObjectType},
-    resources::{MutableResources, MutableSubResources},
+    resources::{MutableResources, MutableSubResources, TurbulenceParticle},
     rocks::RockGrid,
     sonar::Sonar,
     water::WaterGrid,
@@ -33,6 +33,7 @@ pub(crate) struct DrawSettings {
     pub draw_wires: bool,
     pub draw_water: bool,
     pub draw_sonar: bool,
+    pub draw_engine_turbulence: bool,
 }
 
 #[derive(Debug, Default)]
@@ -93,7 +94,7 @@ pub(crate) fn draw_game(
     timings: &Timings,
     resources: &Resources,
     mutable_resources: &mut MutableResources,
-    mutable_sub_resources: &mut Vec<MutableSubResources>,
+    mutable_sub_resources: &mut [MutableSubResources],
 ) {
     let GameState {
         rock_grid,
@@ -120,6 +121,17 @@ pub(crate) fn draw_game(
         draw_fake_sea(rock_grid.size());
     }
 
+    if draw_settings.draw_engine_turbulence {
+        // Draw all external effects of submarines before all submarines, so
+        // they don't go over another submarine
+        draw_engine_turbulence(
+            submarines,
+            game_settings.animation_ticks,
+            resources,
+            mutable_sub_resources,
+        );
+    }
+
     if draw_settings.draw_rocks {
         draw_rocks(rock_grid, resources, mutable_resources);
     }
@@ -127,11 +139,7 @@ pub(crate) fn draw_game(
     push_camera_state();
 
     for (sub_index, submarine) in submarines.iter().enumerate() {
-        let sub_middle = (
-            submarine.navigation.position.0 as i32,
-            submarine.navigation.position.1 as i32,
-        );
-        set_camera(&camera.to_macroquad_camera(Some(sub_middle)));
+        set_camera(&camera.to_macroquad_camera(Some(submarine.navigation.position)));
 
         let mutable_resources = mutable_sub_resources
             .get_mut(sub_index)
@@ -701,6 +709,78 @@ fn update_rocks_texture(grid: &RockGrid, mutable_resources: &mut MutableResource
     mutable_resources.sea_rocks_updated = true;
 }
 
+fn draw_engine_turbulence(
+    submarines: &[SubmarineState],
+    animation_ticks: u32,
+    resources: &Resources,
+    mutable_sub_resources: &mut [MutableSubResources],
+) {
+    for (sub_index, submarine) in submarines.iter().enumerate() {
+        for object in &submarine.objects {
+            if let ObjectType::Engine { speed, .. } = &object.object_type {
+                let mutable_resources = mutable_sub_resources
+                    .get_mut(sub_index)
+                    .expect("All submarines should have their own MutableSubResources instance");
+
+                let pos = vec2(
+                    submarine.navigation.position.0 as f32 / 16.0 + object.position_x as f32,
+                    submarine.navigation.position.1 as f32 / 16.0 + object.position_y as f32,
+                ) + vec2(0.0, 2.0);
+
+                for _tick in 0..animation_ticks {
+                    if *speed != 0 {
+                        for _new_particle in 0..5 {
+                            let frame = (random() * 4.9) as u8;
+                            mutable_resources
+                                .turbulence_particles
+                                .push(TurbulenceParticle {
+                                    position: (pos.x + random() * 3.0, pos.y + random() * 6.0),
+                                    frame,
+                                    speed: *speed as f32 * (random() / 4.0 + 0.75),
+                                    life: (128.0 * (random() / 2.0 + 0.5)) as u8,
+                                });
+                        }
+                    }
+
+                    for particle in mutable_resources.turbulence_particles.iter_mut() {
+                        particle.position.0 -= (0.5 * particle.life as f32 / 32.0
+                            * (particle.frame + 30) as f32
+                            / 32.0)
+                            * (particle.speed as f32 / 64.0);
+                        particle.position.1 += 0.001;
+
+                        particle.life -= 1;
+                    }
+                    mutable_resources
+                        .turbulence_particles
+                        .retain(|particle| particle.life != 0);
+                }
+
+                for particle in mutable_resources.turbulence_particles.iter_mut() {
+                    let (x, y) = particle.position;
+
+                    draw_texture_ex(
+                        resources.turbulence,
+                        x,
+                        y,
+                        Color::new(1.0, 1.0, 1.0, particle.life as f32 / 128.0),
+                        DrawTextureParams {
+                            dest_size: Some(vec2(5.0, 5.0)),
+                            source: Some(Rect::new(
+                                0.0,
+                                128.0 * particle.frame as f32,
+                                128.0,
+                                128.0,
+                            )),
+                            ..Default::default()
+                        },
+                    );
+                }
+            }
+        }
+    }
+}
+
 fn draw_rocks(grid: &RockGrid, resources: &Resources, mutable_resources: &mut MutableResources) {
     update_rocks_texture(grid, mutable_resources);
 
@@ -944,4 +1024,21 @@ fn draw_sonar(
             DARKGRAY,
         );
     }
+}
+
+/// Generate a random number from 0.0 to 1.0 using Lehmer’s generator
+fn random() -> f32 {
+    thread_local! {
+        static RNG_STATE: RefCell<u128> = RefCell::new(123);
+    }
+
+    let mut number = 0;
+
+    RNG_STATE.with(|local| {
+        let mut state = local.borrow_mut();
+        *state *= 0xda942042e4dd58b5;
+        number = *state >> 64;
+    });
+
+    number as f32 / u64::MAX as f32
 }
