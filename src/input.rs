@@ -11,11 +11,8 @@ use crate::{
     wires::WireColor,
 };
 
-fn from_screen_coords(pos: Vec2, width: usize, height: usize) -> (usize, usize) {
-    (
-        (pos.x + (width as f32 / 2.0)) as usize,
-        (pos.y + (height as f32 / 2.0)) as usize,
-    )
+fn from_screen_coords(pos: Vec2) -> (usize, usize) {
+    (pos.x as usize, pos.y as usize)
 }
 
 pub(crate) fn handle_keyboard_input(camera: &mut Camera, current_tool: &mut Tool) {
@@ -64,15 +61,11 @@ pub(crate) fn handle_pointer_input(
     } = game_settings;
 
     // FIXME: use actual current submarine
-    let macroquad_camera = camera.to_macroquad_camera(Some(submarine.navigation.position));
-    let (width, height) = submarine.water_grid.size();
+    let macroquad_camera = camera.to_macroquad_camera(camera.current_submarine);
     let mouse_position = mouse_position();
 
-    camera.pointing_at = from_screen_coords(
-        macroquad_camera.screen_to_world(mouse_position.into()),
-        width,
-        height,
-    );
+    camera.pointing_at =
+        from_screen_coords(macroquad_camera.screen_to_world(mouse_position.into()));
 
     if is_mouse_button_pressed(MouseButton::Right) {
         camera.dragging_from = mouse_position
@@ -103,7 +96,7 @@ pub(crate) fn handle_pointer_input(
         let old = macroquad_camera.screen_to_world(Vec2::from(camera.dragging_from));
         let new = macroquad_camera.screen_to_world(Vec2::from(new_position));
 
-        let delta = (new - old) * 0.5;
+        let delta = new - old;
 
         camera.offset_x += delta.x;
         camera.offset_y += delta.y;
@@ -127,7 +120,7 @@ pub(crate) fn handle_pointer_input(
     *highlighting_object = None;
 
     for (obj_index, object) in submarine.objects.iter_mut().enumerate() {
-        let draw_rect = object_rect(object, width, height);
+        let draw_rect = object_rect(object);
 
         if draw_rect.contains(mouse_position) {
             *highlighting_object = Some((obj_index, false));
@@ -150,6 +143,7 @@ pub(crate) fn handle_pointer_input(
     }
 
     // Painting the grid
+    let (width, height) = submarine.water_grid.size();
     if is_mouse_button_down(MouseButton::Left) && !*dragging_object {
         let (x, y) = camera.pointing_at;
 

@@ -1,6 +1,7 @@
 #![warn(clippy::all, rust_2018_idioms)]
 
 mod app;
+mod collisions;
 mod draw;
 mod input;
 mod objects;

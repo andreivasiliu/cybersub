@@ -6,6 +6,7 @@ pub(crate) struct WaterGrid {
     width: usize,
     height: usize,
     total_water: u32,
+    edges: Vec<(usize, usize)>,
 }
 
 #[derive(Default, Clone, Copy, Serialize, Deserialize)]
@@ -13,6 +14,7 @@ pub(crate) struct WaterCell {
     cell_type: CellType,
     velocity_x: i32,
     velocity_y: i32,
+    collided: bool,
 }
 
 #[derive(Clone, Copy, Serialize, Deserialize)]
@@ -92,6 +94,7 @@ impl WaterGrid {
             width,
             height,
             total_water: 0,
+            edges: Vec::new(),
         }
     }
 
@@ -223,6 +226,25 @@ impl WaterGrid {
 
         self.total_water = total_water;
     }
+
+    pub fn update_edges(&mut self) {
+        self.edges.clear();
+
+        for y in 1..self.height - 1 {
+            for x in 1..self.width - 1 {
+                if self.cell(x, y).is_wall() {
+                    let edge = self.neighbours(x, y).any(|cell| cell.is_sea());
+                    if edge {
+                        self.edges.push((x, y));
+                    }
+                }
+            }
+        }
+    }
+
+    pub fn edges(&self) -> &[(usize, usize)] {
+        &self.edges
+    }
 }
 
 impl WaterCell {
@@ -258,12 +280,24 @@ impl WaterCell {
         }
     }
 
+    pub fn set_collided(&mut self, collided: bool) {
+        self.collided = collided;
+    }
+
+    pub fn is_collided(&self) -> bool {
+        self.collided
+    }
+
     pub fn is_wall(&self) -> bool {
         matches!(self.cell_type, CellType::Wall { .. })
     }
 
     pub fn is_inside(&self) -> bool {
         matches!(self.cell_type, CellType::Inside { .. })
+    }
+
+    pub fn is_sea(&self) -> bool {
+        matches!(self.cell_type, CellType::Sea)
     }
 
     pub fn make_wall(&mut self) {

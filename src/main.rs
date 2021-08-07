@@ -20,12 +20,12 @@ fn window_conf() -> Conf {
 async fn main() {
     let mut cybersub_app = CyberSubApp::default();
 
-    if let Ok(grid_file) = load_file("grid.png").await {
-        cybersub_app.load_submarine(&grid_file);
-    }
-
     if let Ok(world_file) = load_file("world.png").await {
         cybersub_app.load_rocks(&world_file);
+    }
+
+    if let Ok(grid_file) = load_file("grid.png").await {
+        cybersub_app.load_submarine(&grid_file);
     }
 
     let background_bytes = load_file("background.png")

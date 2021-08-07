@@ -91,8 +91,9 @@ pub(crate) fn draw_ui(
         update_water,
         update_wires,
         update_sonar,
-        update_position,
         update_objects,
+        update_position,
+        update_collision,
     } = update_settings;
 
     if *show_bars {
@@ -300,8 +301,9 @@ pub(crate) fn draw_ui(
             });
             ui.checkbox(update_wires, "Update wires");
             ui.checkbox(update_sonar, "Update sonar");
-            ui.checkbox(update_position, "Update position");
             ui.checkbox(update_objects, "Update objects");
+            ui.checkbox(update_position, "Update position");
+            ui.checkbox(update_collision, "Update collision");
 
             if ui.button("Close").clicked() {
                 *show_update_settings = false;

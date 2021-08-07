@@ -1,4 +1,5 @@
 use crate::{
+    collisions::update_collisions,
     draw::{draw_game, Camera, DrawSettings},
     input::{handle_keyboard_input, handle_pointer_input},
     objects::{update_objects, Object},
@@ -39,8 +40,9 @@ pub(crate) struct UpdateSettings {
     pub update_water: bool,
     pub update_wires: bool,
     pub update_sonar: bool,
-    pub update_position: bool,
     pub update_objects: bool,
+    pub update_position: bool,
+    pub update_collision: bool,
 }
 
 pub(crate) struct GameState {
@@ -130,8 +132,9 @@ impl Default for CyberSubApp {
                 update_water: true,
                 update_wires: true,
                 update_sonar: true,
-                update_position: true,
                 update_objects: true,
+                update_position: true,
+                update_collision: true,
             },
             ui_state: UiState::default(),
             mutable_resources: MutableResources::new(),
@@ -147,11 +150,34 @@ impl CyberSubApp {
         let wire_grid = load_wires(width, height);
         let objects = load_objects();
 
+        // Middle of the world
+        let (rock_width, rock_height) = self.game_state.rock_grid.size();
+        let (middle_x, middle_y) = (
+            (rock_width as i32 / 2) * 16 * 16,
+            (rock_height as i32 / 2) * 16 * 16,
+        );
+
+        // Put the middle of the sub at the middle of the world
+        let (pos_x, pos_y) = (
+            middle_x - width as i32 * 16 / 2,
+            middle_y - height as i32 * 16 / 2,
+        );
+
+        // If adding the main submarine, also change camera to its middle
+        if self.game_state.submarines.len() == self.game_settings.current_submarine {
+            self.game_settings.camera.offset_x = -(width as f32) / 2.0;
+            self.game_settings.camera.offset_y = -(height as f32) / 2.0;
+        }
+
         self.game_state.submarines.push(SubmarineState {
             water_grid,
             wire_grid,
             objects,
-            navigation: Navigation::default(),
+            navigation: Navigation {
+                position: (pos_x, pos_y),
+                target: (pos_x, pos_y),
+                ..Default::default()
+            },
             sonar: Sonar::default(),
         });
 
@@ -214,8 +240,17 @@ impl CyberSubApp {
                         update_sonar(
                             &mut submarine.sonar,
                             &submarine.navigation,
+                            submarine.water_grid.size(),
                             &self.game_state.rock_grid,
                             mutable_resources,
+                        );
+                    }
+
+                    if self.update_settings.update_collision {
+                        update_collisions(
+                            &mut submarine.water_grid,
+                            &mut self.game_state.rock_grid,
+                            &submarine.navigation,
                         );
                     }
                 }
@@ -225,10 +260,9 @@ impl CyberSubApp {
                     .submarines
                     .get(self.game_settings.current_submarine)
                     .map(|submarine| {
-                        let (width, height) = submarine.water_grid.size();
                         (
-                            submarine.navigation.position.0 + width as i32 / 2,
-                            submarine.navigation.position.1 + height as i32 / 2,
+                            submarine.navigation.position.0,
+                            submarine.navigation.position.1,
                         )
                     });
 
@@ -296,17 +330,20 @@ impl CyberSubApp {
 fn update_sonar(
     sonar: &mut Sonar,
     navigation: &Navigation,
+    sub_size: (usize, usize),
     rock_grid: &RockGrid,
     mutable_resources: &mut MutableSubResources,
 ) {
-    let (width, height) = rock_grid.size();
-    let center_x = (width as i32 / 2 + navigation.position.0 / 16 / 16) as usize;
-    let center_y = (height as i32 / 2 + navigation.position.1 / 16 / 16) as usize;
+    let center_x = (navigation.position.0 / 16 / 16) as usize;
+    let center_y = (navigation.position.1 / 16 / 16) as usize;
+
+    let sub_center_x = center_x + sub_size.0 / 2 / 16;
+    let sub_center_y = center_y + sub_size.1 / 2 / 16;
 
     sonar.increase_pulse();
 
     if sonar.should_update() {
-        find_visible_edge_cells(sonar, (center_x, center_y), rock_grid);
+        find_visible_edge_cells(sonar, (sub_center_x, sub_center_y), rock_grid);
         mutable_resources.sonar_updated = true;
     }
 }

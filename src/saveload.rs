@@ -123,6 +123,9 @@ fn load_png_from_decoder(png_decoder: Decoder<impl Read>) -> Result<WaterGrid, S
         }
     }
 
+    // Edges don't need to be updated ever again after this.
+    grid.update_edges();
+
     Ok(grid)
 }
 

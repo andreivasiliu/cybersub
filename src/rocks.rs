@@ -12,6 +12,7 @@ pub(crate) struct RockGrid {
 pub(crate) struct RockCell {
     rock_type: RockType,
     edge: bool,
+    collided: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -102,6 +103,14 @@ impl RockCell {
 
     pub fn is_wall(&self) -> bool {
         !matches!(self.rock_type, RockType::Empty)
+    }
+
+    pub fn set_collided(&mut self, collided: bool) {
+        self.collided = collided;
+    }
+
+    pub fn is_collided(&self) -> bool {
+        self.collided
     }
 
     pub fn is_edge(&self) -> bool {

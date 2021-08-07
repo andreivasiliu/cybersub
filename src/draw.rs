@@ -44,7 +44,6 @@ pub(crate) struct Camera {
     pub scrolling_from: f32,
     pub pointing_at: (usize, usize),
     pub current_submarine: Option<(i32, i32)>,
-    pub current_submarine_center: Option<(i32, i32)>,
 }
 
 impl Camera {
@@ -55,7 +54,7 @@ impl Camera {
             vec2(1.0, -screen_width() / screen_height())
         };
 
-        let mut target = vec2(-self.offset_x as f32 * 2.0, -self.offset_y as f32 * 2.0);
+        let mut target = vec2(-self.offset_x as f32, -self.offset_y as f32);
 
         if let Some(submarine) = submarine {
             target.x -= submarine.0 as f32 / 16.0;
@@ -83,11 +82,8 @@ fn draw_rect_at(pos: Vec2, size: f32, color: Color) {
     draw_rectangle(pos.x - size, pos.y - size, size * 2.0, size * 2.0, color);
 }
 
-pub(crate) fn to_screen_coords(x: usize, y: usize, width: usize, height: usize) -> Vec2 {
-    vec2(
-        (x as i32 - (width as i32 / 2)) as f32,
-        (y as i32 - (height as i32 / 2)) as f32,
-    )
+pub(crate) fn to_screen_coords(x: usize, y: usize) -> Vec2 {
+    vec2(x as f32, y as f32)
 }
 
 pub(crate) fn draw_game(
@@ -131,15 +127,18 @@ pub(crate) fn draw_game(
     push_camera_state();
 
     for (sub_index, submarine) in submarines.iter().enumerate() {
-        set_camera(&camera.to_macroquad_camera(Some(submarine.navigation.position)));
+        let sub_middle = (
+            submarine.navigation.position.0 as i32,
+            submarine.navigation.position.1 as i32,
+        );
+        set_camera(&camera.to_macroquad_camera(Some(sub_middle)));
 
-        let (width, height) = submarine.water_grid.size();
         let mutable_resources = mutable_sub_resources
             .get_mut(sub_index)
             .expect("All submarines should have their own MutableSubResources instance");
 
         if draw_settings.draw_background {
-            draw_background(width, height, resources);
+            draw_background(resources);
         }
 
         if draw_settings.draw_walls {
@@ -153,13 +152,7 @@ pub(crate) fn draw_game(
         }
 
         if draw_settings.draw_objects {
-            draw_objects(
-                &submarine.objects,
-                width,
-                height,
-                resources,
-                highlighting_object,
-            );
+            draw_objects(&submarine.objects, resources, highlighting_object);
         }
 
         if draw_settings.draw_sonar {
@@ -220,7 +213,7 @@ fn draw_sea(
 ) {
     let (width, height) = world_size;
     let time_offset = vec2(0.1, 1.0) * get_time() as f32 * 0.03;
-    let camera_offset = vec2(camera.offset_x, camera.offset_y) / 300.0;
+    let camera_offset = vec2(camera.offset_x, camera.offset_y) / 600.0;
     resources
         .sea_water
         .set_uniform("enable_dust", if draw_sea_dust { 1.0f32 } else { 0.0 });
@@ -245,8 +238,8 @@ fn draw_sea(
         .sea_water
         .set_texture("sea_dust", resources.sea_dust);
 
-    let middle = vec2((width / 2) as f32, (height / 2) as f32);
-    let pos = to_screen_coords(0, 0, width, height) - middle * 16.0;
+    // The world always starts here.
+    let pos = vec2(0.0, 0.0);
 
     gl_use_material(resources.sea_water);
     draw_rectangle(
@@ -262,7 +255,7 @@ fn draw_sea(
 fn draw_fake_sea(world_size: (usize, usize)) {
     let (width, height) = world_size;
     let middle = vec2((width / 2) as f32, (height / 2) as f32);
-    let pos = to_screen_coords(0, 0, width, height) - middle * 16.0;
+    let pos = to_screen_coords(0, 0) - middle * 16.0;
 
     draw_rectangle(
         pos.x,
@@ -273,8 +266,8 @@ fn draw_fake_sea(world_size: (usize, usize)) {
     );
 }
 
-fn draw_background(width: usize, height: usize, resources: &Resources) {
-    let top_left = to_screen_coords(0, 0, width, height);
+fn draw_background(resources: &Resources) {
+    let top_left = to_screen_coords(0, 0);
     draw_texture(resources.sub_background, top_left.x, top_left.y, WHITE);
 }
 
@@ -323,7 +316,7 @@ fn draw_walls(
         .set_uniform("walls_size", vec2(width as f32, height as f32));
     gl_use_material(resources.wall_material);
 
-    let pos = to_screen_coords(0, 0, width, height);
+    let pos = to_screen_coords(0, 0);
 
     draw_texture_ex(
         mutable_resources.sub_walls,
@@ -338,6 +331,15 @@ fn draw_walls(
     );
 
     gl_use_default_material();
+
+    for y in 0..height {
+        for x in 0..width {
+            if grid.cell(x, y).is_collided() {
+                let pos = to_screen_coords(x, y) + vec2(0.5, 0.5);
+                draw_circle(pos.x, pos.y, 0.5, RED);
+            }
+        }
+    }
 }
 
 fn draw_water(grid: &WaterGrid) {
@@ -351,7 +353,7 @@ fn draw_water(grid: &WaterGrid) {
                 continue;
             }
 
-            let pos = to_screen_coords(i, j, width, height) + vec2(0.5, 0.5);
+            let pos = to_screen_coords(i, j) + vec2(0.5, 0.5);
             let level = grid.cell(i, j).amount_filled();
             let overlevel = grid.cell(i, j).amount_overfilled();
             let velocity = grid.cell(i, j).velocity();
@@ -561,7 +563,7 @@ fn update_signals_texture(grid: &WireGrid, mutable_resources: &mut MutableSubRes
 fn draw_wires(grid: &WireGrid, resources: &Resources, mutable_resources: &MutableSubResources) {
     let (width, height) = grid.size();
 
-    let pos = to_screen_coords(0, 0, width, height);
+    let pos = to_screen_coords(0, 0);
     let grid_size = vec2(width as f32, height as f32);
 
     resources
@@ -588,13 +590,8 @@ fn draw_wires(grid: &WireGrid, resources: &Resources, mutable_resources: &Mutabl
     gl_use_default_material();
 }
 
-pub(crate) fn object_rect(object: &Object, width: usize, height: usize) -> Rect {
-    let pos = to_screen_coords(
-        object.position_x as usize,
-        object.position_y as usize,
-        width,
-        height,
-    );
+pub(crate) fn object_rect(object: &Object) -> Rect {
+    let pos = to_screen_coords(object.position_x as usize, object.position_y as usize);
 
     let size = object.size();
     let size = vec2(size.0 as f32, size.1 as f32);
@@ -604,13 +601,11 @@ pub(crate) fn object_rect(object: &Object, width: usize, height: usize) -> Rect 
 
 fn draw_objects(
     objects: &[Object],
-    width: usize,
-    height: usize,
     resources: &Resources,
     highlighting_object: &Option<(usize, bool)>,
 ) {
     for (obj_id, object) in objects.iter().enumerate() {
-        let draw_rect = object_rect(object, width, height);
+        let draw_rect = object_rect(object);
 
         let texture = match object.object_type {
             ObjectType::Door { .. } => resources.door,
@@ -722,8 +717,8 @@ fn draw_rocks(grid: &RockGrid, resources: &Resources, mutable_resources: &mut Mu
         .set_uniform("sea_rocks_size", vec2(width as f32, height as f32));
     gl_use_material(resources.rock_material);
 
-    let middle = vec2((width / 2) as f32, (height / 2) as f32);
-    let pos = -middle * 16.0;
+    // The world always starts here.
+    let pos = vec2(0.0, 0.0);
 
     draw_texture_ex(
         mutable_resources.sea_rocks,
@@ -732,12 +727,20 @@ fn draw_rocks(grid: &RockGrid, resources: &Resources, mutable_resources: &mut Mu
         WHITE,
         DrawTextureParams {
             dest_size: Some(vec2(width as f32, height as f32) * 16.0),
-            // source: Some(Rect::new(0.0, 0.0, width as f32 * 5.0, height as f32 * 5.0)),
             ..Default::default()
         },
     );
 
     gl_use_default_material();
+
+    for y in 0..height {
+        for x in 0..width {
+            if grid.cell(x, y).is_collided() {
+                let pos = vec2(x as f32 + 0.5, y as f32 + 0.5) * 16.0;
+                draw_rect_at(pos, 8.0, Color::new(0.78, 0.48, 1.00, 0.2));
+            }
+        }
+    }
 }
 
 fn draw_sonar(
@@ -847,7 +850,7 @@ fn draw_sonar(
             None => continue,
         };
 
-        let draw_rect = object_rect(object, width, height);
+        let draw_rect = object_rect(object);
         let pos = draw_rect.point() + vec2(4.0, 2.0);
 
         resources
