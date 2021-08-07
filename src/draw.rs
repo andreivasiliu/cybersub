@@ -111,7 +111,7 @@ pub(crate) fn draw_game(
     update_rocks_texture(rock_grid, mutable_resources);
 
     if draw_settings.draw_sea {
-        draw_sea(&camera, resources, rock_grid.size());
+        draw_sea(camera, resources, rock_grid.size());
     } else {
         draw_fake_sea(rock_grid.size());
     }

@@ -320,7 +320,6 @@ pub(crate) fn update_objects(submarine: &mut SubmarineState) {
                 *powered = wire_grid.cell(x, y).minimum_power(100);
 
                 if *powered && *active {
-                    object.current_frame = 0;
                     if let Some(target) = sonar_info.set_target {
                         // 16 sub-cells per rock-cell, 16 movement points per rock-cell
                         let world_ratio = 16.0 * 16.0;
@@ -335,8 +334,6 @@ pub(crate) fn update_objects(submarine: &mut SubmarineState) {
 
                         sonar_info.set_target = None;
                     }
-                } else {
-                    object.current_frame = 0;
                 }
 
                 object.current_frame = if *powered && *active { 0 } else { 1 };

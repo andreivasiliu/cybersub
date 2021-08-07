@@ -137,7 +137,7 @@ impl Default for CyberSubApp {
 
 impl CyberSubApp {
     pub fn load_submarine(&mut self, grid_bytes: &[u8]) {
-        let water_grid = load_png_from_bytes(&grid_bytes).expect("Could not load grid");
+        let water_grid = load_png_from_bytes(grid_bytes).expect("Could not load grid");
         let (width, height) = water_grid.size();
         let wire_grid = load_wires(width, height);
         let objects = load_objects();

@@ -259,7 +259,7 @@ pub(crate) fn draw_ui(
 
                 ui.separator();
 
-                let nav_control = compute_navigation(&navigation);
+                let nav_control = compute_navigation(navigation);
                 add_info(ui, "Target speed", nav_control.target_speed);
                 add_info(ui, "Target acceleration", nav_control.target_acceleration);
                 add_info(
