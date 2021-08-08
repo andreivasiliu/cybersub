@@ -159,13 +159,16 @@ pub(crate) fn draw_ui(
                     if ui.button("Show main settings").clicked() {
                         *show_main_settings = !*show_main_settings;
                     }
+                    if ui.button("Show navigation info").clicked() {
+                        *show_navigation_info = !*show_navigation_info;
+                    }
                     if ui.button("Show draw settings").clicked() {
                         *show_draw_settings = !*show_draw_settings;
                     }
                     if ui.button("Show update settings").clicked() {
                         *show_update_settings = !*show_update_settings;
                     }
-                    if ui.button("Show timings").clicked() {
+                    if cfg!(not(target_arch = "wasm32")) && ui.button("Show timings").clicked() {
                         *show_timings = !*show_timings;
                     }
                 });
@@ -315,7 +318,7 @@ pub(crate) fn draw_ui(
     if *show_draw_settings {
         egui::Window::new("Draw settings").show(ctx, |ui| {
             ui.checkbox(draw_egui, "Draw egui widgets")
-                .on_hover_text("Click the wrench button to re-enable the UI");
+                .on_hover_text("Click the top-left gear button to re-enable the UI");
             ui.checkbox(draw_sea_dust, "Draw sea dust");
             ui.checkbox(draw_sea_caustics, "Draw sea caustics");
             ui.checkbox(draw_rocks, "Draw rocks");
@@ -371,15 +374,38 @@ pub(crate) fn draw_ui(
 
     if *show_help {
         egui::Window::new("Cybersub prototype").show(ctx, |ui| {
-            ui.label("This is a water simulation prototype that I was considering using for a little game.");
-            ui.label("The code is here:");
-            ui.hyperlink_to("https://github.com/andreivasiliu/cybersub", "https://github.com/andreivasiliu/cybersub");
-            ui.label("Left-click to add water or interact with objects.");
-            ui.label("On browsers, the right-click menu is disabled, in order to make scrolling easier. You can still shift-right-click.");
-            ui.label("WASD, arrow keys, or hold right-click to move camera. Keypad +/- or mouse-scroll to zoom. Minus doesn't work on browsers. No idea why. There is currently no way to move the camera with a touch-screen.");
-            ui.label("Use the tool controls (Add Water, Add Walls, etc) at the bottom to switch what left-click paints. Holding shift or ctrl is a shortcut for switching.");
-            ui.label("Zoom in on the sonar and click inside it to set a nagivation target.");
-            ui.label("Firefox is having issues with rendering the whole thing; my phone and other browsers work fine though.");
+            egui::ScrollArea::from_max_height(300.0).show(ui, |ui| {
+                ui.label("This is a water simulation prototype used in the context of a game heavily inspired by Barotrauma.");
+                ui.label("Zoom in on the sonar and click inside it to set a nagivation target; for now there's not much else to do.");
+                ui.label("The code is here:");
+                ui.hyperlink_to("https://github.com/andreivasiliu/cybersub", "https://github.com/andreivasiliu/cybersub");
+                ui.label("If you like what you're seeing, I recommend checking out the game it's based on:");
+                ui.hyperlink_to("https://github.com/Regalis11/Barotrauma", "https://github.com/Regalis11/Barotrauma");
+                ui.label(
+                    "It's called CyberSub because, for a few brief moments, I contemplated making the art be all cybespace-like to \
+                    make up for my lack of artistic skill. I couldn't figure out why such realistic water would exist in cyberspace \
+                    though, so I dropped the idea; but for now I don't have a better alternative so I'm sticking with it."
+                );
+                ui.label("Left-click to add water or interact with objects.");
+                ui.label("On browsers, the right-click menu is disabled, in order to make scrolling easier. You can still shift-right-click.");
+                ui.label(
+                    "WASD, arrow keys, or hold right-click to move camera. Keypad +/- or scroll mouse-wheel to zoom. Minus doesn't \
+                    work on browsers. No idea why. There is currently no way to move the camera with a touch-screen."
+                );
+                ui.label(
+                    "Use the tool controls (Add Water, Add Walls, etc) at the bottom to switch what left-click paints. Holding \
+                    shift or ctrl is a shortcut for switching."
+                );
+                ui.label(
+                    "On some browsers, the sea dust shader is acting very strangely, with the dust specs looking much larger. \
+                    No idea why."
+                );
+                ui.label("Firefox is having issues with rendering the whole thing; my phone and other browsers work fine though.");
+                ui.label(
+                    "If you're getting low FPS, disable the caustics shader, updating water and updating wires. I plan to revamp \
+                    wires and optimize the other two, so it won't be a problem for long."
+                );
+            });
 
             if ui.button("Close").clicked() {
                 *show_help = false;

@@ -51,7 +51,7 @@ pub(crate) fn update_collisions(
         }
     }
 
-    for &(sub_x, sub_y) in &sub_collisions {
+    for (sub_x, sub_y) in sub_collisions {
         let sub_cell = water_grid.cell_mut(sub_x, sub_y);
 
         sub_cell.set_collided(true);

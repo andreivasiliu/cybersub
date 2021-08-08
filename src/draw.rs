@@ -262,12 +262,10 @@ fn draw_sea(
 
 fn draw_fake_sea(world_size: (usize, usize)) {
     let (width, height) = world_size;
-    let middle = vec2((width / 2) as f32, (height / 2) as f32);
-    let pos = to_screen_coords(0, 0) - middle * 16.0;
 
     draw_rectangle(
-        pos.x,
-        pos.y,
+        0.0,
+        0.0,
         (width * 16) as f32,
         (height * 16) as f32,
         Color::new(0.0235, 0.0235, 0.1255, 1.0),
@@ -1005,7 +1003,7 @@ fn draw_sonar(
             (navigation.target.0 - navigation.position.0) as f32,
             (navigation.target.1 - navigation.position.1) as f32,
         );
-        let target = center + target / 16.0 / 16.0 / 75.0 * 6.0;
+        let target = center + (target / 16.0 / 16.0 / 75.0 * 6.0).clamp_length_max(5.5);
         draw_line(center.x, center.y, target.x, target.y, 0.05, DARKGREEN);
         draw_rectangle_lines(target.x - 0.1, target.y - 0.1, 0.2, 0.2, 0.05, DARKGREEN);
 
