@@ -1,4 +1,9 @@
-use crate::{app::Navigation, resources::{MutableResources, MutableSubResources}, rocks::RockGrid, water::WaterGrid};
+use crate::{
+    app::Navigation,
+    resources::{MutableResources, MutableSubResources},
+    rocks::RockGrid,
+    water::WaterGrid,
+};
 
 pub(crate) fn update_collisions(
     water_grid: &mut WaterGrid,

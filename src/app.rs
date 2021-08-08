@@ -32,10 +32,10 @@ pub(crate) struct GameSettings {
     pub current_tool: Tool,
     pub quit_game: bool,
     pub dragging_object: bool,
-    pub highlighting_object: Option<(usize, bool)>,
     pub highlighting_settings: bool,
     pub last_draw: Option<f64>,
     pub animation_ticks: u32,
+    pub add_submarine: bool,
 }
 
 pub(crate) struct UpdateSettings {
@@ -110,10 +110,10 @@ impl Default for CyberSubApp {
                 current_tool: Tool::AddWater,
                 quit_game: false,
                 dragging_object: false,
-                highlighting_object: None,
                 highlighting_settings: false,
                 last_draw: None,
                 animation_ticks: 0,
+                add_submarine: false,
             },
             game_state: GameState {
                 last_update: None,
@@ -194,6 +194,11 @@ impl CyberSubApp {
     }
 
     pub fn update_game(&mut self, game_time: f64) {
+        if self.game_settings.add_submarine {
+            self.game_settings.add_submarine = false;
+            self.load_submarine(include_bytes!("../grid.png"));
+        }
+
         let last_update = &mut self.game_state.last_update;
         let last_draw = &mut self.game_settings.last_draw;
         self.game_settings.animation_ticks = 0;

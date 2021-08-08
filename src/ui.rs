@@ -69,6 +69,7 @@ pub(crate) fn draw_ui(
         current_submarine,
         current_tool,
         quit_game,
+        add_submarine,
         ..
     } = settings;
 
@@ -142,6 +143,12 @@ pub(crate) fn draw_ui(
                     if ui.button("Show total water").clicked() {
                         *show_total_water = !*show_total_water;
                     }
+                    ui.separator();
+
+                    if ui.button("Add submarine").clicked() {
+                        *add_submarine = true;
+                    }
+
                     ui.separator();
 
                     if ui.button("Help").clicked() {

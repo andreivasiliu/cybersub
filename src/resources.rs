@@ -56,6 +56,7 @@ pub(crate) struct MutableSubResources {
     pub sonar_updated: bool,
     pub turbulence_particles: Vec<TurbulenceParticle>,
     pub collisions: Vec<(usize, usize)>,
+    pub highlighting_object: Option<usize>,
 }
 
 pub(crate) struct TurbulenceParticle {
@@ -266,6 +267,7 @@ impl MutableSubResources {
             sonar_updated: false,
             turbulence_particles: Vec::new(),
             collisions: Vec::new(),
+            highlighting_object: None,
         }
     }
 }

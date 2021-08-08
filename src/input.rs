@@ -55,13 +55,11 @@ pub(crate) fn handle_pointer_input(
         camera,
         current_tool,
         dragging_object,
-        highlighting_object,
         highlighting_settings,
         ..
     } = game_settings;
 
-    // FIXME: use actual current submarine
-    let macroquad_camera = camera.to_macroquad_camera(camera.current_submarine);
+    let macroquad_camera = camera.to_macroquad_camera(Some(submarine.navigation.position));
     let mouse_position = mouse_position();
 
     camera.pointing_at =
@@ -117,13 +115,13 @@ pub(crate) fn handle_pointer_input(
 
     let mouse_position = macroquad_camera.screen_to_world(mouse_position.into());
 
-    *highlighting_object = None;
+    mutable_resources.highlighting_object = None;
 
     for (obj_index, object) in submarine.objects.iter_mut().enumerate() {
         let draw_rect = object_rect(object);
 
         if draw_rect.contains(mouse_position) {
-            *highlighting_object = Some((obj_index, false));
+            mutable_resources.highlighting_object = Some(obj_index);
 
             let hover_position = mouse_position - draw_rect.point();
 
@@ -132,7 +130,6 @@ pub(crate) fn handle_pointer_input(
             if is_mouse_button_pressed(MouseButton::Left) {
                 interact_with_object(object);
                 *dragging_object = true;
-                *highlighting_object = Some((obj_index, true));
                 return;
             }
         }

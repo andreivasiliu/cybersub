@@ -17,14 +17,24 @@ pub(crate) struct WaterCell {
 
 #[derive(Clone, Copy, Serialize, Deserialize)]
 enum CellType {
-    Inside { level: u32, velocity: (i32, i32), planned_remaining: u32 },
-    Wall { wall_reflect: [u32; DIRECTIONS] },
+    Inside {
+        level: u32,
+        velocity: (i32, i32),
+        planned_remaining: u32,
+    },
+    Wall {
+        wall_reflect: [u32; DIRECTIONS],
+    },
     Sea,
 }
 
 impl Default for CellType {
     fn default() -> Self {
-        CellType::Inside { level: 0, velocity: (0, 0), planned_remaining: 0 }
+        CellType::Inside {
+            level: 0,
+            velocity: (0, 0),
+            planned_remaining: 0,
+        }
     }
 }
 
@@ -150,11 +160,15 @@ impl WaterGrid {
                 let cell = self.cell_mut(x, y);
 
                 match &mut cell.cell_type {
-                    CellType::Inside { level, velocity, planned_remaining } => {
+                    CellType::Inside {
+                        level,
+                        velocity,
+                        planned_remaining,
+                    } => {
                         *level = 0;
                         *velocity = (0, 0);
                         *planned_remaining = 0;
-                    },
+                    }
                     CellType::Wall { wall_reflect } => *wall_reflect = [0; DIRECTIONS],
                     CellType::Sea => (),
                 }
@@ -177,7 +191,7 @@ impl WaterGrid {
                 match old_cell.cell_type {
                     CellType::Wall { .. } => {
                         let mut wall_reflect = [0; DIRECTIONS];
-    
+
                         for (i, neighbour) in old_grid.neighbours(x, y).enumerate() {
                             if neighbour.is_inside() {
                                 let opposite_direction = (i + DIRECTIONS / 2) % DIRECTIONS;
@@ -186,15 +200,19 @@ impl WaterGrid {
                                 total_water += incoming_water;
                             }
                         }
-    
+
                         new_cell.cell_type = CellType::Wall { wall_reflect };
                         new_cell.replan();
-                    },
+                    }
                     CellType::Sea => {
                         new_cell.cell_type = CellType::Sea;
                         new_cell.replan();
                     }
-                    CellType::Inside { velocity: old_velocity, planned_remaining, .. } => {
+                    CellType::Inside {
+                        velocity: old_velocity,
+                        planned_remaining,
+                        ..
+                    } => {
                         let mut level = planned_remaining;
                         let mut velocity = (0, 0);
 
@@ -218,7 +236,11 @@ impl WaterGrid {
                             (old_velocity.0 * 3 + velocity.0) / 4,
                             (old_velocity.1 * 3 + velocity.1) / 4,
                         );
-                        new_cell.cell_type = CellType::Inside { level, velocity, planned_remaining: 0 };
+                        new_cell.cell_type = CellType::Inside {
+                            level,
+                            velocity,
+                            planned_remaining: 0,
+                        };
 
                         // Plan water to be sent to neighbouring cells on next update
                         new_cell.replan();
@@ -267,13 +289,17 @@ impl WaterCell {
         match &mut self.cell_type {
             CellType::Wall { wall_reflect } => {
                 self.planned_transfer = *wall_reflect;
-            },
+            }
             CellType::Sea => {
                 for direction in 0..DIRECTIONS {
                     self.planned_transfer[direction] = SEA_LEVEL / DIRECTIONS as u32;
                 }
-            },
-            CellType::Inside { level, velocity, planned_remaining } => {
+            }
+            CellType::Inside {
+                level,
+                velocity,
+                planned_remaining,
+            } => {
                 // This amount will leave the cell due to overpressure
                 let pressure_surplus = level.max(&mut 1024).wrapping_sub(1024);
 
@@ -300,21 +326,23 @@ impl WaterCell {
                 if total_velocity != 0 {
                     velocity_x = velocity_x * inertia as i32 / total_velocity;
                     velocity_y = velocity_y * inertia as i32 / total_velocity;
-        
+
                     let leftover = inertia as i32 - velocity_x.abs() - velocity_y.abs();
                     velocity_y += leftover * velocity_y.signum();
-        
-                    for direction in 0..DIRECTIONS {
-                        let surplus_x = (velocity_x * NEIGHBOUR_OFFSETS[direction].1).max(0) as u32 / INERTIA_SPLIT;
-                        let surplus_y = (velocity_y * NEIGHBOUR_OFFSETS[direction].0).max(0) as u32 / INERTIA_SPLIT;
-        
+
+                    for (direction, neighbour_offset) in NEIGHBOUR_OFFSETS.iter().enumerate() {
+                        let surplus_x =
+                            (velocity_x * neighbour_offset.1).max(0) as u32 / INERTIA_SPLIT;
+                        let surplus_y =
+                            (velocity_y * neighbour_offset.0).max(0) as u32 / INERTIA_SPLIT;
+
                         self.planned_transfer[direction] += surplus_x + surplus_y;
                     }
                 }
-            },
+            }
         };
     }
-    
+
     pub fn amount_filled(&self) -> f32 {
         self.level().min(1024) as f32 / 1024.0
     }
@@ -367,7 +395,11 @@ impl WaterCell {
     }
 
     pub fn make_inside(&mut self) {
-        self.cell_type = CellType::Inside { level: 0, velocity: (0, 0), planned_remaining: 0 };
+        self.cell_type = CellType::Inside {
+            level: 0,
+            velocity: (0, 0),
+            planned_remaining: 0,
+        };
         self.replan();
     }
 

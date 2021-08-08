@@ -7,7 +7,7 @@ pub(crate) struct WireGrid {
     cells: Vec<WireCell>,
     width: usize,
     height: usize,
-    connected_wires: Vec<(usize, usize, WireColor)>
+    connected_wires: Vec<(usize, usize, WireColor)>,
 }
 
 #[derive(Default, Clone, Copy)]
@@ -63,7 +63,7 @@ impl WireGrid {
             let new_cell: &mut WireCell = &mut cells[y * other_grid.width + x];
             new_cell.value[color as usize] = old_cell.value[color as usize];
         }
-        
+
         WireGrid {
             cells,
             width: other_grid.width,
@@ -92,7 +92,7 @@ impl WireGrid {
 
     pub fn make_wire(&mut self, x: usize, y: usize, color: WireColor) {
         self.cell_mut(x, y).value[color as usize] = WireValue::NoSignal;
-        if (1..self.width-2).contains(&x) && (1..self.height-1).contains(&y) {
+        if (1..self.width - 2).contains(&x) && (1..self.height - 1).contains(&y) {
             self.connected_wires.push((x, y, color));
         }
     }

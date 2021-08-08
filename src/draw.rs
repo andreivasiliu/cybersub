@@ -101,11 +101,7 @@ pub(crate) fn draw_game(
         submarines,
         ..
     } = game_state;
-    let GameSettings {
-        camera,
-        highlighting_object,
-        ..
-    } = game_settings;
+    let GameSettings { camera, .. } = game_settings;
 
     set_camera(&camera.to_macroquad_camera(None));
 
@@ -160,7 +156,11 @@ pub(crate) fn draw_game(
         }
 
         if draw_settings.draw_objects {
-            draw_objects(&submarine.objects, resources, highlighting_object);
+            draw_objects(
+                &submarine.objects,
+                resources,
+                mutable_resources.highlighting_object,
+            );
         }
 
         if draw_settings.draw_sonar {
@@ -601,11 +601,7 @@ pub(crate) fn object_rect(object: &Object) -> Rect {
     Rect::new(pos.x + 1.0, pos.y + 1.0, size.x, size.y)
 }
 
-fn draw_objects(
-    objects: &[Object],
-    resources: &Resources,
-    highlighting_object: &Option<(usize, bool)>,
-) {
+fn draw_objects(objects: &[Object], resources: &Resources, highlighting_object: Option<usize>) {
     for (obj_id, object) in objects.iter().enumerate() {
         let draw_rect = object_rect(object);
 
@@ -640,8 +636,8 @@ fn draw_objects(
             },
         );
 
-        if let Some((highlighting_object, _clicked)) = highlighting_object {
-            if *highlighting_object == obj_id {
+        if let Some(highlighting_object) = highlighting_object {
+            if highlighting_object == obj_id {
                 let texture_resolution = vec2(texture.width(), texture.height());
                 resources
                     .hover_highlight
