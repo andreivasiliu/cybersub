@@ -445,8 +445,7 @@ pub(crate) fn load_wires(width: usize, height: usize) -> WireGrid {
 
             for y in *y1..=*y2 {
                 for x in *x1..=*x2 {
-                    let cell = grid.cell_mut(x, y);
-                    cell.make_wire(*color);
+                    grid.make_wire(x, y, *color);
                 }
             }
         }

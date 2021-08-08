@@ -338,13 +338,9 @@ fn draw_walls(
 
     gl_use_default_material();
 
-    for y in 0..height {
-        for x in 0..width {
-            if grid.cell(x, y).is_collided() {
-                let pos = to_screen_coords(x, y) + vec2(0.5, 0.5);
-                draw_circle(pos.x, pos.y, 0.5, RED);
-            }
-        }
+    for &(x, y) in &mutable_resources.collisions {
+        let pos = to_screen_coords(x, y) + vec2(0.5, 0.5);
+        draw_circle(pos.x, pos.y, 0.5, RED);
     }
 }
 
@@ -811,13 +807,9 @@ fn draw_rocks(grid: &RockGrid, resources: &Resources, mutable_resources: &mut Mu
 
     gl_use_default_material();
 
-    for y in 0..height {
-        for x in 0..width {
-            if grid.cell(x, y).is_collided() {
-                let pos = vec2(x as f32 + 0.5, y as f32 + 0.5) * 16.0;
-                draw_rect_at(pos, 8.0, Color::new(0.78, 0.48, 1.00, 0.2));
-            }
-        }
+    for &(x, y) in &mutable_resources.collisions {
+        let pos = vec2(x as f32 + 0.5, y as f32 + 0.5) * 16.0;
+        draw_rect_at(pos, 8.0, Color::new(0.78, 0.48, 1.00, 0.2));
     }
 }
 

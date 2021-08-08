@@ -7,14 +7,15 @@ pub(crate) struct WireGrid {
     cells: Vec<WireCell>,
     width: usize,
     height: usize,
+    connected_wires: Vec<(usize, usize, WireColor)>
 }
 
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Copy)]
 pub(crate) struct WireCell {
     value: [WireValue; COLORS],
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub(crate) enum WireValue {
     NotConnected,
     NoSignal,
@@ -49,6 +50,25 @@ impl WireGrid {
             cells,
             width,
             height,
+            connected_wires: Vec::new(),
+        }
+    }
+
+    pub fn clone_from(other_grid: &WireGrid) -> Self {
+        let mut cells = Vec::new();
+        cells.resize(other_grid.cells.len(), WireCell::default());
+
+        for &(x, y, color) in &other_grid.connected_wires {
+            let old_cell: &WireCell = &other_grid.cells[y * other_grid.width + x];
+            let new_cell: &mut WireCell = &mut cells[y * other_grid.width + x];
+            new_cell.value[color as usize] = old_cell.value[color as usize];
+        }
+        
+        WireGrid {
+            cells,
+            width: other_grid.width,
+            height: other_grid.height,
+            connected_wires: other_grid.connected_wires.clone(),
         }
     }
 
@@ -68,6 +88,13 @@ impl WireGrid {
         debug_assert!(y < self.height);
 
         &mut self.cells[y * self.width + x]
+    }
+
+    pub fn make_wire(&mut self, x: usize, y: usize, color: WireColor) {
+        self.cell_mut(x, y).value[color as usize] = WireValue::NoSignal;
+        if (1..self.width-2).contains(&x) && (1..self.height-1).contains(&y) {
+            self.connected_wires.push((x, y, color));
+        }
     }
 
     /// Returns whether a cell has the following neighbours: [down, right, up, left]
@@ -97,53 +124,45 @@ impl WireGrid {
     }
 
     pub fn update(&mut self, signals_updated: &mut bool) {
-        let old_grid = self.clone();
+        let old_grid = WireGrid::clone_from(self);
 
-        for y in 1..old_grid.height - 1 {
-            for x in 1..old_grid.width - 1 {
-                let cell = old_grid.cell(x, y);
+        for &(x, y, wire_color) in &self.connected_wires {
+            let cell = old_grid.cell(x, y);
+            let old_value = &cell.value[wire_color as usize];
 
-                for wire_color in 0..COLORS {
-                    let old_value = &cell.value[wire_color];
+            if !old_value.connected() {
+                continue;
+            }
 
-                    if !old_value.connected() {
-                        continue;
+            let mut new_value = old_value.clone().decay(2);
+            let mut connected_wires = 0;
+
+            for neighbour in old_grid.neighbours(x, y) {
+                let neighbour_wire_value = &neighbour.value[wire_color as usize];
+                if neighbour_wire_value.connected() {
+                    connected_wires += 1;
+
+                    if neighbour_wire_value.signal() > new_value.signal() + 3 {
+                        new_value = neighbour_wire_value.decay(1);
                     }
-
-                    let mut new_value = old_value.clone().decay(2);
-                    let mut connected_wires = 0;
-
-                    for neighbour in old_grid.neighbours(x, y) {
-                        let neighbour_wire_value = &neighbour.value[wire_color];
-                        if neighbour_wire_value.connected() {
-                            connected_wires += 1;
-
-                            if neighbour_wire_value.signal() > new_value.signal() + 3 {
-                                new_value = neighbour_wire_value.decay(1);
-                            }
-                        }
-                    }
-
-                    if connected_wires > 2 {
-                        new_value = WireValue::NotConnected;
-                    }
-
-                    if self.cell(x, y).value[wire_color].signal() != new_value.signal() {
-                        *signals_updated = true;
-                    }
-
-                    self.cell_mut(x, y).value[wire_color] = new_value;
                 }
             }
+
+            if connected_wires > 2 {
+                new_value = WireValue::NotConnected;
+            }
+
+            if self.cell(x, y).value[wire_color as usize].signal() != new_value.signal() {
+                *signals_updated = true;
+            }
+
+            let cell_mut = &mut self.cells[y * self.width + x];
+            cell_mut.value[wire_color as usize] = new_value;
         }
     }
 }
 
 impl WireCell {
-    pub fn make_wire(&mut self, color: WireColor) {
-        self.value[color as usize] = WireValue::NoSignal;
-    }
-
     pub fn value(&self, color: WireColor) -> &WireValue {
         &self.value[color as usize]
     }

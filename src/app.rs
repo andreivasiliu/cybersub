@@ -217,6 +217,8 @@ impl CyberSubApp {
                 delta -= 1.0 / 30.0;
                 self.game_settings.animation_ticks += 1;
 
+                self.mutable_resources.collisions.clear();
+
                 for (sub_index, submarine) in &mut self.game_state.submarines.iter_mut().enumerate()
                 {
                     let mutable_resources = self
@@ -266,10 +268,13 @@ impl CyberSubApp {
                     }
 
                     if self.update_settings.update_collision {
+                        mutable_resources.collisions.clear();
                         update_collisions(
                             &mut submarine.water_grid,
                             &mut self.game_state.rock_grid,
                             &submarine.navigation,
+                            &mut self.mutable_resources,
+                            mutable_resources,
                         );
                     }
                 }

@@ -149,16 +149,15 @@ pub(crate) fn handle_pointer_input(
 
         if x < width && y < height {
             let water_cell = submarine.water_grid.cell_mut(x, y);
-            let wire_cell = submarine.wire_grid.cell_mut(x, y);
 
             match current_tool {
                 Tool::AddWater => water_cell.fill(),
                 Tool::AddWall => water_cell.make_wall(),
                 Tool::RemoveWall => water_cell.clear_wall(),
-                Tool::AddBrownWire => wire_cell.make_wire(WireColor::Brown),
-                Tool::AddPurpleWire => wire_cell.make_wire(WireColor::Purple),
-                Tool::AddBlueWire => wire_cell.make_wire(WireColor::Blue),
-                Tool::AddGreenWire => wire_cell.make_wire(WireColor::Green),
+                Tool::AddBrownWire => submarine.wire_grid.make_wire(x, y, WireColor::Brown),
+                Tool::AddPurpleWire => submarine.wire_grid.make_wire(x, y, WireColor::Purple),
+                Tool::AddBlueWire => submarine.wire_grid.make_wire(x, y, WireColor::Blue),
+                Tool::AddGreenWire => submarine.wire_grid.make_wire(x, y, WireColor::Green),
             }
 
             mutable_resources.walls_updated = true;

@@ -14,7 +14,6 @@ pub(crate) struct WaterCell {
     cell_type: CellType,
     velocity_x: i32,
     velocity_y: i32,
-    collided: bool,
 }
 
 #[derive(Clone, Copy, Serialize, Deserialize)]
@@ -278,14 +277,6 @@ impl WaterCell {
         if let CellType::Inside { ref mut level } = self.cell_type {
             *level += 16 * 1024;
         }
-    }
-
-    pub fn set_collided(&mut self, collided: bool) {
-        self.collided = collided;
-    }
-
-    pub fn is_collided(&self) -> bool {
-        self.collided
     }
 
     pub fn is_wall(&self) -> bool {

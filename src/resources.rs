@@ -40,6 +40,7 @@ pub struct ResourcesBuilder {
 pub(crate) struct MutableResources {
     pub sea_rocks: Texture2D,
     pub sea_rocks_updated: bool,
+    pub collisions: Vec<(usize, usize)>,
 }
 
 pub(crate) struct MutableSubResources {
@@ -54,6 +55,7 @@ pub(crate) struct MutableSubResources {
     pub old_sonar_target: RenderTarget,
     pub sonar_updated: bool,
     pub turbulence_particles: Vec<TurbulenceParticle>,
+    pub collisions: Vec<(usize, usize)>,
 }
 
 pub(crate) struct TurbulenceParticle {
@@ -244,6 +246,7 @@ impl MutableResources {
         MutableResources {
             sea_rocks: Texture2D::empty(),
             sea_rocks_updated: false,
+            collisions: Vec::new(),
         }
     }
 }
@@ -262,6 +265,7 @@ impl MutableSubResources {
             old_sonar_target: render_target(0, 0),
             sonar_updated: false,
             turbulence_particles: Vec::new(),
+            collisions: Vec::new(),
         }
     }
 }
