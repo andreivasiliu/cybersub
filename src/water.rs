@@ -251,8 +251,21 @@ impl WaterGrid {
             }
         }
 
-        self.edges = old_grid.edges;
         self.total_water = total_water;
+
+        // The grid edges weren't processed by the above loop
+        for x in 0..self.width {
+            self.cell_mut(x, 0).make_sea();
+            self.cell_mut(x, self.height - 1).make_sea();
+        }
+
+        for y in 0..self.height {
+            self.cell_mut(0, y).make_sea();
+            self.cell_mut(self.width - 1, y).make_sea();
+        }
+
+        // Edge walls (or walls in general) stay the same on a grid update
+        self.edges = old_grid.edges;
     }
 
     pub fn update_edges(&mut self) {

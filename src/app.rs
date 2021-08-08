@@ -1,5 +1,5 @@
 use crate::{
-    collisions::update_collisions,
+    collisions::{update_rock_collisions, update_submarine_collisions},
     draw::{draw_game, Camera, DrawSettings},
     input::{handle_keyboard_input, handle_pointer_input},
     objects::{update_objects, Object},
@@ -274,11 +274,32 @@ impl CyberSubApp {
 
                     if self.update_settings.update_collision {
                         mutable_resources.collisions.clear();
-                        update_collisions(
-                            &mut submarine.water_grid,
-                            &mut self.game_state.rock_grid,
+                        update_rock_collisions(
+                            &submarine.water_grid,
+                            &self.game_state.rock_grid,
                             &submarine.navigation,
                             &mut self.mutable_resources,
+                            mutable_resources,
+                        );
+                    }
+                }
+
+                for (sub1_index, submarine1) in self.game_state.submarines.iter().enumerate() {
+                    for (sub2_index, submarine2) in self.game_state.submarines.iter().enumerate() {
+                        if sub1_index == sub2_index {
+                            continue;
+                        }
+
+                        let mutable_resources = self
+                            .mutable_sub_resources
+                            .get_mut(sub1_index)
+                            .expect("All submarines should have a MutableSubResources instance");
+
+                        update_submarine_collisions(
+                            &submarine1.water_grid,
+                            &submarine2.water_grid,
+                            &submarine1.navigation,
+                            &submarine2.navigation,
                             mutable_resources,
                         );
                     }
