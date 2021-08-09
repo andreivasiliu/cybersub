@@ -1,20 +1,29 @@
+use serde::{Deserialize, Serialize};
+
 use crate::app::{Navigation, SubmarineState};
 
+#[derive(Serialize, Deserialize)]
 pub(crate) struct Object {
     pub object_type: ObjectType,
-    pub position_x: u32,
-    pub position_y: u32,
+
+    pub position: (u32, u32),
+
+    #[serde(default, skip_serializing_if = "is_default")]
     pub current_frame: u16,
-    pub frames: u16,
 }
 
+#[derive(Serialize, Deserialize)]
 pub(crate) enum ObjectType {
     Door {
+        #[serde(default, skip_serializing_if = "is_default")]
         state: DoorState,
+        #[serde(default, skip_serializing_if = "is_default")]
         progress: u8,
     },
     VerticalDoor {
+        #[serde(default, skip_serializing_if = "is_default")]
         state: DoorState,
+        #[serde(default, skip_serializing_if = "is_default")]
         progress: u8,
     },
     Reactor {
@@ -22,37 +31,48 @@ pub(crate) enum ObjectType {
     },
     Lamp,
     Gauge {
+        #[serde(default, skip_serializing_if = "is_default")]
         value: i8,
     },
     // SmallPump,
     LargePump {
+        #[serde(default, skip_serializing_if = "is_default")]
         target_speed: i8,
+        #[serde(default, skip_serializing_if = "is_default")]
         speed: i8,
+        #[serde(default, skip_serializing_if = "is_default")]
         progress: u8,
     },
     JunctionBox,
     NavController {
         active: bool,
+        #[serde(default, skip_serializing_if = "is_default")]
         progress: u8,
     },
     Sonar {
         active: bool,
+        #[serde(default, skip_serializing_if = "is_default")]
         powered: bool,
+        #[serde(default, skip_serializing)]
         sonar_info: SonarInfo,
     },
     Engine {
+        #[serde(default, skip_serializing_if = "is_default")]
         target_speed: i8,
+        #[serde(default, skip_serializing_if = "is_default")]
         speed: i8,
+        #[serde(default, skip_serializing_if = "is_default")]
         progress: u8,
     },
 }
 
+#[derive(Serialize, Deserialize, PartialEq, Eq)]
 pub(crate) enum DoorState {
     Opening,
     Closing,
 }
 
-#[derive(Default)]
+#[derive(Serialize, Deserialize, Default, PartialEq)]
 pub(crate) struct SonarInfo {
     pub cursor: Option<(f32, f32)>,
     pub set_target: Option<(f32, f32)>,
@@ -64,22 +84,17 @@ pub(crate) struct NavControl {
     pub engine_and_pump_speed: (i32, i32),
 }
 
-impl Object {
-    pub(crate) fn size(&self) -> (u32, u32) {
-        match self.object_type {
-            ObjectType::Door { .. } => (22, 5),
-            ObjectType::VerticalDoor { .. } => (5, 17),
-            ObjectType::Reactor { .. } => (32, 17),
-            ObjectType::Lamp => (5, 4),
-            ObjectType::Gauge { .. } => (7, 7),
-            ObjectType::LargePump { .. } => (30, 18),
-            ObjectType::JunctionBox => (6, 8),
-            ObjectType::NavController { .. } => (9, 15),
-            ObjectType::Sonar { .. } => (19, 17),
-            ObjectType::Engine { .. } => (37, 20),
-        }
-    }
+fn is_default<T: Default + Eq>(value: &T) -> bool {
+    *value == T::default()
+}
 
+impl Default for DoorState {
+    fn default() -> Self {
+        DoorState::Closing
+    }
+}
+
+impl Object {
     pub(crate) fn active_sonar_info(&self) -> Option<&SonarInfo> {
         if let ObjectType::Sonar {
             active: true,
@@ -126,8 +141,8 @@ pub(crate) fn update_objects(submarine: &mut SubmarineState) {
 
                 for y in 2..5 {
                     for x in 6..19 {
-                        let cell_x = object.position_x + x;
-                        let cell_y = object.position_y + y;
+                        let cell_x = object.position.0 + x;
+                        let cell_y = object.position.1 + y;
 
                         let cell = water_grid.cell_mut(cell_x as usize, cell_y as usize);
 
@@ -164,8 +179,8 @@ pub(crate) fn update_objects(submarine: &mut SubmarineState) {
                 for y in 5..17 {
                     let x = 3;
 
-                    let cell_x = object.position_x + x;
-                    let cell_y = object.position_y + y;
+                    let cell_x = object.position.0 + x;
+                    let cell_y = object.position.1 + y;
 
                     let cell = water_grid.cell_mut(cell_x as usize, cell_y as usize);
 
@@ -179,8 +194,8 @@ pub(crate) fn update_objects(submarine: &mut SubmarineState) {
                 }
             }
             ObjectType::Reactor { active } => {
-                let cell_x = object.position_x + 29;
-                let cell_y = object.position_y + 5;
+                let cell_x = object.position.0 + 29;
+                let cell_y = object.position.1 + 5;
 
                 let cell = wire_grid.cell_mut(cell_x as usize, cell_y as usize);
 
@@ -192,8 +207,8 @@ pub(crate) fn update_objects(submarine: &mut SubmarineState) {
                 }
             }
             ObjectType::Lamp => {
-                let cell_x = object.position_x + 3;
-                let cell_y = object.position_y + 1;
+                let cell_x = object.position.0 + 3;
+                let cell_y = object.position.1 + 1;
 
                 let cell = wire_grid.cell(cell_x as usize, cell_y as usize);
 
@@ -204,8 +219,8 @@ pub(crate) fn update_objects(submarine: &mut SubmarineState) {
                 }
             }
             ObjectType::Gauge { value } => {
-                let cell_x = object.position_x + 4;
-                let cell_y = object.position_y + 1;
+                let cell_x = object.position.0 + 4;
+                let cell_y = object.position.1 + 1;
 
                 let cell = wire_grid.cell(cell_x as usize, cell_y as usize);
                 if let Some(logic_value) = cell.receive_logic() {
@@ -227,8 +242,8 @@ pub(crate) fn update_objects(submarine: &mut SubmarineState) {
                 speed,
                 progress,
             } => {
-                let cell_x = object.position_x + 10;
-                let cell_y = object.position_y + 2;
+                let cell_x = object.position.0 + 10;
+                let cell_y = object.position.1 + 2;
 
                 let cell = wire_grid.cell(cell_x as usize + 3, cell_y as usize);
                 if let Some(logic_value) = cell.receive_logic() {
@@ -253,8 +268,8 @@ pub(crate) fn update_objects(submarine: &mut SubmarineState) {
 
                 for y in 0..4 {
                     for x in 0..4 {
-                        let cell_x = object.position_x + 23 + x;
-                        let cell_y = object.position_y + 12 + y;
+                        let cell_x = object.position.0 + 23 + x;
+                        let cell_y = object.position.1 + 12 + y;
 
                         let cell = water_grid.cell_mut(cell_x as usize, cell_y as usize);
 
@@ -263,8 +278,8 @@ pub(crate) fn update_objects(submarine: &mut SubmarineState) {
                 }
             }
             ObjectType::JunctionBox => {
-                let cell_x = object.position_x as usize + 3;
-                let cell_y = object.position_y as usize + 1;
+                let cell_x = object.position.0 as usize + 3;
+                let cell_y = object.position.1 as usize + 1;
 
                 let outputs = &[(3, 2), (3, 3), (3, 4), (3, 5)];
 
@@ -287,8 +302,8 @@ pub(crate) fn update_objects(submarine: &mut SubmarineState) {
                 }
             }
             ObjectType::NavController { active, progress } => {
-                let cell_x = object.position_x as usize + 2;
-                let cell_y = object.position_y as usize + 4;
+                let cell_x = object.position.0 as usize + 2;
+                let cell_y = object.position.1 as usize + 4;
 
                 let nav_control = compute_navigation(&submarine.navigation);
                 object.current_frame = 0;
@@ -314,8 +329,8 @@ pub(crate) fn update_objects(submarine: &mut SubmarineState) {
                 powered,
                 sonar_info,
             } => {
-                let x = object.position_x as usize + 2;
-                let y = object.position_y as usize + 15;
+                let x = object.position.0 as usize + 2;
+                let y = object.position.1 as usize + 15;
 
                 *powered = wire_grid.cell(x, y).minimum_power(100);
 
@@ -343,8 +358,8 @@ pub(crate) fn update_objects(submarine: &mut SubmarineState) {
                 speed,
                 progress,
             } => {
-                let cell_x = object.position_x + 36;
-                let cell_y = object.position_y + 6;
+                let cell_x = object.position.0 + 36;
+                let cell_y = object.position.1 + 6;
 
                 let cell = wire_grid.cell(cell_x as usize, cell_y as usize + 2);
                 if let Some(logic_value) = cell.receive_logic() {

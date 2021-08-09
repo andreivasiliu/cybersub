@@ -14,12 +14,12 @@ use macroquad::{
 use crate::{
     app::{GameSettings, GameState, Navigation, SubmarineState},
     objects::{Object, ObjectType},
-    resources::{MutableResources, MutableSubResources, TurbulenceParticle},
+    resources::{MutableResources, MutableSubResources, Resources, TurbulenceParticle},
     rocks::RockGrid,
     sonar::Sonar,
     water::WaterGrid,
     wires::{WireColor, WireGrid},
-    Resources, Timings,
+    Timings,
 };
 
 pub(crate) struct DrawSettings {
@@ -142,7 +142,7 @@ pub(crate) fn draw_game(
             .expect("All submarines should have their own MutableSubResources instance");
 
         if draw_settings.draw_background {
-            draw_background(resources);
+            draw_background(mutable_resources);
         }
 
         if draw_settings.draw_walls {
@@ -272,9 +272,14 @@ fn draw_fake_sea(world_size: (usize, usize)) {
     );
 }
 
-fn draw_background(resources: &Resources) {
+fn draw_background(mutable_resources: &MutableSubResources) {
     let top_left = to_screen_coords(0, 0);
-    draw_texture(resources.sub_background, top_left.x, top_left.y, WHITE);
+    draw_texture(
+        mutable_resources.sub_background,
+        top_left.x,
+        top_left.y,
+        WHITE,
+    );
 }
 
 fn draw_walls(
@@ -593,34 +598,68 @@ fn draw_wires(grid: &WireGrid, resources: &Resources, mutable_resources: &Mutabl
 }
 
 pub(crate) fn object_rect(object: &Object) -> Rect {
-    let pos = to_screen_coords(object.position_x as usize, object.position_y as usize);
+    let pos = to_screen_coords(object.position.0 as usize, object.position.1 as usize);
 
-    let size = object.size();
+    let size = object_size(&object.object_type);
     let size = vec2(size.0 as f32, size.1 as f32);
 
     Rect::new(pos.x + 1.0, pos.y + 1.0, size.x, size.y)
+}
+
+fn object_size(object_type: &ObjectType) -> (usize, usize) {
+    match object_type {
+        ObjectType::Door { .. } => (22, 5),
+        ObjectType::VerticalDoor { .. } => (5, 17),
+        ObjectType::Reactor { .. } => (32, 17),
+        ObjectType::Lamp => (5, 4),
+        ObjectType::Gauge { .. } => (7, 7),
+        ObjectType::LargePump { .. } => (30, 18),
+        ObjectType::JunctionBox => (6, 8),
+        ObjectType::NavController { .. } => (9, 15),
+        ObjectType::Sonar { .. } => (19, 17),
+        ObjectType::Engine { .. } => (37, 20),
+    }
+}
+
+fn object_frames(object_type: &ObjectType) -> u16 {
+    match object_type {
+        ObjectType::Door { .. } => 8,
+        ObjectType::VerticalDoor { .. } => 9,
+        ObjectType::Reactor { .. } => 2,
+        ObjectType::Lamp => 2,
+        ObjectType::Gauge { .. } => 5,
+        ObjectType::LargePump { .. } => 4,
+        ObjectType::JunctionBox => 1,
+        ObjectType::NavController { .. } => 6,
+        ObjectType::Sonar { .. } => 2,
+        ObjectType::Engine { .. } => 24,
+    }
+}
+
+fn object_texture(object_type: &ObjectType, resources: &Resources) -> Texture2D {
+    match object_type {
+        ObjectType::Door { .. } => resources.door,
+        ObjectType::VerticalDoor { .. } => resources.vertical_door,
+        ObjectType::Reactor { .. } => resources.reactor,
+        ObjectType::Lamp => resources.lamp,
+        ObjectType::Gauge { .. } => resources.gauge,
+        ObjectType::LargePump { .. } => resources.large_pump,
+        ObjectType::JunctionBox => resources.junction_box,
+        ObjectType::NavController { .. } => resources.nav_controller,
+        ObjectType::Sonar { .. } => resources.sonar,
+        ObjectType::Engine { .. } => resources.engine,
+    }
 }
 
 fn draw_objects(objects: &[Object], resources: &Resources, highlighting_object: Option<usize>) {
     for (obj_id, object) in objects.iter().enumerate() {
         let draw_rect = object_rect(object);
 
-        let texture = match object.object_type {
-            ObjectType::Door { .. } => resources.door,
-            ObjectType::VerticalDoor { .. } => resources.vertical_door,
-            ObjectType::Reactor { .. } => resources.reactor,
-            ObjectType::Lamp => resources.lamp,
-            ObjectType::Gauge { .. } => resources.gauge,
-            ObjectType::LargePump { .. } => resources.large_pump,
-            ObjectType::JunctionBox => resources.junction_box,
-            ObjectType::NavController { .. } => resources.nav_controller,
-            ObjectType::Sonar { .. } => resources.sonar,
-            ObjectType::Engine { .. } => resources.engine,
-        };
+        let texture = object_texture(&object.object_type, resources);
 
         // Textures are vertically split into equally-sized animation frames
         let frame_width = texture.width();
-        let frame_height = (texture.height() as u16 / object.frames) as f32;
+        let frame_height = (texture.height() as u16 / object_frames(&object.object_type)) as f32;
         let frame_x = 0.0;
         let frame_y = (frame_height as u16 * object.current_frame) as f32;
 
@@ -713,8 +752,8 @@ fn draw_engine_turbulence(
                     .expect("All submarines should have their own MutableSubResources instance");
 
                 let pos = vec2(
-                    submarine.navigation.position.0 as f32 / 16.0 + object.position_x as f32,
-                    submarine.navigation.position.1 as f32 / 16.0 + object.position_y as f32,
+                    submarine.navigation.position.0 as f32 / 16.0 + object.position.0 as f32,
+                    submarine.navigation.position.1 as f32 / 16.0 + object.position.1 as f32,
                 ) + vec2(0.0, 2.0);
 
                 for _tick in 0..animation_ticks {
@@ -954,7 +993,7 @@ fn draw_sonar(
         let sub_color = Color::new(0.40, 0.75, 1.00, 0.50);
 
         draw_texture_ex(
-            resources.sub_background,
+            mutable_resources.sub_background,
             sub_pos.x,
             sub_pos.y,
             sub_color,

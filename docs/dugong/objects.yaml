@@ -1,0 +1,149 @@
+---
+- object_type:
+    Door: {}
+  position:
+    - 146
+    - 13
+- object_type:
+    Door: {}
+  position:
+    - 191
+    - 39
+- object_type:
+    Door: {}
+  position:
+    - 209
+    - 64
+- object_type:
+    Door: {}
+  position:
+    - 273
+    - 64
+- object_type:
+    Door: {}
+  position:
+    - 59
+    - 64
+- object_type:
+    VerticalDoor: {}
+  position:
+    - 167
+    - 23
+- object_type:
+    VerticalDoor: {}
+  position:
+    - 77
+    - 48
+- object_type:
+    VerticalDoor: {}
+  position:
+    - 189
+    - 48
+- object_type:
+    VerticalDoor: {}
+  position:
+    - 267
+    - 48
+- object_type:
+    VerticalDoor: {}
+  position:
+    - 313
+    - 48
+- object_type:
+    VerticalDoor: {}
+  position:
+    - 173
+    - 76
+- object_type:
+    VerticalDoor: {}
+  position:
+    - 231
+    - 76
+- object_type:
+    Reactor:
+      active: true
+  position:
+    - 112
+    - 76
+  current_frame: 1
+- object_type: Lamp
+  position:
+    - 160
+    - 73
+- object_type:
+    Gauge: {}
+  position:
+    - 115
+    - 52
+  current_frame: 2
+- object_type:
+    Gauge: {}
+  position:
+    - 62
+    - 71
+  current_frame: 2
+- object_type:
+    Gauge: {}
+  position:
+    - 275
+    - 71
+  current_frame: 2
+- object_type:
+    LargePump: {}
+  position:
+    - 68
+    - 76
+- object_type:
+    LargePump: {}
+  position:
+    - 282
+    - 76
+- object_type: JunctionBox
+  position:
+    - 180
+    - 71
+- object_type: JunctionBox
+  position:
+    - 187
+    - 71
+- object_type: JunctionBox
+  position:
+    - 194
+    - 71
+- object_type: JunctionBox
+  position:
+    - 201
+    - 71
+- object_type: JunctionBox
+  position:
+    - 208
+    - 71
+- object_type: JunctionBox
+  position:
+    - 215
+    - 71
+- object_type: JunctionBox
+  position:
+    - 187
+    - 80
+- object_type: JunctionBox
+  position:
+    - 194
+    - 80
+- object_type:
+    NavController:
+      active: true
+  position:
+    - 95
+    - 50
+- object_type:
+    Sonar:
+      active: true
+  position:
+    - 130
+    - 48
+- object_type:
+    Engine: {}
+  position:
+    - 1
+    - 61

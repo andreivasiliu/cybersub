@@ -6,35 +6,29 @@ use macroquad::{
     },
 };
 
-pub struct Resources {
-    pub(crate) settings: Texture2D,
-    pub(crate) sea_water: Material,
-    pub(crate) hover_highlight: Material,
-    pub(crate) wire_material: Material,
-    pub(crate) wall_material: Material,
-    pub(crate) rock_material: Material,
-    pub(crate) sonar_material: Material,
-    pub(crate) wires: Texture2D,
-    pub(crate) sub_background: Texture2D,
-    pub(crate) sea_dust: Texture2D,
-    pub(crate) wall: Texture2D,
-    pub(crate) rocks: Texture2D,
-    pub(crate) door: Texture2D,
-    pub(crate) vertical_door: Texture2D,
-    pub(crate) reactor: Texture2D,
-    pub(crate) lamp: Texture2D,
-    pub(crate) gauge: Texture2D,
-    pub(crate) large_pump: Texture2D,
-    pub(crate) junction_box: Texture2D,
-    pub(crate) nav_controller: Texture2D,
-    pub(crate) sonar: Texture2D,
-    pub(crate) engine: Texture2D,
-    pub(crate) turbulence: Texture2D,
-}
-
-#[derive(Default)]
-pub struct ResourcesBuilder {
-    sub_background: Option<Texture2D>,
+pub(crate) struct Resources {
+    pub settings: Texture2D,
+    pub sea_water: Material,
+    pub hover_highlight: Material,
+    pub wire_material: Material,
+    pub wall_material: Material,
+    pub rock_material: Material,
+    pub sonar_material: Material,
+    pub wires: Texture2D,
+    pub sea_dust: Texture2D,
+    pub wall: Texture2D,
+    pub rocks: Texture2D,
+    pub door: Texture2D,
+    pub vertical_door: Texture2D,
+    pub reactor: Texture2D,
+    pub lamp: Texture2D,
+    pub gauge: Texture2D,
+    pub large_pump: Texture2D,
+    pub junction_box: Texture2D,
+    pub nav_controller: Texture2D,
+    pub sonar: Texture2D,
+    pub engine: Texture2D,
+    pub turbulence: Texture2D,
 }
 
 pub(crate) struct MutableResources {
@@ -44,6 +38,7 @@ pub(crate) struct MutableResources {
 }
 
 pub(crate) struct MutableSubResources {
+    pub sub_background: Texture2D,
     pub sub_walls: Texture2D,
     pub walls_updated: bool,
     pub sub_wires: RenderTarget,
@@ -66,24 +61,8 @@ pub(crate) struct TurbulenceParticle {
     pub life: u8,
 }
 
-impl ResourcesBuilder {
+impl Resources {
     pub fn new() -> Self {
-        ResourcesBuilder::default()
-    }
-
-    pub fn sub_background(mut self, bytes: &[u8]) -> Self {
-        self.sub_background = Some(Texture2D::from_file_with_format(
-            bytes,
-            Some(ImageFormat::Png),
-        ));
-        self.sub_background
-            .as_mut()
-            .unwrap()
-            .set_filter(FilterMode::Nearest);
-        self
-    }
-
-    pub fn build(self) -> Resources {
         let sea_water = load_material(
             include_str!("vertex.glsl"),
             include_str!("water.glsl"),
@@ -217,7 +196,6 @@ impl ResourcesBuilder {
             rock_material,
             sonar_material,
             wires,
-            sub_background: self.sub_background.expect("Sub Background not provided"),
             sea_dust,
             wall,
             rocks,
@@ -253,8 +231,9 @@ impl MutableResources {
 }
 
 impl MutableSubResources {
-    pub fn new() -> Self {
+    pub fn new(background: Texture2D) -> Self {
         MutableSubResources {
+            sub_background: background,
             sub_walls: Texture2D::empty(),
             walls_updated: false,
             sub_wires: render_target(0, 0),

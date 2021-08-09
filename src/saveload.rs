@@ -1,15 +1,31 @@
 use std::io::Read;
 
 use flate2::read::GzDecoder;
-use macroquad::prelude::{Image, ImageFormat, BLACK};
+use macroquad::prelude::{Image, ImageFormat, Texture2D, BLACK};
 use png::{BitDepth, ColorType, Decoder, Encoder};
 
 use crate::{
-    objects::{DoorState, Object, ObjectType, SonarInfo},
+    objects::Object,
     rocks::{RockGrid, RockType},
     water::WaterGrid,
     wires::{WireColor, WireGrid},
 };
+
+pub struct SubmarineFileData {
+    pub water_grid: Vec<u8>,
+    pub background: Vec<u8>,
+    pub objects: Vec<u8>,
+}
+
+pub(crate) fn load_from_file_data(
+    files: SubmarineFileData,
+) -> Result<(WaterGrid, Texture2D, Vec<Object>), String> {
+    let water_grid = load_png_from_bytes(&files.water_grid)?;
+    let objects = load_objects_from_yaml(&files.objects)?;
+    let background = Texture2D::from_file_with_format(&files.background, Some(ImageFormat::Png));
+
+    Ok((water_grid, background, objects))
+}
 
 pub(crate) fn save(grid: &WaterGrid) -> Result<(), String> {
     if cfg!(target_arch = "wasm32") {
@@ -146,150 +162,6 @@ pub(crate) fn load_png() -> Result<WaterGrid, String> {
     let png_decoder = Decoder::new(reader);
 
     load_png_from_decoder(png_decoder)
-}
-
-pub(crate) fn load_objects() -> Vec<Object> {
-    let mut objects = Vec::new();
-
-    let doors = &[(146, 13), (191, 39), (209, 64), (273, 64), (59, 64)];
-
-    for door in doors {
-        objects.push(Object {
-            object_type: ObjectType::Door {
-                state: DoorState::Closing,
-                progress: 0,
-            },
-            position_x: door.0,
-            position_y: door.1,
-            current_frame: 0,
-            frames: 8,
-        });
-    }
-
-    let vertical_doors = &[
-        (167, 23),
-        (77, 48),
-        (189, 48),
-        (267, 48),
-        (313, 48),
-        (173, 76),
-        (231, 76),
-    ];
-
-    for door in vertical_doors {
-        objects.push(Object {
-            object_type: ObjectType::VerticalDoor {
-                state: DoorState::Closing,
-                progress: 0,
-            },
-            position_x: door.0,
-            position_y: door.1,
-            current_frame: 0,
-            frames: 9,
-        });
-    }
-
-    objects.push(Object {
-        object_type: ObjectType::Reactor { active: true },
-        position_x: 112,
-        position_y: 76,
-        current_frame: 1,
-        frames: 2,
-    });
-
-    objects.push(Object {
-        object_type: ObjectType::Lamp,
-        position_x: 160,
-        position_y: 73,
-        current_frame: 0,
-        frames: 2,
-    });
-
-    let gauges = &[(115, 52), (62, 71), (275, 71)];
-
-    for gauge in gauges {
-        objects.push(Object {
-            object_type: ObjectType::Gauge { value: 0 },
-            position_x: gauge.0,
-            position_y: gauge.1,
-            current_frame: 2,
-            frames: 5,
-        });
-    }
-
-    let pumps = &[(68, 76), (282, 76)];
-
-    for pump in pumps {
-        objects.push(Object {
-            object_type: ObjectType::LargePump {
-                target_speed: 0,
-                speed: 0,
-                progress: 0,
-            },
-            position_x: pump.0,
-            position_y: pump.1,
-            current_frame: 0,
-            frames: 4,
-        });
-    }
-
-    let junction_boxes = &[
-        (180, 71),
-        (187, 71),
-        (194, 71),
-        (201, 71),
-        (208, 71),
-        (215, 71),
-        (187, 80),
-        (194, 80),
-    ];
-
-    for junction_box in junction_boxes {
-        objects.push(Object {
-            object_type: ObjectType::JunctionBox,
-            position_x: junction_box.0,
-            position_y: junction_box.1,
-            current_frame: 0,
-            frames: 1,
-        });
-    }
-
-    objects.push(Object {
-        object_type: ObjectType::NavController {
-            active: true,
-            progress: 0,
-        },
-        position_x: 95,
-        position_y: 50,
-        current_frame: 0,
-        frames: 6,
-    });
-
-    objects.push(Object {
-        object_type: ObjectType::Sonar {
-            active: true,
-            powered: false,
-            sonar_info: SonarInfo::default(),
-        },
-        position_x: 130,
-        position_y: 48,
-        current_frame: 0,
-        frames: 2,
-    });
-
-    objects.push(Object {
-        object_type: ObjectType::Engine {
-            target_speed: 0,
-            speed: 0,
-            progress: 0,
-        },
-        position_x: 1,
-        position_y: 61,
-        current_frame: 0,
-        frames: 24,
-    });
-
-    objects
 }
 
 pub(crate) fn load_wires(width: usize, height: usize) -> WireGrid {
@@ -499,4 +371,8 @@ fn load_rocks_from_image(image: Image) -> RockGrid {
     grid.update_edges();
 
     grid
+}
+
+pub(crate) fn load_objects_from_yaml(object_bytes: &[u8]) -> Result<Vec<Object>, String> {
+    serde_yaml::from_slice(object_bytes).map_err(|err| err.to_string())
 }

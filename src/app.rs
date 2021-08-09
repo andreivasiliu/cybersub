@@ -3,14 +3,14 @@ use crate::{
     draw::{draw_game, Camera, DrawSettings},
     input::{handle_keyboard_input, handle_pointer_input},
     objects::{update_objects, Object},
-    resources::{MutableResources, MutableSubResources},
+    resources::{MutableResources, MutableSubResources, Resources},
     rocks::RockGrid,
-    saveload::{load_objects, load_png_from_bytes, load_rocks_from_png, load_wires},
+    saveload::{load_from_file_data, load_rocks_from_png, load_wires},
     sonar::{find_visible_edge_cells, Sonar},
     ui::{draw_ui, UiState},
     water::WaterGrid,
     wires::WireGrid,
-    Resources,
+    SubmarineFileData,
 };
 
 pub struct CyberSubApp {
@@ -20,6 +20,7 @@ pub struct CyberSubApp {
     game_settings: GameSettings,
     draw_settings: DrawSettings,
     update_settings: UpdateSettings,
+    resources: Resources,
     mutable_resources: MutableResources,
     mutable_sub_resources: Vec<MutableSubResources>,
 }
@@ -142,6 +143,7 @@ impl Default for CyberSubApp {
                 update_collision: true,
             },
             ui_state: UiState::default(),
+            resources: Resources::new(),
             mutable_resources: MutableResources::new(),
             mutable_sub_resources: Vec::new(),
         }
@@ -149,11 +151,10 @@ impl Default for CyberSubApp {
 }
 
 impl CyberSubApp {
-    pub fn load_submarine(&mut self, grid_bytes: &[u8]) {
-        let water_grid = load_png_from_bytes(grid_bytes).expect("Could not load grid");
+    pub fn load_submarine(&mut self, file_data: SubmarineFileData) -> Result<(), String> {
+        let (water_grid, background, objects) = load_from_file_data(file_data)?;
         let (width, height) = water_grid.size();
         let wire_grid = load_wires(width, height);
-        let objects = load_objects();
 
         // Middle of the world
         let (rock_width, rock_height) = self.game_state.rock_grid.size();
@@ -186,7 +187,10 @@ impl CyberSubApp {
             sonar: Sonar::default(),
         });
 
-        self.mutable_sub_resources.push(MutableSubResources::new());
+        self.mutable_sub_resources
+            .push(MutableSubResources::new(background));
+
+        Ok(())
     }
 
     pub fn load_rocks(&mut self, world_bytes: &[u8]) {
@@ -196,7 +200,12 @@ impl CyberSubApp {
     pub fn update_game(&mut self, game_time: f64) {
         if self.game_settings.add_submarine {
             self.game_settings.add_submarine = false;
-            self.load_submarine(include_bytes!("../grid.png"));
+            self.load_submarine(SubmarineFileData {
+                water_grid: include_bytes!("../docs/dugong/water_grid.png").to_vec(),
+                background: include_bytes!("../docs/dugong/background.png").to_vec(),
+                objects: include_bytes!("../docs/dugong/objects.yaml").to_vec(),
+            })
+            .ok();
         }
 
         let last_update = &mut self.game_state.last_update;
@@ -284,24 +293,28 @@ impl CyberSubApp {
                     }
                 }
 
-                for (sub1_index, submarine1) in self.game_state.submarines.iter().enumerate() {
-                    for (sub2_index, submarine2) in self.game_state.submarines.iter().enumerate() {
-                        if sub1_index == sub2_index {
-                            continue;
+                if self.update_settings.update_collision {
+                    for (sub1_index, submarine1) in self.game_state.submarines.iter().enumerate() {
+                        for (sub2_index, submarine2) in
+                            self.game_state.submarines.iter().enumerate()
+                        {
+                            if sub1_index == sub2_index {
+                                continue;
+                            }
+
+                            let mutable_resources =
+                                self.mutable_sub_resources.get_mut(sub1_index).expect(
+                                    "All submarines should have a MutableSubResources instance",
+                                );
+
+                            update_submarine_collisions(
+                                &submarine1.water_grid,
+                                &submarine2.water_grid,
+                                &submarine1.navigation,
+                                &submarine2.navigation,
+                                mutable_resources,
+                            );
                         }
-
-                        let mutable_resources = self
-                            .mutable_sub_resources
-                            .get_mut(sub1_index)
-                            .expect("All submarines should have a MutableSubResources instance");
-
-                        update_submarine_collisions(
-                            &submarine1.water_grid,
-                            &submarine2.water_grid,
-                            &submarine1.navigation,
-                            &submarine2.navigation,
-                            mutable_resources,
-                        );
                     }
                 }
 
@@ -365,13 +378,13 @@ impl CyberSubApp {
         );
     }
 
-    pub fn draw_game(&mut self, resources: &Resources) {
+    pub fn draw_game(&mut self) {
         draw_game(
             &self.game_state,
             &self.game_settings,
             &self.draw_settings,
             &self.timings,
-            resources,
+            &self.resources,
             &mut self.mutable_resources,
             &mut self.mutable_sub_resources,
         );
