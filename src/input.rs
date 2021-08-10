@@ -5,8 +5,8 @@ use macroquad::prelude::{
 
 use crate::{
     app::{GameSettings, SubmarineState, Tool},
-    draw::{object_rect, Camera},
-    objects::{hover_over_object, interact_with_object},
+    draw::{object_rect, object_size, Camera},
+    objects::{hover_over_object, interact_with_object, Object},
     resources::MutableSubResources,
     wires::WireColor,
 };
@@ -47,6 +47,7 @@ pub(crate) fn handle_keyboard_input(camera: &mut Camera, current_tool: &mut Tool
 
 pub(crate) fn handle_pointer_input(
     submarine: &mut SubmarineState,
+    sub_index: usize,
     mutable_resources: &mut MutableSubResources,
     game_settings: &mut GameSettings,
     draw_egui: &mut bool,
@@ -139,8 +140,45 @@ pub(crate) fn handle_pointer_input(
         *dragging_object = false;
     }
 
-    // Painting the grid
+    // Placing an object
     let (width, height) = submarine.water_grid.size();
+    if let Some(placing_object) = &mut game_settings.placing_object {
+        let (x, y) = camera.pointing_at;
+
+        let size = object_size(&placing_object.object_type);
+
+        let x = x.wrapping_sub(size.0 / 2 + size.0 % 2);
+        let y = y.wrapping_sub(size.1 / 2 + size.1 % 2 + 1);
+
+        if x < width && y < height {
+            placing_object.submarine = sub_index;
+            placing_object.position = Some((x, y));
+
+            if is_mouse_button_pressed(MouseButton::Left) {
+                // Should probably be moved into a returned command
+                submarine.objects.push(Object {
+                    object_type: placing_object.object_type.clone(),
+                    position: (x as u32, y as u32),
+                    current_frame: 0,
+                });
+
+                if !is_key_down(KeyCode::LeftShift) && !is_key_down(KeyCode::RightShift) {
+                    game_settings.placing_object = None;
+                }
+
+                // Prevent placing water right after clicking
+                *dragging_object = true;
+            }
+
+            if is_mouse_button_down(MouseButton::Right) {
+                game_settings.placing_object = None;
+            }
+        }
+
+        return;
+    }
+
+    // Painting the grid
     if is_mouse_button_down(MouseButton::Left) && !*dragging_object {
         let (x, y) = camera.pointing_at;
 

@@ -2,7 +2,7 @@ use crate::{
     collisions::{update_rock_collisions, update_submarine_collisions},
     draw::{draw_game, Camera, DrawSettings},
     input::{handle_keyboard_input, handle_pointer_input},
-    objects::{update_objects, Object},
+    objects::{update_objects, Object, ObjectType},
     resources::{MutableResources, MutableSubResources, Resources},
     rocks::RockGrid,
     saveload::{load_from_file_data, load_rocks_from_png, load_wires},
@@ -37,6 +37,7 @@ pub(crate) struct GameSettings {
     pub last_draw: Option<f64>,
     pub animation_ticks: u32,
     pub add_submarine: bool,
+    pub placing_object: Option<PlacingObject>,
 }
 
 pub(crate) struct UpdateSettings {
@@ -93,6 +94,12 @@ pub struct Timings {
     pub frame_time: u32,
 }
 
+pub(crate) struct PlacingObject {
+    pub submarine: usize,
+    pub position: Option<(usize, usize)>,
+    pub object_type: ObjectType,
+}
+
 const WIDTH: usize = 300;
 const HEIGHT: usize = 100;
 
@@ -115,6 +122,7 @@ impl Default for CyberSubApp {
                 last_draw: None,
                 animation_ticks: 0,
                 add_submarine: false,
+                placing_object: None,
             },
             game_state: GameState {
                 last_update: None,
@@ -364,6 +372,7 @@ impl CyberSubApp {
                 .expect("All submarines should have a MutableSubResources instance");
             handle_pointer_input(
                 submarine,
+                sub_index,
                 mutable_resources,
                 &mut self.game_settings,
                 &mut self.draw_settings.draw_egui,

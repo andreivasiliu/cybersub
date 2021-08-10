@@ -18,8 +18,8 @@ pub(crate) struct Resources {
     pub sea_dust: Texture2D,
     pub wall: Texture2D,
     pub rocks: Texture2D,
+    pub hatch: Texture2D,
     pub door: Texture2D,
-    pub vertical_door: Texture2D,
     pub reactor: Texture2D,
     pub lamp: Texture2D,
     pub gauge: Texture2D,
@@ -93,8 +93,8 @@ impl Resources {
         let wires = load_texture(include_bytes!("../resources/wires.png"));
         let wall = load_texture(include_bytes!("../resources/wall.png"));
         let rocks = load_texture(include_bytes!("../resources/rocks.png"));
+        let hatch = load_texture(include_bytes!("../resources/hatch.png"));
         let door = load_texture(include_bytes!("../resources/door.png"));
-        let vertical_door = load_texture(include_bytes!("../resources/vertical_door.png"));
         let reactor = load_texture(include_bytes!("../resources/reactor.png"));
         let lamp = load_texture(include_bytes!("../resources/lamp.png"));
         let gauge = load_texture(include_bytes!("../resources/gauge.png"));
@@ -199,8 +199,8 @@ impl Resources {
             sea_dust,
             wall,
             rocks,
+            hatch,
             door,
-            vertical_door,
             reactor,
             lamp,
             gauge,

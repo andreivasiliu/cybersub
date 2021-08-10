@@ -1,9 +1,9 @@
 use egui::{vec2, Align2, Color32, Label, Slider, Ui};
 
 use crate::{
-    app::{GameSettings, GameState, Tool, UpdateSettings},
+    app::{GameSettings, GameState, PlacingObject, Tool, UpdateSettings},
     draw::DrawSettings,
-    objects::compute_navigation,
+    objects::{compute_navigation, OBJECT_TYPES},
     saveload::{load, load_png, save, save_png},
     Timings,
 };
@@ -70,6 +70,7 @@ pub(crate) fn draw_ui(
         current_tool,
         quit_game,
         add_submarine,
+        placing_object,
         ..
     } = settings;
 
@@ -179,6 +180,17 @@ pub(crate) fn draw_ui(
                         *show_timings = !*show_timings;
                     }
                 });
+                egui::menu::menu(ui, "Objects", |ui| {
+                    for (object_type_name, object_type) in OBJECT_TYPES {
+                        if ui.button(object_type_name).clicked() {
+                            *placing_object = Some(PlacingObject {
+                                submarine: 0,
+                                position: None,
+                                object_type: object_type.clone(),
+                            });
+                        }
+                    }
+                });
             });
         });
 
@@ -253,13 +265,20 @@ pub(crate) fn draw_ui(
 
         toolbar.show(ctx, |ui| {
             ui.horizontal_wrapped(|ui| {
-                ui.radio_value(current_tool, Tool::AddWater, "Add Water");
-                ui.radio_value(current_tool, Tool::AddWall, "Add Walls");
-                ui.radio_value(current_tool, Tool::AddPurpleWire, "Purple Wires");
-                ui.radio_value(current_tool, Tool::AddBrownWire, "Brown Wires");
-                ui.radio_value(current_tool, Tool::AddBlueWire, "Blue Wires");
-                ui.radio_value(current_tool, Tool::AddGreenWire, "Green Wires");
-                ui.radio_value(current_tool, Tool::RemoveWall, "Remove Walls");
+                if placing_object.is_some() {
+                    ui.label("Left-click to place object. Right-click to cancel. Hold shift to place more objects.");
+                    if ui.button("Cancel").clicked() {
+                        *placing_object = None;
+                    }
+                } else {
+                    ui.radio_value(current_tool, Tool::AddWater, "Add Water");
+                    ui.radio_value(current_tool, Tool::AddWall, "Add Walls");
+                    ui.radio_value(current_tool, Tool::AddPurpleWire, "Purple Wires");
+                    ui.radio_value(current_tool, Tool::AddBrownWire, "Brown Wires");
+                    ui.radio_value(current_tool, Tool::AddBlueWire, "Blue Wires");
+                    ui.radio_value(current_tool, Tool::AddGreenWire, "Green Wires");
+                    ui.radio_value(current_tool, Tool::RemoveWall, "Remove Walls");
+                }
             });
         });
     }

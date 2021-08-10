@@ -12,7 +12,7 @@ pub(crate) struct Object {
     pub current_frame: u16,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub(crate) enum ObjectType {
     Door {
         #[serde(default, skip_serializing_if = "is_default")]
@@ -66,13 +66,13 @@ pub(crate) enum ObjectType {
     },
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub(crate) enum DoorState {
     Opening,
     Closing,
 }
 
-#[derive(Serialize, Deserialize, Default, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Default, PartialEq)]
 pub(crate) struct SonarInfo {
     pub cursor: Option<(f32, f32)>,
     pub set_target: Option<(f32, f32)>,
@@ -108,6 +108,61 @@ impl Object {
         }
     }
 }
+
+pub(crate) const OBJECT_TYPES: &'static [(&'static str, ObjectType)] = &[
+    (
+        "Hatch",
+        ObjectType::Door {
+            state: DoorState::Closing,
+            progress: 0,
+        },
+    ),
+    (
+        "Door",
+        ObjectType::VerticalDoor {
+            state: DoorState::Closing,
+            progress: 0,
+        },
+    ),
+    ("Reactor", ObjectType::Reactor { active: false }),
+    ("Lamp", ObjectType::Lamp),
+    ("Gauge", ObjectType::Gauge { value: 0 }),
+    (
+        "Large pump",
+        ObjectType::LargePump {
+            target_speed: 0,
+            speed: 0,
+            progress: 0,
+        },
+    ),
+    ("Junction box", ObjectType::JunctionBox),
+    (
+        "Nav controller",
+        ObjectType::NavController {
+            active: true,
+            progress: 0,
+        },
+    ),
+    (
+        "Sonar",
+        ObjectType::Sonar {
+            active: true,
+            powered: false,
+            sonar_info: SonarInfo {
+                cursor: None,
+                set_target: None,
+            },
+        },
+    ),
+    (
+        "Engine",
+        ObjectType::Engine {
+            target_speed: 0,
+            speed: 0,
+            progress: 0,
+        },
+    ),
+];
 
 // What an object does on every physics update tick.
 pub(crate) fn update_objects(submarine: &mut SubmarineState) {

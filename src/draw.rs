@@ -12,7 +12,7 @@ use macroquad::{
 };
 
 use crate::{
-    app::{GameSettings, GameState, Navigation, SubmarineState},
+    app::{GameSettings, GameState, Navigation, PlacingObject, SubmarineState},
     objects::{Object, ObjectType},
     resources::{MutableResources, MutableSubResources, Resources, TurbulenceParticle},
     rocks::RockGrid,
@@ -160,6 +160,7 @@ pub(crate) fn draw_game(
                 &submarine.objects,
                 resources,
                 mutable_resources.highlighting_object,
+                &game_settings.placing_object,
             );
         }
 
@@ -606,7 +607,7 @@ pub(crate) fn object_rect(object: &Object) -> Rect {
     Rect::new(pos.x + 1.0, pos.y + 1.0, size.x, size.y)
 }
 
-fn object_size(object_type: &ObjectType) -> (usize, usize) {
+pub(crate) fn object_size(object_type: &ObjectType) -> (usize, usize) {
     match object_type {
         ObjectType::Door { .. } => (22, 5),
         ObjectType::VerticalDoor { .. } => (5, 17),
@@ -638,8 +639,8 @@ fn object_frames(object_type: &ObjectType) -> u16 {
 
 fn object_texture(object_type: &ObjectType, resources: &Resources) -> Texture2D {
     match object_type {
-        ObjectType::Door { .. } => resources.door,
-        ObjectType::VerticalDoor { .. } => resources.vertical_door,
+        ObjectType::Door { .. } => resources.hatch,
+        ObjectType::VerticalDoor { .. } => resources.door,
         ObjectType::Reactor { .. } => resources.reactor,
         ObjectType::Lamp => resources.lamp,
         ObjectType::Gauge { .. } => resources.gauge,
@@ -651,8 +652,13 @@ fn object_texture(object_type: &ObjectType, resources: &Resources) -> Texture2D 
     }
 }
 
-fn draw_objects(objects: &[Object], resources: &Resources, highlighting_object: Option<usize>) {
-    for (obj_id, object) in objects.iter().enumerate() {
+fn draw_objects(
+    objects: &[Object],
+    resources: &Resources,
+    highlighting_object: Option<usize>,
+    placing_object: &Option<PlacingObject>,
+) {
+    let draw_object = |object, highlight, shadow| {
         let draw_rect = object_rect(object);
 
         let texture = object_texture(&object.object_type, resources);
@@ -667,7 +673,11 @@ fn draw_objects(objects: &[Object], resources: &Resources, highlighting_object: 
             texture,
             draw_rect.x,
             draw_rect.y,
-            WHITE,
+            if shadow {
+                Color::new(0.5, 0.5, 1.0, 0.5)
+            } else {
+                WHITE
+            },
             DrawTextureParams {
                 dest_size: Some(draw_rect.size()),
                 source: Some(Rect::new(frame_x, frame_y, frame_width, frame_height)),
@@ -675,25 +685,46 @@ fn draw_objects(objects: &[Object], resources: &Resources, highlighting_object: 
             },
         );
 
-        if let Some(highlighting_object) = highlighting_object {
-            if highlighting_object == obj_id {
-                let texture_resolution = vec2(texture.width(), texture.height());
-                resources
-                    .hover_highlight
-                    .set_uniform("input_resolution", texture_resolution);
-                resources.hover_highlight.set_uniform("frame_y", frame_y);
-                resources
-                    .hover_highlight
-                    .set_uniform("frame_height", frame_height);
-                resources
-                    .hover_highlight
-                    .set_texture("input_texture", texture);
-                gl_use_material(resources.hover_highlight);
-                let r = draw_rect;
-                draw_rectangle(r.x, r.y, r.w, r.h, DARKBLUE);
-                gl_use_default_material();
-            }
+        if highlight {
+            let texture_resolution = vec2(texture.width(), texture.height());
+            resources
+                .hover_highlight
+                .set_uniform("input_resolution", texture_resolution);
+            resources.hover_highlight.set_uniform("frame_y", frame_y);
+            resources
+                .hover_highlight
+                .set_uniform("frame_height", frame_height);
+            resources
+                .hover_highlight
+                .set_texture("input_texture", texture);
+            gl_use_material(resources.hover_highlight);
+            let r = draw_rect;
+            draw_rectangle(r.x, r.y, r.w, r.h, DARKBLUE);
+            gl_use_default_material();
         }
+    };
+
+    for (obj_id, object) in objects.iter().enumerate() {
+        let highlight = highlighting_object == Some(obj_id);
+        let shadow = false;
+        draw_object(object, highlight, shadow);
+    }
+
+    if let Some(PlacingObject {
+        position: Some((x, y)),
+        object_type,
+        ..
+    }) = placing_object
+    {
+        let object = Object {
+            object_type: object_type.clone(),
+            position: (*x as u32, *y as u32),
+            current_frame: 0,
+        };
+
+        let highlight = false;
+        let shadow = true;
+        draw_object(&object, highlight, shadow);
     }
 }
 
