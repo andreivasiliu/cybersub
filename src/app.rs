@@ -1,17 +1,4 @@
-use crate::{
-    collisions::{update_rock_collisions, update_submarine_collisions},
-    draw::{draw_game, Camera, DrawSettings},
-    input::{handle_keyboard_input, handle_pointer_input},
-    objects::{update_objects, Object, ObjectType},
-    resources::{MutableResources, MutableSubResources, Resources},
-    rocks::RockGrid,
-    saveload::{load_from_file_data, load_rocks_from_png, load_wires},
-    sonar::{find_visible_edge_cells, Sonar},
-    ui::{draw_ui, UiState},
-    water::WaterGrid,
-    wires::WireGrid,
-    SubmarineFileData,
-};
+use crate::{SubmarineFileData, collisions::{update_rock_collisions, update_submarine_collisions}, draw::{draw_game, Camera, DrawSettings}, input::{handle_keyboard_input, handle_pointer_input}, objects::{update_objects, Object, ObjectType}, resources::{MutableResources, MutableSubResources, Resources}, rocks::RockGrid, saveload::{load_from_file_data, load_rocks_from_png, load_wires}, sonar::{find_visible_edge_cells, Sonar}, ui::{draw_ui, UiState}, water::WaterGrid, wires::{WireColor, WireGrid}};
 
 pub struct CyberSubApp {
     pub timings: Timings,
@@ -73,13 +60,10 @@ pub(crate) struct Navigation {
 
 #[derive(PartialEq, Eq)]
 pub(crate) enum Tool {
-    AddWater,
-    AddWall,
-    AddPurpleWire,
-    AddBrownWire,
-    AddBlueWire,
-    AddGreenWire,
-    RemoveWall,
+    Interact,
+    EditWater { add: bool },
+    EditWalls { add: bool },
+    EditWires { color: WireColor },
 }
 
 #[derive(Default)]
@@ -115,7 +99,7 @@ impl Default for CyberSubApp {
                     ..Default::default()
                 },
                 current_submarine: 0,
-                current_tool: Tool::AddWater,
+                current_tool: Tool::Interact,
                 quit_game: false,
                 dragging_object: false,
                 highlighting_settings: false,
@@ -383,7 +367,6 @@ impl CyberSubApp {
     pub fn handle_keyboard_input(&mut self) {
         handle_keyboard_input(
             &mut self.game_settings.camera,
-            &mut self.game_settings.current_tool,
         );
     }
 

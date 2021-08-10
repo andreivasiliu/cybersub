@@ -1,5 +1,5 @@
 use macroquad::prelude::{
-    is_key_down, is_key_pressed, is_key_released, is_mouse_button_down, is_mouse_button_pressed,
+    is_key_down, is_mouse_button_down, is_mouse_button_pressed,
     is_mouse_button_released, mouse_position, mouse_wheel, KeyCode, MouseButton, Rect, Vec2,
 };
 
@@ -8,14 +8,13 @@ use crate::{
     draw::{object_rect, object_size, Camera},
     objects::{hover_over_object, interact_with_object, Object},
     resources::MutableSubResources,
-    wires::WireColor,
 };
 
 fn from_screen_coords(pos: Vec2) -> (usize, usize) {
     (pos.x as usize, pos.y as usize)
 }
 
-pub(crate) fn handle_keyboard_input(camera: &mut Camera, current_tool: &mut Tool) {
+pub(crate) fn handle_keyboard_input(camera: &mut Camera) {
     if is_key_down(KeyCode::A) || is_key_down(KeyCode::Left) {
         camera.offset_x += 1.0;
     }
@@ -33,15 +32,6 @@ pub(crate) fn handle_keyboard_input(camera: &mut Camera, current_tool: &mut Tool
     }
     if is_key_down(KeyCode::KpSubtract) {
         camera.zoom -= 1;
-    }
-    if is_key_pressed(KeyCode::LeftShift) {
-        *current_tool = Tool::RemoveWall;
-    }
-    if is_key_pressed(KeyCode::LeftControl) {
-        *current_tool = Tool::AddWall;
-    }
-    if is_key_released(KeyCode::LeftShift) || is_key_released(KeyCode::LeftControl) {
-        *current_tool = Tool::AddWater;
     }
 }
 
@@ -66,20 +56,6 @@ pub(crate) fn handle_pointer_input(
     camera.pointing_at =
         from_screen_coords(macroquad_camera.screen_to_world(mouse_position.into()));
 
-    if is_mouse_button_pressed(MouseButton::Right) {
-        camera.dragging_from = mouse_position
-        // TODO: Bugged; it makes the egui windows act weird
-        // if cfg!(not(target_arch = "wasm32")) {
-        //     set_cursor_grab(true);
-        // }
-    }
-
-    if is_mouse_button_released(MouseButton::Right) {
-        // if cfg!(not(target_arch = "wasm32")) {
-        //     set_cursor_grab(false);
-        // }
-    }
-
     let settings_button = Rect::new(10.0, 10.0, 20.0, 20.0);
     if !*draw_egui {
         *highlighting_settings = settings_button.contains(mouse_position.into());
@@ -89,7 +65,13 @@ pub(crate) fn handle_pointer_input(
         *draw_egui = true;
     }
 
-    if is_mouse_button_down(MouseButton::Right) {
+    let scrolling = if is_mouse_button_down(MouseButton::Right) {
+        true
+    } else {
+        matches!(current_tool, Tool::Interact) && is_mouse_button_down(MouseButton::Left)
+    };
+
+    if scrolling && !*dragging_object {
         let new_position = mouse_position;
 
         let old = macroquad_camera.screen_to_world(Vec2::from(camera.dragging_from));
@@ -99,9 +81,8 @@ pub(crate) fn handle_pointer_input(
 
         camera.offset_x += delta.x;
         camera.offset_y += delta.y;
-
-        camera.dragging_from = new_position;
     }
+    camera.dragging_from = mouse_position;
 
     let scroll = mouse_wheel().1;
     if scroll != 0.0 {
@@ -117,6 +98,38 @@ pub(crate) fn handle_pointer_input(
     let mouse_position = macroquad_camera.screen_to_world(mouse_position.into());
 
     mutable_resources.highlighting_object = None;
+
+    if is_mouse_button_down(MouseButton::Left) && !*dragging_object {
+        let (width, height) = submarine.water_grid.size();
+        let (x, y) = camera.pointing_at;
+    
+        if x >= width && y >= height {
+            return;
+        }
+
+        let water_cell = submarine.water_grid.cell_mut(x, y);
+
+        match current_tool {
+            Tool::Interact => (),
+            Tool::EditWater { add: true } => water_cell.fill(),
+            Tool::EditWater { add: false } => todo!(),
+            Tool::EditWalls { add: true } => water_cell.make_wall(),
+            Tool::EditWalls { add: false } => water_cell.clear_wall(),
+            Tool::EditWires { color } => submarine.wire_grid.make_wire(x, y, *color),
+        }
+
+        mutable_resources.walls_updated = true;
+        mutable_resources.wires_updated = true;
+    }
+
+    if let Tool::Interact = current_tool {
+        interact(submarine, sub_index, mouse_position, game_settings, mutable_resources);
+    }
+}
+
+fn interact(submarine: &mut SubmarineState, sub_index: usize, mouse_position: Vec2, game_settings: &mut GameSettings, mutable_resources: &mut MutableSubResources) {
+    let camera = &mut game_settings.camera;
+    let dragging_object = &mut game_settings.dragging_object;
 
     for (obj_index, object) in submarine.objects.iter_mut().enumerate() {
         let draw_rect = object_rect(object);
@@ -176,27 +189,5 @@ pub(crate) fn handle_pointer_input(
         }
 
         return;
-    }
-
-    // Painting the grid
-    if is_mouse_button_down(MouseButton::Left) && !*dragging_object {
-        let (x, y) = camera.pointing_at;
-
-        if x < width && y < height {
-            let water_cell = submarine.water_grid.cell_mut(x, y);
-
-            match current_tool {
-                Tool::AddWater => water_cell.fill(),
-                Tool::AddWall => water_cell.make_wall(),
-                Tool::RemoveWall => water_cell.clear_wall(),
-                Tool::AddBrownWire => submarine.wire_grid.make_wire(x, y, WireColor::Brown),
-                Tool::AddPurpleWire => submarine.wire_grid.make_wire(x, y, WireColor::Purple),
-                Tool::AddBlueWire => submarine.wire_grid.make_wire(x, y, WireColor::Blue),
-                Tool::AddGreenWire => submarine.wire_grid.make_wire(x, y, WireColor::Green),
-            }
-
-            mutable_resources.walls_updated = true;
-            mutable_resources.wires_updated = true;
-        }
     }
 }

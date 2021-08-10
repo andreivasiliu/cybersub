@@ -1,12 +1,6 @@
 use egui::{vec2, Align2, Color32, Label, Slider, Ui};
 
-use crate::{
-    app::{GameSettings, GameState, PlacingObject, Tool, UpdateSettings},
-    draw::DrawSettings,
-    objects::{compute_navigation, OBJECT_TYPES},
-    saveload::{load, load_png, save, save_png},
-    Timings,
-};
+use crate::{Timings, app::{GameSettings, GameState, PlacingObject, Tool, UpdateSettings}, draw::DrawSettings, objects::{compute_navigation, OBJECT_TYPES}, saveload::{load, load_png, save, save_png}, wires::WireColor};
 
 pub(crate) struct UiState {
     show_total_water: bool,
@@ -241,15 +235,25 @@ pub(crate) fn draw_ui(
 
     if *show_main_settings {
         egui::Window::new("Settings").show(ctx, |ui| {
-            ui.checkbox(show_toolbar, "Show toolbar");
-            ui.checkbox(show_main_settings, "Show main settings");
-            ui.checkbox(show_navigation_info, "Show navigation info");
-            ui.checkbox(show_draw_settings, "Show draw settings");
-            ui.checkbox(show_update_settings, "Show update settings");
-            if cfg!(not(target_arch = "wasm32")) {
-                // Timing not available in browsers
-                ui.checkbox(show_timings, "Show timings");
-            }
+            ui.collapsing("Show windows", |ui| {
+                ui.checkbox(show_toolbar, "Show toolbar");
+                ui.checkbox(show_main_settings, "Show main settings");
+                ui.checkbox(show_navigation_info, "Show navigation info");
+                ui.checkbox(show_draw_settings, "Show draw settings");
+                ui.checkbox(show_update_settings, "Show update settings");
+                if cfg!(not(target_arch = "wasm32")) {
+                    // Timing not available in browsers
+                    ui.checkbox(show_timings, "Show timings");
+                }
+            });
+            ui.collapsing("Performance settings", |ui| {
+                ui.checkbox(draw_sea_caustics, "Draw caustics");
+                ui.checkbox(draw_water, "Draw water");
+                ui.checkbox(update_water, "Update water")
+                    .on_hover_text("Warning: this will lock the submarine's vertical acceleration");
+                ui.checkbox(draw_egui, "Draw UI")
+                    .on_hover_text("Click the top-left gear button to re-enable the UI");
+            });
             ui.horizontal(|ui| {
                 ui.label("Zoom:");
                 ui.add(Slider::new(&mut camera.zoom, -512..=36));
@@ -270,14 +274,34 @@ pub(crate) fn draw_ui(
                     if ui.button("Cancel").clicked() {
                         *placing_object = None;
                     }
-                } else {
-                    ui.radio_value(current_tool, Tool::AddWater, "Add Water");
-                    ui.radio_value(current_tool, Tool::AddWall, "Add Walls");
-                    ui.radio_value(current_tool, Tool::AddPurpleWire, "Purple Wires");
-                    ui.radio_value(current_tool, Tool::AddBrownWire, "Brown Wires");
-                    ui.radio_value(current_tool, Tool::AddBlueWire, "Blue Wires");
-                    ui.radio_value(current_tool, Tool::AddGreenWire, "Green Wires");
-                    ui.radio_value(current_tool, Tool::RemoveWall, "Remove Walls");
+                } else if let Tool::Interact = current_tool {
+                    ui.radio_value(current_tool, Tool::Interact, "Interact");
+                    ui.radio_value(current_tool, Tool::EditWater { add: true }, "Edit Water");
+                    ui.radio_value(current_tool, Tool::EditWalls { add: true }, "Edit Walls");
+                    ui.radio_value(current_tool, Tool::EditWires { color: crate::wires::WireColor::Brown }, "Edit Wires");
+                } else if let Tool::EditWater { add } = current_tool {
+                    ui.label("Edit water:");
+                    ui.radio_value(add, true, "Add");
+                    ui.radio_value(add, false, "Remove");
+                    if ui.button("Cancel").clicked() {
+                        *current_tool = Tool::Interact
+                    }
+                } else if let Tool::EditWalls { add } = current_tool {
+                    ui.label("Edit walls:");
+                    ui.radio_value(add, true, "Add");
+                    ui.radio_value(add, false, "Remove");
+                    if ui.button("Cancel").clicked() {
+                        *current_tool = Tool::Interact
+                    }
+                } else if let Tool::EditWires { color } = current_tool {
+                    ui.label("Edit wires:");
+                    ui.radio_value(color, WireColor::Purple, "Purple");
+                    ui.radio_value(color, WireColor::Brown, "Brown");
+                    ui.radio_value(color, WireColor::Blue, "Blue");
+                    ui.radio_value(color, WireColor::Green, "Green");
+                    if ui.button("Cancel").clicked() {
+                        *current_tool = Tool::Interact
+                    }
                 }
             });
         });

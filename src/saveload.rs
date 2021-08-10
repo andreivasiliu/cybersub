@@ -1,7 +1,7 @@
 use std::io::Read;
 
 use flate2::read::GzDecoder;
-use macroquad::prelude::{Image, ImageFormat, Texture2D, BLACK};
+use macroquad::prelude::{BLACK, FilterMode, Image, ImageFormat, Texture2D};
 use png::{BitDepth, ColorType, Decoder, Encoder};
 
 use crate::{
@@ -23,6 +23,7 @@ pub(crate) fn load_from_file_data(
     let water_grid = load_png_from_bytes(&files.water_grid)?;
     let objects = load_objects_from_yaml(&files.objects)?;
     let background = Texture2D::from_file_with_format(&files.background, Some(ImageFormat::Png));
+    background.set_filter(FilterMode::Nearest);
 
     Ok((water_grid, background, objects))
 }

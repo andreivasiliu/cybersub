@@ -23,7 +23,7 @@ pub(crate) enum WireValue {
     Logic { value: i8, signal: u16 },
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum WireColor {
     Purple = 0,
     Brown = 1,
