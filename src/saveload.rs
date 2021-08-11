@@ -1,11 +1,13 @@
 use std::io::Read;
 
 use flate2::read::GzDecoder;
-use macroquad::prelude::{BLACK, FilterMode, Image, ImageFormat, Texture2D};
+use macroquad::prelude::{FilterMode, Image, ImageFormat, Texture2D, BLACK};
 use png::{BitDepth, ColorType, Decoder, Encoder};
 
 use crate::{
+    app::SubmarineState,
     objects::Object,
+    resources::MutableSubResources,
     rocks::{RockGrid, RockType},
     water::WaterGrid,
     wires::{WireColor, WireGrid},
@@ -15,20 +17,34 @@ pub struct SubmarineFileData {
     pub water_grid: Vec<u8>,
     pub background: Vec<u8>,
     pub objects: Vec<u8>,
+    pub wires: Vec<u8>,
 }
 
 pub(crate) fn load_from_file_data(
     files: SubmarineFileData,
-) -> Result<(WaterGrid, Texture2D, Vec<Object>), String> {
+) -> Result<(WaterGrid, Texture2D, Vec<Object>, WireGrid), String> {
     let water_grid = load_png_from_bytes(&files.water_grid)?;
     let objects = load_objects_from_yaml(&files.objects)?;
+
     let background = Texture2D::from_file_with_format(&files.background, Some(ImageFormat::Png));
     background.set_filter(FilterMode::Nearest);
 
-    Ok((water_grid, background, objects))
+    let (width, height) = water_grid.size();
+    let wire_grid = load_wires_from_yaml(&files.wires, width, height)?;
+
+    Ok((water_grid, background, objects, wire_grid))
 }
 
-pub(crate) fn save(grid: &WaterGrid) -> Result<(), String> {
+pub(crate) fn save_to_file_data(
+    submarine: &SubmarineState,
+    _resources: &MutableSubResources,
+) -> SubmarineFileData {
+    let _wires = save_wires_to_yaml(&submarine.wire_grid);
+
+    todo!()
+}
+
+pub(crate) fn save_grid_to_bin(grid: &WaterGrid) -> Result<(), String> {
     if cfg!(target_arch = "wasm32") {
         return Err("Saving not yet possible on browsers".to_string());
     }
@@ -46,7 +62,7 @@ pub(crate) fn save(grid: &WaterGrid) -> Result<(), String> {
     Ok(())
 }
 
-pub(crate) fn load() -> Result<WaterGrid, String> {
+pub(crate) fn load_grid_from_bin() -> Result<WaterGrid, String> {
     if cfg!(target_arch = "wasm32") {
         return Err("Loading not yet possible on browsers".to_string());
     }
@@ -62,7 +78,7 @@ pub(crate) fn load() -> Result<WaterGrid, String> {
     Ok(grid)
 }
 
-pub(crate) fn save_png(grid: &WaterGrid) -> Result<(), String> {
+pub(crate) fn save_grid_to_png(grid: &WaterGrid) -> Result<(), String> {
     if cfg!(target_arch = "wasm32") {
         return Err("Saving not yet possible on browsers".to_string());
     }
@@ -153,7 +169,7 @@ pub(crate) fn load_png_from_bytes(bytes: &[u8]) -> Result<WaterGrid, String> {
     load_png_from_decoder(png_decoder)
 }
 
-pub(crate) fn load_png() -> Result<WaterGrid, String> {
+pub(crate) fn load_water_from_png() -> Result<WaterGrid, String> {
     if cfg!(target_arch = "wasm32") {
         return Err("Loading not yet possible on browsers".to_string());
     }
@@ -165,148 +181,12 @@ pub(crate) fn load_png() -> Result<WaterGrid, String> {
     load_png_from_decoder(png_decoder)
 }
 
-pub(crate) fn load_wires(width: usize, height: usize) -> WireGrid {
-    let mut grid = WireGrid::new(width, height);
+fn load_wires_from_yaml(bytes: &[u8], width: usize, height: usize) -> Result<WireGrid, String> {
+    let wire_points: Vec<(WireColor, Vec<(usize, usize)>)> = serde_yaml::from_slice(bytes)
+        .map_err(|err| format!("Could not load wires from YAML file: {}", err))?;
+    let mut wire_grid = WireGrid::new(width, height);
 
-    let wires = &[
-        // Reactor to first junction box
-        (
-            WireColor::Green,
-            &[(141, 81), (141, 71), (183, 71), (183, 73)][..],
-        ),
-        // First junction box to lamp
-        (
-            WireColor::Purple,
-            &[(186, 74), (187, 74), (187, 71), (163, 71), (163, 74)],
-        ),
-        // First junction box to left large pump
-        (
-            WireColor::Brown,
-            &[(186, 75), (187, 75), (187, 71), (78, 71), (78, 80)],
-        ),
-        // Second junction box to right large pump
-        (
-            WireColor::Purple,
-            &[(193, 77), (194, 77), (194, 71), (292, 71), (292, 80)],
-        ),
-        // First junctin box to second junction box
-        (
-            WireColor::Green,
-            &[(186, 77), (187, 77), (187, 71), (190, 71), (190, 72)],
-        ),
-        // Main gauge to right pump gauge
-        (
-            WireColor::Green,
-            &[
-                (119, 58),
-                (119, 60),
-                (124, 60),
-                (124, 46),
-                (224, 46),
-                (224, 71),
-                (279, 71),
-                (279, 73),
-            ],
-        ),
-        // Main gauge to left pump gauge
-        (
-            WireColor::Purple,
-            &[
-                (119, 58),
-                (119, 60),
-                (114, 60),
-                (114, 46),
-                (75, 46),
-                (75, 71),
-                (66, 71),
-                (66, 73),
-            ],
-        ),
-        // Left pump gauge to pump
-        (
-            WireColor::Green,
-            &[(66, 77), (66, 79), (71, 79), (71, 71), (81, 71), (81, 79)],
-        ),
-        // Right pump gauge to pump
-        (
-            WireColor::Green,
-            &[
-                (279, 76),
-                (279, 78),
-                (282, 78),
-                (282, 71),
-                (295, 71),
-                (295, 80),
-            ],
-        ),
-        // Second junction box to nav controller
-        (
-            WireColor::Brown,
-            &[
-                (193, 74),
-                (194, 74),
-                (194, 71),
-                (224, 71),
-                (224, 46),
-                (96, 46),
-                (96, 54),
-                (97, 54),
-            ],
-        ),
-        // Nav controller to main gauge
-        (
-            WireColor::Blue,
-            &[(103, 54), (115, 54), (115, 53), (119, 53), (119, 54)],
-        ),
-        // Second junction box to sonar display
-        (
-            WireColor::Blue,
-            &[
-                (193, 76),
-                (194, 76),
-                (194, 71),
-                (224, 71),
-                (224, 46),
-                (131, 46),
-                (131, 63),
-                (132, 63),
-            ],
-        ),
-        // First junction box to engine
-        (
-            WireColor::Blue,
-            &[
-                (186, 76),
-                (187, 76),
-                (187, 71),
-                (39, 71),
-                (39, 67),
-                (37, 67),
-            ],
-        ),
-        // Nav controller to engine
-        (
-            WireColor::Green,
-            &[
-                (103, 56),
-                (104, 56),
-                (104, 46),
-                (64, 46),
-                (64, 47),
-                (51, 47),
-                (51, 48),
-                (46, 48),
-                (46, 49),
-                (42, 49),
-                (42, 50),
-                (39, 50),
-                (39, 69),
-                (37, 69),
-            ],
-        ),
-    ];
-
-    for (color, wire_points) in wires {
+    for (color, wire_points) in wire_points {
         for pair in wire_points.windows(2) {
             let [(x1, y1), (x2, y2)] = match pair {
                 [p1, p2] => [p1, p2],
@@ -318,13 +198,23 @@ pub(crate) fn load_wires(width: usize, height: usize) -> WireGrid {
 
             for y in *y1..=*y2 {
                 for x in *x1..=*x2 {
-                    grid.make_wire(x, y, *color);
+                    wire_grid.make_wire(x, y, color);
                 }
             }
         }
     }
 
-    grid
+    Ok(wire_grid)
+}
+
+fn save_wires_to_yaml(wire_grid: &WireGrid) -> Vec<u8> {
+    let wire_points = wire_grid.wire_points();
+
+    serde_yaml::to_vec(&wire_points).unwrap()
+}
+
+fn load_objects_from_yaml(object_bytes: &[u8]) -> Result<Vec<Object>, String> {
+    serde_yaml::from_slice(object_bytes).map_err(|err| err.to_string())
 }
 
 pub(crate) fn load_rocks_from_png(bytes: &[u8]) -> RockGrid {
@@ -372,8 +262,4 @@ fn load_rocks_from_image(image: Image) -> RockGrid {
     grid.update_edges();
 
     grid
-}
-
-pub(crate) fn load_objects_from_yaml(object_bytes: &[u8]) -> Result<Vec<Object>, String> {
-    serde_yaml::from_slice(object_bytes).map_err(|err| err.to_string())
 }

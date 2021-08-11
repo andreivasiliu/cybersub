@@ -1,6 +1,6 @@
 use macroquad::prelude::{
-    is_key_down, is_mouse_button_down, is_mouse_button_pressed,
-    is_mouse_button_released, mouse_position, mouse_wheel, KeyCode, MouseButton, Rect, Vec2,
+    is_key_down, is_mouse_button_down, is_mouse_button_pressed, is_mouse_button_released,
+    mouse_position, mouse_wheel, KeyCode, MouseButton, Rect, Vec2,
 };
 
 use crate::{
@@ -102,7 +102,7 @@ pub(crate) fn handle_pointer_input(
     if is_mouse_button_down(MouseButton::Left) && !*dragging_object {
         let (width, height) = submarine.water_grid.size();
         let (x, y) = camera.pointing_at;
-    
+
         if x >= width && y >= height {
             return;
         }
@@ -123,11 +123,23 @@ pub(crate) fn handle_pointer_input(
     }
 
     if let Tool::Interact = current_tool {
-        interact(submarine, sub_index, mouse_position, game_settings, mutable_resources);
+        interact(
+            submarine,
+            sub_index,
+            mouse_position,
+            game_settings,
+            mutable_resources,
+        );
     }
 }
 
-fn interact(submarine: &mut SubmarineState, sub_index: usize, mouse_position: Vec2, game_settings: &mut GameSettings, mutable_resources: &mut MutableSubResources) {
+fn interact(
+    submarine: &mut SubmarineState,
+    sub_index: usize,
+    mouse_position: Vec2,
+    game_settings: &mut GameSettings,
+    mutable_resources: &mut MutableSubResources,
+) {
     let camera = &mut game_settings.camera;
     let dragging_object = &mut game_settings.dragging_object;
 

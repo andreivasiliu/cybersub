@@ -1,6 +1,13 @@
 use egui::{vec2, Align2, Color32, Label, Slider, Ui};
 
-use crate::{Timings, app::{GameSettings, GameState, PlacingObject, Tool, UpdateSettings}, draw::DrawSettings, objects::{compute_navigation, OBJECT_TYPES}, saveload::{load, load_png, save, save_png}, wires::WireColor};
+use crate::{
+    app::{GameSettings, GameState, PlacingObject, Tool, UpdateSettings},
+    draw::DrawSettings,
+    objects::{compute_navigation, OBJECT_TYPES},
+    saveload::{load_grid_from_bin, load_water_from_png, save_grid_to_bin, save_grid_to_png},
+    wires::WireColor,
+    Timings,
+};
 
 pub(crate) struct UiState {
     show_total_water: bool,
@@ -101,28 +108,28 @@ pub(crate) fn draw_ui(
                         let grid = &mut submarine.water_grid;
 
                         if ui.button("Save grid").clicked() {
-                            match save(grid) {
+                            match save_grid_to_bin(grid) {
                                 Ok(()) => (),
                                 Err(err) => *error_message = Some(err),
                             }
                         }
 
                         if ui.button("Load grid").clicked() {
-                            match load() {
+                            match load_grid_from_bin() {
                                 Ok(new_grid) => *grid = new_grid,
                                 Err(err) => *error_message = Some(err),
                             }
                         }
 
                         if ui.button("Save grid as PNG").clicked() {
-                            match save_png(grid) {
+                            match save_grid_to_png(grid) {
                                 Ok(()) => (),
                                 Err(err) => *error_message = Some(err),
                             }
                         }
 
                         if ui.button("Load grid from PNG").clicked() {
-                            match load_png() {
+                            match load_water_from_png() {
                                 Ok(new_grid) => *grid = new_grid,
                                 Err(err) => *error_message = Some(err),
                             }

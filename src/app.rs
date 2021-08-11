@@ -1,4 +1,17 @@
-use crate::{SubmarineFileData, collisions::{update_rock_collisions, update_submarine_collisions}, draw::{draw_game, Camera, DrawSettings}, input::{handle_keyboard_input, handle_pointer_input}, objects::{update_objects, Object, ObjectType}, resources::{MutableResources, MutableSubResources, Resources}, rocks::RockGrid, saveload::{load_from_file_data, load_rocks_from_png, load_wires}, sonar::{find_visible_edge_cells, Sonar}, ui::{draw_ui, UiState}, water::WaterGrid, wires::{WireColor, WireGrid}};
+use crate::{
+    collisions::{update_rock_collisions, update_submarine_collisions},
+    draw::{draw_game, Camera, DrawSettings},
+    input::{handle_keyboard_input, handle_pointer_input},
+    objects::{update_objects, Object, ObjectType},
+    resources::{MutableResources, MutableSubResources, Resources},
+    rocks::RockGrid,
+    saveload::{load_from_file_data, load_rocks_from_png, save_to_file_data},
+    sonar::{find_visible_edge_cells, Sonar},
+    ui::{draw_ui, UiState},
+    water::WaterGrid,
+    wires::{WireColor, WireGrid},
+    SubmarineFileData,
+};
 
 pub struct CyberSubApp {
     pub timings: Timings,
@@ -144,9 +157,8 @@ impl Default for CyberSubApp {
 
 impl CyberSubApp {
     pub fn load_submarine(&mut self, file_data: SubmarineFileData) -> Result<(), String> {
-        let (water_grid, background, objects) = load_from_file_data(file_data)?;
+        let (water_grid, background, objects, wire_grid) = load_from_file_data(file_data)?;
         let (width, height) = water_grid.size();
-        let wire_grid = load_wires(width, height);
 
         // Middle of the world
         let (rock_width, rock_height) = self.game_state.rock_grid.size();
@@ -185,6 +197,21 @@ impl CyberSubApp {
         Ok(())
     }
 
+    pub fn save_submarines(&mut self) -> Vec<SubmarineFileData> {
+        let mut submarine_file_data = Vec::new();
+
+        for (submarine, resources) in self
+            .game_state
+            .submarines
+            .iter()
+            .zip(&self.mutable_sub_resources)
+        {
+            submarine_file_data.push(save_to_file_data(submarine, resources));
+        }
+
+        submarine_file_data
+    }
+
     pub fn load_rocks(&mut self, world_bytes: &[u8]) {
         self.game_state.rock_grid = load_rocks_from_png(world_bytes);
     }
@@ -196,6 +223,7 @@ impl CyberSubApp {
                 water_grid: include_bytes!("../docs/dugong/water_grid.png").to_vec(),
                 background: include_bytes!("../docs/dugong/background.png").to_vec(),
                 objects: include_bytes!("../docs/dugong/objects.yaml").to_vec(),
+                wires: include_bytes!("../docs/dugong/wires.yaml").to_vec(),
             })
             .ok();
         }
@@ -365,9 +393,7 @@ impl CyberSubApp {
     }
 
     pub fn handle_keyboard_input(&mut self) {
-        handle_keyboard_input(
-            &mut self.game_settings.camera,
-        );
+        handle_keyboard_input(&mut self.game_settings.camera);
     }
 
     pub fn draw_game(&mut self) {

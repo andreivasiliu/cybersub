@@ -110,10 +110,12 @@ async fn load_submarine_files(name: &str) -> Result<SubmarineFileData, String> {
     let water_grid = load_sub_file("water_grid.png").await?;
     let background = load_sub_file("background.png").await?;
     let objects = load_sub_file("objects.yaml").await?;
+    let wires = load_sub_file("wires.yaml").await?;
 
     Ok(SubmarineFileData {
         water_grid,
         background,
         objects,
+        wires,
     })
 }
