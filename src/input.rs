@@ -103,7 +103,7 @@ pub(crate) fn handle_pointer_input(
         let (width, height) = submarine.water_grid.size();
         let (x, y) = camera.pointing_at;
 
-        if x >= width && y >= height {
+        if x >= width || y >= height {
             return;
         }
 
@@ -112,7 +112,7 @@ pub(crate) fn handle_pointer_input(
         match current_tool {
             Tool::Interact => (),
             Tool::EditWater { add: true } => water_cell.fill(),
-            Tool::EditWater { add: false } => todo!(),
+            Tool::EditWater { add: false } => water_cell.empty(),
             Tool::EditWalls { add: true } => water_cell.make_wall(),
             Tool::EditWalls { add: false } => water_cell.clear_wall(),
             Tool::EditWires { color } => submarine.wire_grid.make_wire(x, y, *color),

@@ -140,7 +140,7 @@ impl Default for CyberSubApp {
                 draw_engine_turbulence: true,
             },
             update_settings: UpdateSettings {
-                update_water: true,
+                update_water: !cfg!(debug_assertions), // Very expensive in debug mode
                 update_wires: true,
                 update_sonar: true,
                 update_objects: true,
@@ -289,7 +289,7 @@ impl CyberSubApp {
                         }
                     }
                     if self.update_settings.update_objects {
-                        update_objects(submarine);
+                        update_objects(submarine, mutable_resources);
                     }
                     if self.update_settings.update_sonar {
                         update_sonar(

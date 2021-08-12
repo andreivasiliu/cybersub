@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::app::{Navigation, SubmarineState};
+use crate::{app::{Navigation, SubmarineState}, resources::MutableSubResources};
 
 #[derive(Serialize, Deserialize)]
 pub(crate) struct Object {
@@ -34,7 +34,14 @@ pub(crate) enum ObjectType {
         #[serde(default, skip_serializing_if = "is_default")]
         value: i8,
     },
-    // SmallPump,
+    SmallPump {
+        #[serde(default, skip_serializing_if = "is_default")]
+        target_speed: i8,
+        #[serde(default, skip_serializing_if = "is_default")]
+        speed: i8,
+        #[serde(default, skip_serializing_if = "is_default")]
+        progress: u8,
+    },
     LargePump {
         #[serde(default, skip_serializing_if = "is_default")]
         target_speed: i8,
@@ -128,6 +135,14 @@ pub(crate) const OBJECT_TYPES: &'static [(&'static str, ObjectType)] = &[
     ("Lamp", ObjectType::Lamp),
     ("Gauge", ObjectType::Gauge { value: 0 }),
     (
+        "Small pump",
+        ObjectType::SmallPump {
+            target_speed: 0,
+            speed: 0,
+            progress: 0,
+        },
+    ),
+    (
         "Large pump",
         ObjectType::LargePump {
             target_speed: 0,
@@ -165,7 +180,7 @@ pub(crate) const OBJECT_TYPES: &'static [(&'static str, ObjectType)] = &[
 ];
 
 // What an object does on every physics update tick.
-pub(crate) fn update_objects(submarine: &mut SubmarineState) {
+pub(crate) fn update_objects(submarine: &mut SubmarineState, mutable_resources: &mut MutableSubResources) {
     let SubmarineState {
         objects,
         water_grid,
@@ -204,9 +219,11 @@ pub(crate) fn update_objects(submarine: &mut SubmarineState) {
                         if should_be_open(x) {
                             if !cell.is_inside() {
                                 cell.make_inside();
+                                mutable_resources.walls_updated = true;
                             }
                         } else if !cell.is_wall() {
                             cell.make_wall();
+                            mutable_resources.walls_updated = true;
                         }
                     }
                 }
@@ -291,6 +308,42 @@ pub(crate) fn update_objects(submarine: &mut SubmarineState) {
                     32..=95 => 3,
                     96..=127 => 4,
                 };
+            }
+            ObjectType::SmallPump {
+                target_speed,
+                speed,
+                progress,
+            } => {
+                let cell_x = object.position.0 + 3;
+                let cell_y = object.position.1 + 2;
+
+                let cell = wire_grid.cell(cell_x as usize + 2, cell_y as usize);
+                if let Some(logic_value) = cell.receive_logic() {
+                    *target_speed = logic_value;
+                }
+                let cell = wire_grid.cell(cell_x as usize, cell_y as usize);
+                let target_speed = if cell.minimum_power(50) {
+                    *target_speed
+                } else {
+                    0
+                };
+
+                *speed = ((*speed as i16 * 9 + target_speed as i16) / 10) as i8;
+
+                if *speed >= 0 {
+                    *progress = progress.wrapping_add((*speed / 4) as u8);
+                } else {
+                    *progress = progress.wrapping_sub((speed.abs() / 4) as u8);
+                }
+
+                object.current_frame = (*progress as u8 / (u8::MAX / 4)).clamp(0, 3) as u16;
+
+                let cell_x = object.position.0 + 7;
+                let cell_y = object.position.1 + 5;
+
+                let cell = water_grid.cell_mut(cell_x as usize, cell_y as usize);
+
+                cell.add_level(*speed as i32 * 2);
             }
             ObjectType::LargePump {
                 target_speed,
@@ -467,6 +520,7 @@ pub(crate) fn interact_with_object(object: &mut Object) {
         ObjectType::Reactor { active } => *active = !*active,
         ObjectType::Lamp => (),
         ObjectType::Gauge { value } => cycle_i8(value),
+        ObjectType::SmallPump { target_speed, .. } => cycle_i8(target_speed),
         ObjectType::LargePump { target_speed, .. } => cycle_i8(target_speed),
         ObjectType::JunctionBox => (),
         ObjectType::NavController { active, .. } => *active = !*active,

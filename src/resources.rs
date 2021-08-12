@@ -23,6 +23,7 @@ pub(crate) struct Resources {
     pub reactor: Texture2D,
     pub lamp: Texture2D,
     pub gauge: Texture2D,
+    pub small_pump: Texture2D,
     pub large_pump: Texture2D,
     pub junction_box: Texture2D,
     pub nav_controller: Texture2D,
@@ -98,6 +99,7 @@ impl Resources {
         let reactor = load_texture(include_bytes!("../resources/reactor.png"));
         let lamp = load_texture(include_bytes!("../resources/lamp.png"));
         let gauge = load_texture(include_bytes!("../resources/gauge.png"));
+        let small_pump = load_texture(include_bytes!("../resources/smallpump.png"));
         let large_pump = load_texture(include_bytes!("../resources/largepump.png"));
         let junction_box = load_texture(include_bytes!("../resources/junctionbox.png"));
         let nav_controller = load_texture(include_bytes!("../resources/navcontroller.png"));
@@ -204,6 +206,7 @@ impl Resources {
             reactor,
             lamp,
             gauge,
+            small_pump,
             large_pump,
             junction_box,
             nav_controller,

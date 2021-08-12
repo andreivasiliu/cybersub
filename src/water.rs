@@ -385,6 +385,13 @@ impl WaterCell {
         self.replan();
     }
 
+    pub fn empty(&mut self) {
+        if let CellType::Inside { ref mut level, .. } = self.cell_type {
+            *level = 0;
+        }
+        self.replan();
+    }
+
     pub fn is_wall(&self) -> bool {
         matches!(self.cell_type, CellType::Wall { .. })
     }

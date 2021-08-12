@@ -35,13 +35,16 @@ pub(crate) fn find_visible_edge_cells(
     sonar.visible_edge_cells.clear();
 
     let (width, height) = rock_grid.size();
-    let (center_x, center_y) = center;
+    let center = (
+        center.0.min(width - 1),
+        center.1.min(height - 1),
+    );
 
-    let left_edge = center_x.saturating_sub(75);
-    let right_edge = center_x.saturating_add(75).min(width - 1);
+    let left_edge = center.0.saturating_sub(75);
+    let right_edge = center.0.saturating_add(75).min(width - 1);
 
-    let top_edge = center_y.saturating_sub(75);
-    let bottom_edge = center_y.saturating_add(75).min(height - 1);
+    let top_edge = center.1.saturating_sub(75);
+    let bottom_edge = center.1.saturating_add(75).min(height - 1);
 
     // Look at the edge cells in region; this averages to checking around 300 cells.
     for y in top_edge..=bottom_edge {
