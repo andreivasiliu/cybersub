@@ -33,7 +33,9 @@ async fn main() -> Result<(), String> {
     cybersub_app.load_rocks(&world);
 
     let dugong = load_submarine_files("dugong").await?;
-    cybersub_app.load_submarine(dugong)?;
+    cybersub_app.load_submarine_template("Dugong", dugong)?;
+
+    cybersub_app.add_submarine(0);
 
     let mut last_time = None;
     let mut delta_time = || {

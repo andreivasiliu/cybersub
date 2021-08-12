@@ -71,6 +71,10 @@ pub(crate) fn handle_pointer_input(
         matches!(current_tool, Tool::Interact) && is_mouse_button_down(MouseButton::Left)
     };
 
+    if is_mouse_button_pressed(MouseButton::Left) || is_mouse_button_pressed(MouseButton::Right) {
+        camera.dragging_from = mouse_position;
+    }
+
     if scrolling && !*dragging_object {
         let new_position = mouse_position;
 
@@ -81,8 +85,9 @@ pub(crate) fn handle_pointer_input(
 
         camera.offset_x += delta.x;
         camera.offset_y += delta.y;
+
+        camera.dragging_from = mouse_position;
     }
-    camera.dragging_from = mouse_position;
 
     let scroll = mouse_wheel().1;
     if scroll != 0.0 {

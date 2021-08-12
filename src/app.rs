@@ -5,7 +5,7 @@ use crate::{
     objects::{update_objects, Object, ObjectType},
     resources::{MutableResources, MutableSubResources, Resources},
     rocks::RockGrid,
-    saveload::{load_from_file_data, load_rocks_from_png, save_to_file_data},
+    saveload::{load_from_file_data, load_rocks_from_png, save_to_file_data, SubmarineData},
     sonar::{find_visible_edge_cells, Sonar},
     ui::{draw_ui, UiState},
     water::WaterGrid,
@@ -36,8 +36,9 @@ pub(crate) struct GameSettings {
     pub highlighting_settings: bool,
     pub last_draw: Option<f64>,
     pub animation_ticks: u32,
-    pub add_submarine: bool,
+    pub add_submarine: Option<usize>,
     pub placing_object: Option<PlacingObject>,
+    pub submarine_templates: Vec<(String, SubmarineData)>,
 }
 
 pub(crate) struct UpdateSettings {
@@ -118,8 +119,9 @@ impl Default for CyberSubApp {
                 highlighting_settings: false,
                 last_draw: None,
                 animation_ticks: 0,
-                add_submarine: false,
+                add_submarine: None,
                 placing_object: None,
+                submarine_templates: Vec::new(),
             },
             game_state: GameState {
                 last_update: None,
@@ -156,8 +158,13 @@ impl Default for CyberSubApp {
 }
 
 impl CyberSubApp {
-    pub fn load_submarine(&mut self, file_data: SubmarineFileData) -> Result<(), String> {
-        let (water_grid, background, objects, wire_grid) = load_from_file_data(file_data)?;
+    fn load_submarine(&mut self, template: SubmarineData) -> Result<(), String> {
+        let SubmarineData {
+            water_grid,
+            background,
+            objects,
+            wire_grid,
+        } = template;
         let (width, height) = water_grid.size();
 
         // Middle of the world
@@ -197,19 +204,32 @@ impl CyberSubApp {
         Ok(())
     }
 
-    pub fn save_submarines(&mut self) -> Vec<SubmarineFileData> {
-        let mut submarine_file_data = Vec::new();
+    pub fn load_submarine_template(
+        &mut self,
+        name: impl Into<String>,
+        file_data: SubmarineFileData,
+    ) -> Result<usize, String> {
+        let template = load_from_file_data(file_data)?;
+        self.game_settings
+            .submarine_templates
+            .push((name.into(), template));
+        Ok(self.game_settings.submarine_templates.len() - 1)
+    }
 
-        for (submarine, resources) in self
-            .game_state
-            .submarines
-            .iter()
-            .zip(&self.mutable_sub_resources)
-        {
-            submarine_file_data.push(save_to_file_data(submarine, resources));
+    pub fn add_submarine(&mut self, template_index: usize) {
+        self.game_settings.add_submarine = Some(template_index);
+    }
+
+    pub fn save_submarines(&mut self) -> Result<SubmarineFileData, String> {
+        let current_submarine = self.game_settings.current_submarine;
+        let submarine = self.game_state.submarines.get(current_submarine);
+        let resources = self.mutable_sub_resources.get(current_submarine);
+
+        if let (Some(submarine), Some(resources)) = (submarine, resources) {
+            return save_to_file_data(submarine, resources);
         }
 
-        submarine_file_data
+        Err("No submarine selected".to_string())
     }
 
     pub fn load_rocks(&mut self, world_bytes: &[u8]) {
@@ -217,15 +237,16 @@ impl CyberSubApp {
     }
 
     pub fn update_game(&mut self, game_time: f64) {
-        if self.game_settings.add_submarine {
-            self.game_settings.add_submarine = false;
-            self.load_submarine(SubmarineFileData {
-                water_grid: include_bytes!("../docs/dugong/water_grid.png").to_vec(),
-                background: include_bytes!("../docs/dugong/background.png").to_vec(),
-                objects: include_bytes!("../docs/dugong/objects.yaml").to_vec(),
-                wires: include_bytes!("../docs/dugong/wires.yaml").to_vec(),
-            })
-            .ok();
+        if let Some(template_id) = self.game_settings.add_submarine {
+            self.game_settings.add_submarine = None;
+            let submarine = self
+                .game_settings
+                .submarine_templates
+                .get(template_id)
+                .expect("Template was requested this frame")
+                .clone();
+
+            self.load_submarine(submarine.1).ok();
         }
 
         let last_update = &mut self.game_state.last_update;
@@ -367,6 +388,7 @@ impl CyberSubApp {
                 &mut self.game_state,
                 &mut self.draw_settings,
                 &mut self.update_settings,
+                &mut self.mutable_sub_resources,
                 &self.timings,
             );
         }

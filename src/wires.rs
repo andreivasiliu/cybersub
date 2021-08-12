@@ -169,7 +169,7 @@ impl WireGrid {
         }
     }
 
-    pub fn wire_sets(&self) -> Vec<(WireColor, Vec<(usize, usize)>)> {
+    fn wire_sets(&self) -> Vec<(WireColor, Vec<(usize, usize)>)> {
         let mut wire_set_map = BTreeMap::new();
         let mut wire_sets: Vec<(WireColor, Vec<(usize, usize)>)> = Vec::new();
 
@@ -278,7 +278,7 @@ impl WireGrid {
         wire_sets
     }
 
-    pub(crate) fn wire_points(&self) -> Vec<(WireColor, Vec<(usize, usize)>)> {
+    pub fn wire_points(&self) -> Vec<(WireColor, Vec<(usize, usize)>)> {
         let wire_sets = self.wire_sets();
         let mut wire_points = Vec::new();
 

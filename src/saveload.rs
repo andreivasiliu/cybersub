@@ -1,7 +1,10 @@
-use std::io::Read;
+use std::{
+    io::{Read, Write},
+    path::Path,
+};
 
 use flate2::read::GzDecoder;
-use macroquad::prelude::{FilterMode, Image, ImageFormat, Texture2D, BLACK};
+use macroquad::prelude::{Image, ImageFormat, BLACK};
 use png::{BitDepth, ColorType, Decoder, Encoder};
 
 use crate::{
@@ -20,30 +23,114 @@ pub struct SubmarineFileData {
     pub wires: Vec<u8>,
 }
 
-pub(crate) fn load_from_file_data(
-    files: SubmarineFileData,
-) -> Result<(WaterGrid, Texture2D, Vec<Object>, WireGrid), String> {
-    let water_grid = load_png_from_bytes(&files.water_grid)?;
-    let objects = load_objects_from_yaml(&files.objects)?;
+#[derive(Clone)]
+pub(crate) struct SubmarineData {
+    pub water_grid: WaterGrid,
+    pub background: Image,
+    pub objects: Vec<Object>,
+    pub wire_grid: WireGrid,
+}
 
-    let background = Texture2D::from_file_with_format(&files.background, Some(ImageFormat::Png));
-    background.set_filter(FilterMode::Nearest);
+pub(crate) fn load_from_file_data(file_data: SubmarineFileData) -> Result<SubmarineData, String> {
+    let water_grid = load_water_from_png(&file_data.water_grid)?;
+    let objects = load_objects_from_yaml(&file_data.objects)?;
+
+    let background = Image::from_file_with_format(&file_data.background, Some(ImageFormat::Png));
 
     let (width, height) = water_grid.size();
-    let wire_grid = load_wires_from_yaml(&files.wires, width, height)?;
+    let wire_grid = load_wires_from_yaml(&file_data.wires, width, height)?;
 
-    Ok((water_grid, background, objects, wire_grid))
+    Ok(SubmarineData {
+        water_grid,
+        background,
+        objects,
+        wire_grid,
+    })
 }
 
 pub(crate) fn save_to_file_data(
     submarine: &SubmarineState,
-    _resources: &MutableSubResources,
-) -> SubmarineFileData {
-    let _wires = save_wires_to_yaml(&submarine.wire_grid);
+    resources: &MutableSubResources,
+) -> Result<SubmarineFileData, String> {
+    let wires = save_wires_to_yaml(&submarine.wire_grid)?;
+    let water_grid = save_water_to_png(&submarine.water_grid)?;
+    let objects = save_objects_to_yaml(&submarine.objects)?;
+    let background = image_to_png(&resources.sub_background_image)?;
 
-    todo!()
+    Ok(SubmarineFileData {
+        water_grid,
+        background,
+        wires,
+        objects,
+    })
 }
 
+pub(crate) fn load_from_directory(path: &str) -> Result<SubmarineFileData, String> {
+    let read_file = |file_name| {
+        std::fs::read(format!("{}/{}", path, file_name))
+            .map_err(|err| format!("Could not open file {} in {}: {}", file_name, path, err))
+    };
+
+    Ok(SubmarineFileData {
+        water_grid: read_file("water_grid.png")?,
+        background: read_file("background.png")?,
+        objects: read_file("objects.yaml")?,
+        wires: read_file("wires.yaml")?,
+    })
+}
+
+pub(crate) fn save_to_directory(
+    path: &str,
+    file_data: SubmarineFileData,
+    overwrite: bool,
+) -> Result<(), String> {
+    let file_names = &[
+        ("wires.yaml", &file_data.wires),
+        ("water_grid.png", &file_data.water_grid),
+        ("objects.yaml", &file_data.objects),
+        ("background.png", &file_data.background),
+    ];
+
+    if !Path::new(path).exists() {
+        std::fs::create_dir(path)
+            .map_err(|err| format!("Could not create directory {}: {}", path, err))?;
+    } else if !overwrite {
+        return Err(format!("Path already exists: {}", path));
+    }
+
+    for (file_name, bytes) in file_names {
+        let mut file = std::fs::File::create(format!("{}/{}", path, file_name))
+            .map_err(|err| format!("Could not create {} in {}: {}", file_name, path, err))?;
+
+        file.write_all(bytes)
+            .map_err(|err| format!("Could not save {} in {}: {}", file_name, path, err))?;
+    }
+
+    Ok(())
+}
+
+fn image_to_png(image: &Image) -> Result<Vec<u8>, String> {
+    let mut png_bytes = Vec::new();
+
+    let (width, height) = (image.width(), image.height());
+    let mut png_encoder = Encoder::new(&mut png_bytes, width as u32, height as u32);
+    png_encoder.set_color(ColorType::RGBA);
+    png_encoder.set_depth(BitDepth::Eight);
+
+    let mut png_writer = png_encoder
+        .write_header()
+        .map_err(|err| format!("Could not write PNG header: {}", err))?;
+
+    png_writer
+        .write_image_data(&image.bytes)
+        .map_err(|err| format!("Could not write PNG data: {}", err))?;
+
+    drop(png_writer);
+
+    Ok(png_bytes)
+}
+
+#[allow(dead_code)]
 pub(crate) fn save_grid_to_bin(grid: &WaterGrid) -> Result<(), String> {
     if cfg!(target_arch = "wasm32") {
         return Err("Saving not yet possible on browsers".to_string());
@@ -62,6 +149,7 @@ pub(crate) fn save_grid_to_bin(grid: &WaterGrid) -> Result<(), String> {
     Ok(())
 }
 
+#[allow(dead_code)]
 pub(crate) fn load_grid_from_bin() -> Result<WaterGrid, String> {
     if cfg!(target_arch = "wasm32") {
         return Err("Loading not yet possible on browsers".to_string());
@@ -78,14 +166,20 @@ pub(crate) fn load_grid_from_bin() -> Result<WaterGrid, String> {
     Ok(grid)
 }
 
-pub(crate) fn save_grid_to_png(grid: &WaterGrid) -> Result<(), String> {
+pub(crate) fn load_water_from_png(bytes: &[u8]) -> Result<WaterGrid, String> {
+    let reader = std::io::BufReader::new(bytes);
+    let png_decoder = Decoder::new(reader);
+
+    load_water_from_decoder(png_decoder)
+}
+
+pub(crate) fn save_water_to_png(grid: &WaterGrid) -> Result<Vec<u8>, String> {
     if cfg!(target_arch = "wasm32") {
         return Err("Saving not yet possible on browsers".to_string());
     }
 
-    let file =
-        std::fs::File::create("grid.png").map_err(|err| format!("Could not save: {}", err))?;
-    let writer = std::io::BufWriter::new(file);
+    let mut bytes = Vec::new();
+    let writer = &mut bytes;
 
     let (width, height) = grid.size();
     let mut png_encoder = Encoder::new(writer, width as u32, height as u32);
@@ -117,10 +211,12 @@ pub(crate) fn save_grid_to_png(grid: &WaterGrid) -> Result<(), String> {
         .write_image_data(&data)
         .map_err(|err| format!("Could not write PNG data: {}", err))?;
 
-    Ok(())
+    drop(png_writer);
+
+    Ok(bytes)
 }
 
-fn load_png_from_decoder(png_decoder: Decoder<impl Read>) -> Result<WaterGrid, String> {
+fn load_water_from_decoder(png_decoder: Decoder<impl Read>) -> Result<WaterGrid, String> {
     let (png_info, mut png_reader) = png_decoder
         .read_info()
         .map_err(|err| format!("Could not read PNG header: {}", err))?;
@@ -162,25 +258,6 @@ fn load_png_from_decoder(png_decoder: Decoder<impl Read>) -> Result<WaterGrid, S
     Ok(grid)
 }
 
-pub(crate) fn load_png_from_bytes(bytes: &[u8]) -> Result<WaterGrid, String> {
-    let reader = std::io::BufReader::new(bytes);
-    let png_decoder = Decoder::new(reader);
-
-    load_png_from_decoder(png_decoder)
-}
-
-pub(crate) fn load_water_from_png() -> Result<WaterGrid, String> {
-    if cfg!(target_arch = "wasm32") {
-        return Err("Loading not yet possible on browsers".to_string());
-    }
-
-    let file = std::fs::File::open("grid.png").map_err(|err| format!("Could not load: {}", err))?;
-    let reader = std::io::BufReader::new(file);
-    let png_decoder = Decoder::new(reader);
-
-    load_png_from_decoder(png_decoder)
-}
-
 fn load_wires_from_yaml(bytes: &[u8], width: usize, height: usize) -> Result<WireGrid, String> {
     let wire_points: Vec<(WireColor, Vec<(usize, usize)>)> = serde_yaml::from_slice(bytes)
         .map_err(|err| format!("Could not load wires from YAML file: {}", err))?;
@@ -207,14 +284,20 @@ fn load_wires_from_yaml(bytes: &[u8], width: usize, height: usize) -> Result<Wir
     Ok(wire_grid)
 }
 
-fn save_wires_to_yaml(wire_grid: &WireGrid) -> Vec<u8> {
+fn save_wires_to_yaml(wire_grid: &WireGrid) -> Result<Vec<u8>, String> {
     let wire_points = wire_grid.wire_points();
 
-    serde_yaml::to_vec(&wire_points).unwrap()
+    serde_yaml::to_vec(&wire_points)
+        .map_err(|err| format!("Error saving submarine's wire grid: {}", err))
 }
 
 fn load_objects_from_yaml(object_bytes: &[u8]) -> Result<Vec<Object>, String> {
-    serde_yaml::from_slice(object_bytes).map_err(|err| err.to_string())
+    serde_yaml::from_slice(object_bytes)
+        .map_err(|err| format!("Error loading objects from yaml: {}", err))
+}
+
+fn save_objects_to_yaml(objects: &[Object]) -> Result<Vec<u8>, String> {
+    serde_yaml::to_vec(objects).map_err(|err| format!("Error saving objects to yaml: {}", err))
 }
 
 pub(crate) fn load_rocks_from_png(bytes: &[u8]) -> RockGrid {

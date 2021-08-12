@@ -1,15 +1,17 @@
-use egui::{vec2, Align2, Color32, Label, Slider, Ui};
+use egui::{vec2, Align2, Button, Color32, Label, Slider, Ui};
 
 use crate::{
     app::{GameSettings, GameState, PlacingObject, Tool, UpdateSettings},
     draw::DrawSettings,
     objects::{compute_navigation, OBJECT_TYPES},
-    saveload::{load_grid_from_bin, load_water_from_png, save_grid_to_bin, save_grid_to_png},
+    resources::MutableSubResources,
+    saveload::{load_from_directory, load_from_file_data, save_to_directory, save_to_file_data},
     wires::WireColor,
     Timings,
 };
 
 pub(crate) struct UiState {
+    error_message: Option<String>,
     show_total_water: bool,
     show_bars: bool,
     show_main_settings: bool,
@@ -19,12 +21,16 @@ pub(crate) struct UiState {
     show_navigation_info: bool,
     show_draw_settings: bool,
     show_update_settings: bool,
-    error_message: Option<String>,
+    show_load_dialog: bool,
+    show_save_dialog: bool,
+    submarine_name: String,
+    overwrite_save: bool,
 }
 
 impl Default for UiState {
     fn default() -> Self {
         Self {
+            error_message: None,
             show_total_water: false,
             show_bars: true,
             show_main_settings: true,
@@ -34,7 +40,10 @@ impl Default for UiState {
             show_navigation_info: false,
             show_draw_settings: false,
             show_update_settings: false,
-            error_message: None,
+            show_load_dialog: false,
+            show_save_dialog: false,
+            submarine_name: "NewSubmarine".to_string(),
+            overwrite_save: false,
         }
     }
 }
@@ -48,9 +57,11 @@ pub(crate) fn draw_ui(
     state: &mut GameState,
     draw_settings: &mut DrawSettings,
     update_settings: &mut UpdateSettings,
+    mutable_sub_resources: &[MutableSubResources],
     timings: &Timings,
 ) {
     let UiState {
+        error_message,
         show_total_water,
         show_bars,
         show_toolbar,
@@ -60,7 +71,10 @@ pub(crate) fn draw_ui(
         show_navigation_info,
         show_draw_settings,
         show_update_settings,
-        error_message,
+        show_load_dialog,
+        show_save_dialog,
+        submarine_name,
+        overwrite_save,
     } = ui_state;
 
     let GameSettings {
@@ -72,6 +86,7 @@ pub(crate) fn draw_ui(
         quit_game,
         add_submarine,
         placing_object,
+        submarine_templates,
         ..
     } = settings;
 
@@ -104,39 +119,23 @@ pub(crate) fn draw_ui(
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             egui::menu::bar(ui, |ui| {
                 egui::menu::menu(ui, "File", |ui| {
+                    if ui.button("Load submarine").clicked() {
+                        *show_load_dialog = true;
+                    }
                     if let Some(submarine) = submarines.get_mut(*current_submarine) {
-                        let grid = &mut submarine.water_grid;
-
-                        if ui.button("Save grid").clicked() {
-                            match save_grid_to_bin(grid) {
-                                Ok(()) => (),
-                                Err(err) => *error_message = Some(err),
+                        ui.scope(|ui| {
+                            ui.set_enabled(!cfg!(target_arch = "wasm32"));
+                            if ui
+                                .button("Save submarine")
+                                .on_disabled_hover_text("Not available on browsers")
+                                .clicked()
+                            {
+                                *show_save_dialog = true;
                             }
-                        }
-
-                        if ui.button("Load grid").clicked() {
-                            match load_grid_from_bin() {
-                                Ok(new_grid) => *grid = new_grid,
-                                Err(err) => *error_message = Some(err),
-                            }
-                        }
-
-                        if ui.button("Save grid as PNG").clicked() {
-                            match save_grid_to_png(grid) {
-                                Ok(()) => (),
-                                Err(err) => *error_message = Some(err),
-                            }
-                        }
-
-                        if ui.button("Load grid from PNG").clicked() {
-                            match load_water_from_png() {
-                                Ok(new_grid) => *grid = new_grid,
-                                Err(err) => *error_message = Some(err),
-                            }
-                        }
+                        });
 
                         if ui.button("Clear water").clicked() {
-                            grid.clear();
+                            submarine.water_grid.clear();
                         }
                     } else {
                         ui.label("<no submarine selected>");
@@ -145,12 +144,6 @@ pub(crate) fn draw_ui(
                     if ui.button("Show total water").clicked() {
                         *show_total_water = !*show_total_water;
                     }
-                    ui.separator();
-
-                    if ui.button("Add submarine").clicked() {
-                        *add_submarine = true;
-                    }
-
                     ui.separator();
 
                     if ui.button("Help").clicked() {
@@ -189,6 +182,15 @@ pub(crate) fn draw_ui(
                                 position: None,
                                 object_type: object_type.clone(),
                             });
+                        }
+                    }
+                });
+                egui::menu::menu(ui, "Submarines", |ui| {
+                    for (template_index, (name, _template)) in
+                        submarine_templates.iter().enumerate()
+                    {
+                        if ui.button(name).clicked() {
+                            *add_submarine = Some(template_index);
                         }
                     }
                 });
@@ -238,6 +240,87 @@ pub(crate) fn draw_ui(
                 }
             });
         });
+    }
+
+    if *show_load_dialog {
+        egui::Window::new("Load submarine")
+            .anchor(Align2::CENTER_CENTER, vec2(0.0, 0.0))
+            .show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label("Name");
+                    ui.text_edit_singleline(submarine_name);
+                });
+
+                ui.horizontal(|ui| {
+                    let load_button = Button::new("Load").enabled(!submarine_name.is_empty());
+
+                    if ui.add(load_button).clicked() {
+                        let mut load = || {
+                            if cfg!(target_arch = "wasm32") {
+                                Err("Not yet implemented on browsers".to_string())
+                            } else {
+                                let file_data = load_from_directory(submarine_name)?;
+                                let template = load_from_file_data(file_data)?;
+                                submarine_templates.push((submarine_name.to_owned(), template));
+                                Ok(())
+                            }
+                        };
+
+                        *error_message = if let Err(err) = load() {
+                            Some(err)
+                        } else {
+                            Some(format!(
+                                "Template '{}' added to Submarines menu.",
+                                submarine_name
+                            ))
+                        };
+                        *show_load_dialog = false;
+                    }
+                    if ui.button("Cancel").clicked() {
+                        *show_load_dialog = false;
+                    }
+                });
+            });
+    }
+
+    if *show_save_dialog {
+        egui::Window::new("Save submarine")
+            .anchor(Align2::CENTER_CENTER, vec2(0.0, 0.0))
+            .show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label("Name");
+                    ui.text_edit_singleline(submarine_name);
+                });
+
+                ui.checkbox(overwrite_save, "Overwrite existing files");
+
+                ui.horizontal(|ui| {
+                    let save_button = Button::new("Save").enabled(!submarine_name.is_empty());
+
+                    if ui.add(save_button).clicked() {
+                        let submarine = submarines.get(*current_submarine);
+                        let resources = mutable_sub_resources.get(*current_submarine);
+
+                        if let (Some(submarine), Some(resources)) = (submarine, resources) {
+                            let save = || {
+                                let file_data = save_to_file_data(submarine, resources)?;
+                                save_to_directory(submarine_name, file_data, *overwrite_save)
+                            };
+
+                            if let Err(err) = save() {
+                                *error_message = Some(err);
+                            }
+                        } else {
+                            *error_message = Some("No submarine selected.".to_string());
+                        }
+                        *show_save_dialog = false;
+                        *overwrite_save = false;
+                    }
+                    if ui.button("Cancel").clicked() {
+                        *show_save_dialog = false;
+                    }
+                });
+            });
     }
 
     if *show_main_settings {
@@ -420,13 +503,15 @@ pub(crate) fn draw_ui(
     }
 
     if error_message.is_some() {
-        egui::Window::new("Error").show(ctx, |ui| {
-            ui.label(error_message.as_ref().unwrap());
+        egui::Window::new("Error")
+            .anchor(Align2::CENTER_CENTER, vec2(0.0, 0.0))
+            .show(ctx, |ui| {
+                ui.label(error_message.as_ref().unwrap());
 
-            if ui.button("Close").clicked() {
-                *error_message = None;
-            }
-        });
+                if ui.button("Close").clicked() {
+                    *error_message = None;
+                }
+            });
     }
 
     if *show_help {

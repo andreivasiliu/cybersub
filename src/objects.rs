@@ -5,7 +5,7 @@ use crate::{
     resources::MutableSubResources,
 };
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub(crate) struct Object {
     pub object_type: ObjectType,
 

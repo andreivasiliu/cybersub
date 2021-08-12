@@ -40,6 +40,7 @@ pub(crate) struct MutableResources {
 }
 
 pub(crate) struct MutableSubResources {
+    pub sub_background_image: Image,
     pub sub_background: Texture2D,
     pub sub_walls: Texture2D,
     pub walls_updated: bool,
@@ -237,9 +238,13 @@ impl MutableResources {
 }
 
 impl MutableSubResources {
-    pub fn new(background: Texture2D) -> Self {
+    pub fn new(sub_background_image: Image) -> Self {
+        let sub_background = Texture2D::from_image(&sub_background_image);
+        sub_background.set_filter(FilterMode::Nearest);
+
         MutableSubResources {
-            sub_background: background,
+            sub_background_image,
+            sub_background,
             sub_walls: Texture2D::empty(),
             walls_updated: false,
             sub_wires: render_target(0, 0),
