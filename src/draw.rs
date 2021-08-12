@@ -620,6 +620,7 @@ pub(crate) fn object_size(object_type: &ObjectType) -> (usize, usize) {
         ObjectType::NavController { .. } => (9, 15),
         ObjectType::Sonar { .. } => (19, 17),
         ObjectType::Engine { .. } => (37, 20),
+        ObjectType::Battery { .. } => (8, 10),
     }
 }
 
@@ -636,6 +637,7 @@ fn object_frames(object_type: &ObjectType) -> u16 {
         ObjectType::NavController { .. } => 6,
         ObjectType::Sonar { .. } => 2,
         ObjectType::Engine { .. } => 24,
+        ObjectType::Battery { .. } => 8,
     }
 }
 
@@ -652,6 +654,7 @@ fn object_texture(object_type: &ObjectType, resources: &Resources) -> Texture2D 
         ObjectType::NavController { .. } => resources.nav_controller,
         ObjectType::Sonar { .. } => resources.sonar,
         ObjectType::Engine { .. } => resources.engine,
+        ObjectType::Battery { .. } => resources.battery,
     }
 }
 

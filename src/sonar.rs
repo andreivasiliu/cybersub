@@ -35,10 +35,7 @@ pub(crate) fn find_visible_edge_cells(
     sonar.visible_edge_cells.clear();
 
     let (width, height) = rock_grid.size();
-    let center = (
-        center.0.min(width - 1),
-        center.1.min(height - 1),
-    );
+    let center = (center.0.min(width - 1), center.1.min(height - 1));
 
     let left_edge = center.0.saturating_sub(75);
     let right_edge = center.0.saturating_add(75).min(width - 1);

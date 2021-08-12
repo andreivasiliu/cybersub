@@ -1,6 +1,9 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{app::{Navigation, SubmarineState}, resources::MutableSubResources};
+use crate::{
+    app::{Navigation, SubmarineState},
+    resources::MutableSubResources,
+};
 
 #[derive(Serialize, Deserialize)]
 pub(crate) struct Object {
@@ -71,6 +74,9 @@ pub(crate) enum ObjectType {
         #[serde(default, skip_serializing_if = "is_default")]
         progress: u8,
     },
+    Battery {
+        charge: u16,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -116,7 +122,7 @@ impl Object {
     }
 }
 
-pub(crate) const OBJECT_TYPES: &'static [(&'static str, ObjectType)] = &[
+pub(crate) const OBJECT_TYPES: &[(&str, ObjectType)] = &[
     (
         "Hatch",
         ObjectType::Door {
@@ -177,10 +183,14 @@ pub(crate) const OBJECT_TYPES: &'static [(&'static str, ObjectType)] = &[
             progress: 0,
         },
     ),
+    ("Battery", ObjectType::Battery { charge: 300 }),
 ];
 
 // What an object does on every physics update tick.
-pub(crate) fn update_objects(submarine: &mut SubmarineState, mutable_resources: &mut MutableSubResources) {
+pub(crate) fn update_objects(
+    submarine: &mut SubmarineState,
+    mutable_resources: &mut MutableSubResources,
+) {
     let SubmarineState {
         objects,
         water_grid,
@@ -504,6 +514,28 @@ pub(crate) fn update_objects(submarine: &mut SubmarineState, mutable_resources: 
                     96..=127 => 4,
                 };
             }
+            ObjectType::Battery { charge } => {
+                let cell_x = object.position.0 as usize + 2;
+                let cell_y = object.position.1 as usize + 4;
+
+                let cell = wire_grid.cell(cell_x, cell_y);
+                if cell.minimum_power(100) {
+                    // 3 minutes: 3m * 60s * 30ups
+                    *charge = (*charge + 2).min(5400);
+                }
+
+                if *charge > 0 {
+                    *charge -= 1;
+
+                    wire_grid.cell_mut(cell_x + 5, cell_y).send_power(100);
+                }
+
+                object.current_frame = if *charge == 0 {
+                    7
+                } else {
+                    7 - (*charge * 8 / 5400).clamp(1, 7)
+                };
+            }
         }
     }
 }
@@ -534,6 +566,7 @@ pub(crate) fn interact_with_object(object: &mut Object) {
             }
         }
         ObjectType::Engine { target_speed, .. } => cycle_i8(target_speed),
+        ObjectType::Battery { .. } => (),
     }
 }
 

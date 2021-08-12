@@ -202,8 +202,7 @@ impl WireGrid {
                             (None, None) => {
                                 // Make a new set
                                 wire_sets.push((color, Vec::new()));
-                                let new_set = wire_sets.len() - 1;
-                                new_set
+                                wire_sets.len() - 1
                             }
                             (None, Some(&top_set)) => {
                                 // Reuse the set from the cell above
