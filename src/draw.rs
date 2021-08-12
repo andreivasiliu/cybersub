@@ -90,7 +90,6 @@ pub(crate) fn to_screen_coords(x: usize, y: usize) -> Vec2 {
 pub(crate) fn draw_game(
     game_state: &GameState,
     game_settings: &GameSettings,
-    draw_settings: &DrawSettings,
     timings: &Timings,
     resources: &Resources,
     mutable_resources: &mut MutableResources,
@@ -101,7 +100,11 @@ pub(crate) fn draw_game(
         submarines,
         ..
     } = game_state;
-    let GameSettings { camera, .. } = game_settings;
+    let GameSettings {
+        camera,
+        draw_settings,
+        ..
+    } = game_settings;
 
     set_camera(&camera.to_macroquad_camera(None));
 

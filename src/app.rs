@@ -18,14 +18,14 @@ pub struct CyberSubApp {
     ui_state: UiState,
     game_state: GameState,
     game_settings: GameSettings,
-    draw_settings: DrawSettings,
-    update_settings: UpdateSettings,
     resources: Resources,
     mutable_resources: MutableResources,
     mutable_sub_resources: Vec<MutableSubResources>,
 }
 
 pub(crate) struct GameSettings {
+    pub draw_settings: DrawSettings,
+    pub update_settings: UpdateSettings,
     pub enable_gravity: bool,
     pub enable_inertia: bool,
     pub camera: Camera,
@@ -103,9 +103,34 @@ const HEIGHT: usize = 100;
 
 impl Default for CyberSubApp {
     fn default() -> Self {
+        let draw_settings = DrawSettings {
+            draw_egui: true,
+            draw_sea_dust: true,
+            draw_sea_caustics: true,
+            draw_rocks: true,
+            draw_background: true,
+            draw_objects: true,
+            draw_walls: true,
+            draw_wires: true,
+            draw_water: true,
+            draw_sonar: true,
+            draw_engine_turbulence: true,
+        };
+
+        let update_settings = UpdateSettings {
+            update_water: !cfg!(debug_assertions), // Very expensive in debug mode
+            update_wires: true,
+            update_sonar: true,
+            update_objects: true,
+            update_position: true,
+            update_collision: true,
+        };
+
         Self {
             timings: Timings::default(),
             game_settings: GameSettings {
+                draw_settings,
+                update_settings,
                 enable_gravity: true,
                 enable_inertia: true,
                 camera: Camera {
@@ -127,27 +152,6 @@ impl Default for CyberSubApp {
                 last_update: None,
                 rock_grid: RockGrid::new(WIDTH, HEIGHT),
                 submarines: Vec::new(),
-            },
-            draw_settings: DrawSettings {
-                draw_egui: true,
-                draw_sea_dust: true,
-                draw_sea_caustics: true,
-                draw_rocks: true,
-                draw_background: true,
-                draw_objects: true,
-                draw_walls: true,
-                draw_wires: true,
-                draw_water: true,
-                draw_sonar: true,
-                draw_engine_turbulence: true,
-            },
-            update_settings: UpdateSettings {
-                update_water: !cfg!(debug_assertions), // Very expensive in debug mode
-                update_wires: true,
-                update_sonar: true,
-                update_objects: true,
-                update_position: true,
-                update_collision: true,
             },
             ui_state: UiState::default(),
             resources: Resources::new(),
@@ -266,6 +270,7 @@ impl CyberSubApp {
 
         if let Some(last_update) = last_update {
             let mut delta = (game_time - *last_update).clamp(0.0, 0.5);
+            let update_settings = &self.game_settings.update_settings;
 
             while delta > 0.0 {
                 // 30 updates per second, regardless of FPS
@@ -281,7 +286,7 @@ impl CyberSubApp {
                         .get_mut(sub_index)
                         .expect("All submarines should have a MutableSubResources instance");
 
-                    if self.update_settings.update_position {
+                    if update_settings.update_position {
                         let navigation = &mut submarine.navigation;
                         navigation.acceleration.1 =
                             ((submarine.water_grid.total_water() as i32 - 1_500_000) as f32
@@ -296,23 +301,23 @@ impl CyberSubApp {
                         navigation.position.1 += navigation.speed.1 / 256;
                     }
 
-                    if self.update_settings.update_water {
+                    if update_settings.update_water {
                         submarine.water_grid.update(
                             self.game_settings.enable_gravity,
                             self.game_settings.enable_inertia,
                         );
                     }
-                    if self.update_settings.update_wires {
+                    if update_settings.update_wires {
                         for _ in 0..3 {
                             submarine
                                 .wire_grid
                                 .update(&mut mutable_resources.signals_updated);
                         }
                     }
-                    if self.update_settings.update_objects {
+                    if update_settings.update_objects {
                         update_objects(submarine, mutable_resources);
                     }
-                    if self.update_settings.update_sonar {
+                    if update_settings.update_sonar {
                         update_sonar(
                             &mut submarine.sonar,
                             &submarine.navigation,
@@ -322,7 +327,7 @@ impl CyberSubApp {
                         );
                     }
 
-                    if self.update_settings.update_collision {
+                    if update_settings.update_collision {
                         mutable_resources.collisions.clear();
                         update_rock_collisions(
                             &submarine.water_grid,
@@ -334,7 +339,7 @@ impl CyberSubApp {
                     }
                 }
 
-                if self.update_settings.update_collision {
+                if update_settings.update_collision {
                     for (sub1_index, submarine1) in self.game_state.submarines.iter().enumerate() {
                         for (sub2_index, submarine2) in
                             self.game_state.submarines.iter().enumerate()
@@ -380,14 +385,12 @@ impl CyberSubApp {
     /// Called each time the UI needs repainting, which may be many times per second.
     /// Put your widgets into a `SidePanel`, `TopPanel`, `CentralPanel`, `Window` or `Area`.
     pub fn draw_ui(&mut self, ctx: &egui::CtxRef) {
-        if self.draw_settings.draw_egui {
+        if self.game_settings.draw_settings.draw_egui {
             draw_ui(
                 ctx,
                 &mut self.ui_state,
                 &mut self.game_settings,
                 &mut self.game_state,
-                &mut self.draw_settings,
-                &mut self.update_settings,
                 &mut self.mutable_sub_resources,
                 &self.timings,
             );
@@ -409,7 +412,6 @@ impl CyberSubApp {
                 sub_index,
                 mutable_resources,
                 &mut self.game_settings,
-                &mut self.draw_settings.draw_egui,
             );
         }
     }
@@ -422,7 +424,6 @@ impl CyberSubApp {
         draw_game(
             &self.game_state,
             &self.game_settings,
-            &self.draw_settings,
             &self.timings,
             &self.resources,
             &mut self.mutable_resources,

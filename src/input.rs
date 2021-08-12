@@ -40,7 +40,6 @@ pub(crate) fn handle_pointer_input(
     sub_index: usize,
     mutable_resources: &mut MutableSubResources,
     game_settings: &mut GameSettings,
-    draw_egui: &mut bool,
 ) {
     let GameSettings {
         camera,
@@ -49,6 +48,8 @@ pub(crate) fn handle_pointer_input(
         highlighting_settings,
         ..
     } = game_settings;
+
+    let draw_egui = &mut game_settings.draw_settings.draw_egui;
 
     let macroquad_camera = camera.to_macroquad_camera(Some(submarine.navigation.position));
     let mouse_position = mouse_position();

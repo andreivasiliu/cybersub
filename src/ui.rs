@@ -55,8 +55,6 @@ pub(crate) fn draw_ui(
     ui_state: &mut UiState,
     settings: &mut GameSettings,
     state: &mut GameState,
-    draw_settings: &mut DrawSettings,
-    update_settings: &mut UpdateSettings,
     mutable_sub_resources: &[MutableSubResources],
     timings: &Timings,
 ) {
@@ -78,6 +76,8 @@ pub(crate) fn draw_ui(
     } = ui_state;
 
     let GameSettings {
+        draw_settings,
+        update_settings,
         enable_gravity,
         enable_inertia,
         camera,

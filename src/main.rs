@@ -32,6 +32,8 @@ async fn main() -> Result<(), String> {
         .map_err(|err| err.to_string())?;
     cybersub_app.load_rocks(&world);
 
+    let bunyip = load_submarine_files("bunyip").await?;
+    cybersub_app.load_submarine_template("Bunyip shuttle", bunyip)?;
     let dugong = load_submarine_files("dugong").await?;
     cybersub_app.load_submarine_template("Dugong", dugong)?;
 
