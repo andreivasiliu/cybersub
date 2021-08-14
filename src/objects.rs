@@ -353,7 +353,7 @@ pub(crate) fn update_objects(
 
                 let cell = water_grid.cell_mut(cell_x as usize, cell_y as usize);
 
-                cell.add_level(*speed as i32 * 2);
+                cell.add_level(*speed as i32 * 3);
             }
             ObjectType::LargePump {
                 target_speed,

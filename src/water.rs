@@ -6,6 +6,8 @@ pub(crate) struct WaterGrid {
     width: usize,
     height: usize,
     total_water: u32,
+    total_walls: u32,
+    total_inside: u32,
     edges: Vec<(usize, usize)>,
 }
 
@@ -105,6 +107,8 @@ impl WaterGrid {
             width,
             height,
             total_water: 0,
+            total_walls: 0,
+            total_inside: 0,
             edges: Vec::new(),
         }
     }
@@ -129,6 +133,14 @@ impl WaterGrid {
 
     pub fn total_water(&self) -> u32 {
         self.total_water
+    }
+
+    pub fn total_walls(&self) -> u32 {
+        self.total_walls
+    }
+
+    pub fn total_inside(&self) -> u32 {
+        self.total_inside
     }
 
     fn neighbours(&self, x: usize, y: usize) -> impl Iterator<Item = &WaterCell> {
@@ -182,6 +194,8 @@ impl WaterGrid {
         let old_grid = new_grid;
 
         let mut total_water = 0;
+        let mut total_walls = 0;
+        let mut total_inside = 0;
 
         for y in 1..old_grid.height - 1 {
             for x in 1..old_grid.width - 1 {
@@ -203,6 +217,8 @@ impl WaterGrid {
 
                         new_cell.cell_type = CellType::Wall { wall_reflect };
                         new_cell.replan();
+
+                        total_walls += 1;
                     }
                     CellType::Sea => {
                         new_cell.cell_type = CellType::Sea;
@@ -246,12 +262,15 @@ impl WaterGrid {
                         new_cell.replan();
 
                         total_water += level;
+                        total_inside += 1;
                     }
                 }
             }
         }
 
         self.total_water = total_water;
+        self.total_walls = total_walls;
+        self.total_inside = total_inside;
 
         // The grid edges weren't processed by the above loop
         for x in 0..self.width {

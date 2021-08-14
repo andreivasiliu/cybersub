@@ -184,11 +184,10 @@ impl CyberSubApp {
             middle_y - height as i32 * 16 / 2,
         );
 
-        // If adding the main submarine, also change camera to its middle
-        if self.game_state.submarines.len() == self.game_settings.current_submarine {
-            self.game_settings.camera.offset_x = -(width as f32) / 2.0;
-            self.game_settings.camera.offset_y = -(height as f32) / 2.0;
-        }
+        // Change camera to its middle and set it as current
+        self.game_settings.current_submarine = self.game_state.submarines.len();
+        self.game_settings.camera.offset_x = -(width as f32) / 2.0;
+        self.game_settings.camera.offset_y = -(height as f32) / 2.0;
 
         self.game_state.submarines.push(SubmarineState {
             water_grid,
@@ -288,9 +287,22 @@ impl CyberSubApp {
 
                     if update_settings.update_position {
                         let navigation = &mut submarine.navigation;
-                        navigation.acceleration.1 =
-                            ((submarine.water_grid.total_water() as i32 - 1_500_000) as f32
-                                / (3_000_000.0 / 10.0)) as i32;
+
+                        // Compute weight based on number of walls
+                        let weight = submarine.water_grid.total_walls() as i32;
+
+                        // Compute buoyancy; the numbers are just random stuff that seems to
+                        // somewhat work for both the Dugong and the Bunyip
+                        let mut buoyancy = 0;
+                        buoyancy -= weight * 16;
+                        buoyancy += submarine.water_grid.total_inside() as i32 * 13;
+                        buoyancy -= submarine.water_grid.total_water() as i32 * 16 / 1024;
+
+                        // Massive submarines are harder to move
+                        let mass = (weight * weight / 1500 / 1500).max(1);
+
+                        let y_acceleration = (buoyancy * weight) / 1024 / 100;
+                        navigation.acceleration.1 = -y_acceleration / 8 / mass;
 
                         navigation.speed.0 =
                             (navigation.speed.0 + navigation.acceleration.0).clamp(-2048, 2048);
