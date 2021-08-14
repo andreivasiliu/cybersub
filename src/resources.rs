@@ -17,6 +17,7 @@ pub(crate) struct Resources {
     pub wires: Texture2D,
     pub sea_dust: Texture2D,
     pub wall: Texture2D,
+    pub glass: Texture2D,
     pub rocks: Texture2D,
     pub hatch: Texture2D,
     pub door: Texture2D,
@@ -95,6 +96,7 @@ impl Resources {
         let sea_dust = load_texture(include_bytes!("../resources/seadust.png"));
         let wires = load_texture(include_bytes!("../resources/wires.png"));
         let wall = load_texture(include_bytes!("../resources/wall.png"));
+        let glass = load_texture(include_bytes!("../resources/glass.png"));
         let rocks = load_texture(include_bytes!("../resources/rocks.png"));
         let hatch = load_texture(include_bytes!("../resources/hatch.png"));
         let door = load_texture(include_bytes!("../resources/door.png"));
@@ -158,7 +160,7 @@ impl Resources {
             include_str!("walls.glsl"),
             MaterialParams {
                 uniforms: vec![("walls_size".to_string(), UniformType::Float2)],
-                textures: vec!["wall_texture".to_string(), "walls".to_string()],
+                textures: vec!["wall_texture".to_string(), "glass_texture".to_string(), "walls".to_string()],
                 pipeline_params: blend_alpha,
             },
         )
@@ -203,6 +205,7 @@ impl Resources {
             wires,
             sea_dust,
             wall,
+            glass,
             rocks,
             hatch,
             door,

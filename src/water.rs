@@ -26,8 +26,15 @@ enum CellType {
     },
     Wall {
         wall_reflect: [u32; DIRECTIONS],
+        wall_material: WallMaterial,
     },
     Sea,
+}
+
+#[derive(Clone, Copy, Serialize, Deserialize)]
+pub(crate) enum WallMaterial {
+    Normal,
+    Glass,
 }
 
 impl Default for CellType {
@@ -181,7 +188,7 @@ impl WaterGrid {
                         *velocity = (0, 0);
                         *planned_remaining = 0;
                     }
-                    CellType::Wall { wall_reflect } => *wall_reflect = [0; DIRECTIONS],
+                    CellType::Wall { wall_reflect, .. } => *wall_reflect = [0; DIRECTIONS],
                     CellType::Sea => (),
                 }
             }
@@ -203,7 +210,7 @@ impl WaterGrid {
                 let new_cell = self.cell_mut(x, y);
 
                 match old_cell.cell_type {
-                    CellType::Wall { .. } => {
+                    CellType::Wall { wall_material, .. } => {
                         let mut wall_reflect = [0; DIRECTIONS];
 
                         for (i, neighbour) in old_grid.neighbours(x, y).enumerate() {
@@ -215,7 +222,7 @@ impl WaterGrid {
                             }
                         }
 
-                        new_cell.cell_type = CellType::Wall { wall_reflect };
+                        new_cell.cell_type = CellType::Wall { wall_reflect, wall_material };
                         new_cell.replan();
 
                         total_walls += 1;
@@ -319,7 +326,7 @@ impl WaterCell {
     // If the level changed, then recompute all transfer/reflect plans to match
     fn replan(&mut self) {
         match &mut self.cell_type {
-            CellType::Wall { wall_reflect } => {
+            CellType::Wall { wall_reflect, .. } => {
                 self.planned_transfer = *wall_reflect;
             }
             CellType::Sea => {
@@ -426,6 +433,14 @@ impl WaterCell {
     pub fn make_wall(&mut self) {
         self.cell_type = CellType::Wall {
             wall_reflect: [0; DIRECTIONS],
+            wall_material: WallMaterial::Normal,
+        };
+    }
+
+    pub fn make_glass(&mut self) {
+        self.cell_type = CellType::Wall {
+            wall_reflect: [0; DIRECTIONS],
+            wall_material: WallMaterial::Glass,
         };
     }
 
@@ -440,6 +455,14 @@ impl WaterCell {
             planned_remaining: 0,
         };
         self.replan();
+    }
+
+    pub fn wall_material(&self) -> Option<WallMaterial> {
+        if let CellType::Wall { wall_material, .. } = self.cell_type {
+            Some(wall_material)
+        } else {
+            None
+        }
     }
 
     pub fn clear_wall(&mut self) {

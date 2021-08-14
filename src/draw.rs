@@ -305,8 +305,12 @@ fn draw_walls(
             for x in 0..width {
                 let cell = grid.cell(x, y);
 
-                if cell.is_wall() {
-                    image.set_pixel(x as u32, y as u32, WHITE);
+                if let Some(wall_material) = cell.wall_material() {
+                    let color = match wall_material {
+                        crate::water::WallMaterial::Normal => WHITE,
+                        crate::water::WallMaterial::Glass => Color::new(0.0, 1.0, 1.0, 1.0),
+                    };
+                    image.set_pixel(x as u32, y as u32, color);
                 }
             }
         }
@@ -323,6 +327,9 @@ fn draw_walls(
     resources
         .wall_material
         .set_texture("wall_texture", resources.wall);
+        resources
+        .wall_material
+        .set_texture("glass_texture", resources.glass);
     resources
         .wall_material
         .set_texture("walls", mutable_resources.sub_walls);

@@ -7,14 +7,7 @@ use flate2::read::GzDecoder;
 use macroquad::prelude::{Image, ImageFormat, BLACK};
 use png::{BitDepth, ColorType, Decoder, Encoder};
 
-use crate::{
-    app::SubmarineState,
-    objects::Object,
-    resources::MutableSubResources,
-    rocks::{RockGrid, RockType},
-    water::WaterGrid,
-    wires::{WireColor, WireGrid},
-};
+use crate::{app::SubmarineState, objects::Object, resources::MutableSubResources, rocks::{RockGrid, RockType}, water::{WallMaterial, WaterGrid}, wires::{WireColor, WireGrid}};
 
 pub struct SubmarineFileData {
     pub water_grid: Vec<u8>,
@@ -195,8 +188,11 @@ pub(crate) fn save_water_to_png(grid: &WaterGrid) -> Result<Vec<u8>, String> {
         for x in 0..width {
             let cell = grid.cell(x, y);
 
-            let pixel = if cell.is_wall() {
-                [255, 255, 255, 255]
+            let pixel = if let Some(wall_material) = cell.wall_material() {
+                match wall_material {
+                    WallMaterial::Normal => [255, 255, 255, 255],
+                    WallMaterial::Glass => [0, 255, 255, 255],
+                }
             } else if cell.amount_overfilled() > 0.5 {
                 [0, 0, 255, 255]
             } else {
@@ -239,6 +235,7 @@ fn load_water_from_decoder(png_decoder: Decoder<impl Read>) -> Result<WaterGrid,
 
             match data[x * 4..x * 4 + 4] {
                 [0, 0, 255, 255] => cell.make_sea(),
+                [0, 255, 255, 255] => cell.make_glass(),
                 [255, 255, 255, 255] => cell.make_wall(),
                 [0, 0, 0, 0] => cell.make_inside(),
                 [r, g, b, a] => {
