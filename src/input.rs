@@ -6,8 +6,9 @@ use macroquad::prelude::{
 use crate::{
     app::{GameSettings, SubmarineState, Tool},
     draw::{object_rect, object_size, Camera},
-    objects::{hover_over_object, interact_with_object, Object},
+    objects::hover_over_object,
     resources::MutableSubResources,
+    update::{CellCommand, Command},
 };
 
 fn from_screen_coords(pos: Vec2) -> (usize, usize) {
@@ -36,7 +37,8 @@ pub(crate) fn handle_keyboard_input(camera: &mut Camera) {
 }
 
 pub(crate) fn handle_pointer_input(
-    submarine: &mut SubmarineState,
+    commands: &mut Vec<Command>,
+    submarine: &SubmarineState,
     sub_index: usize,
     mutable_resources: &mut MutableSubResources,
     game_settings: &mut GameSettings,
@@ -113,15 +115,19 @@ pub(crate) fn handle_pointer_input(
             return;
         }
 
-        let water_cell = submarine.water_grid.cell_mut(x, y);
+        let cell_command = match *current_tool {
+            Tool::Interact => None,
+            Tool::EditWater { add } => Some(CellCommand::EditWater { add }),
+            Tool::EditWalls { add } => Some(CellCommand::EditWalls { add }),
+            Tool::EditWires { color } => Some(CellCommand::EditWire { color }),
+        };
 
-        match current_tool {
-            Tool::Interact => (),
-            Tool::EditWater { add: true } => water_cell.fill(),
-            Tool::EditWater { add: false } => water_cell.empty(),
-            Tool::EditWalls { add: true } => water_cell.make_wall(),
-            Tool::EditWalls { add: false } => water_cell.clear_wall(),
-            Tool::EditWires { color } => submarine.wire_grid.make_wire(x, y, *color),
+        if let Some(cell_command) = cell_command {
+            commands.push(Command::Cell {
+                cell_command,
+                cell: (x, y),
+                submarine_id: sub_index,
+            });
         }
 
         match current_tool {
@@ -135,6 +141,7 @@ pub(crate) fn handle_pointer_input(
 
     if let Tool::Interact = current_tool {
         interact(
+            commands,
             submarine,
             sub_index,
             mouse_position,
@@ -145,7 +152,8 @@ pub(crate) fn handle_pointer_input(
 }
 
 fn interact(
-    submarine: &mut SubmarineState,
+    commands: &mut Vec<Command>,
+    submarine: &SubmarineState,
     sub_index: usize,
     mouse_position: Vec2,
     game_settings: &mut GameSettings,
@@ -154,7 +162,7 @@ fn interact(
     let camera = &mut game_settings.camera;
     let dragging_object = &mut game_settings.dragging_object;
 
-    for (obj_index, object) in submarine.objects.iter_mut().enumerate() {
+    for (obj_index, object) in submarine.objects.iter().enumerate() {
         let draw_rect = object_rect(object);
 
         if draw_rect.contains(mouse_position) {
@@ -165,7 +173,10 @@ fn interact(
             hover_over_object(object, (hover_position.x, hover_position.y));
 
             if is_mouse_button_pressed(MouseButton::Left) {
-                interact_with_object(object);
+                commands.push(Command::Interact {
+                    submarine_id: sub_index,
+                    object_id: obj_index,
+                });
                 *dragging_object = true;
                 return;
             }
@@ -191,11 +202,12 @@ fn interact(
             placing_object.position = Some((x, y));
 
             if is_mouse_button_pressed(MouseButton::Left) {
-                // Should probably be moved into a returned command
-                submarine.objects.push(Object {
-                    object_type: placing_object.object_type.clone(),
-                    position: (x as u32, y as u32),
-                    current_frame: 0,
+                commands.push(Command::Cell {
+                    cell_command: CellCommand::AddObject {
+                        object_type: placing_object.object_type.clone(),
+                    },
+                    cell: (x, y),
+                    submarine_id: sub_index,
                 });
 
                 if !is_key_down(KeyCode::LeftShift) && !is_key_down(KeyCode::RightShift) {

@@ -7,7 +7,7 @@ use crate::{
     saveload::{load_from_file_data, load_rocks_from_png, save_to_file_data, SubmarineData},
     sonar::Sonar,
     ui::{draw_ui, UiState},
-    update::update_game,
+    update::{update_game, Command},
     water::WaterGrid,
     wires::{WireColor, WireGrid},
     SubmarineFileData,
@@ -18,6 +18,7 @@ pub struct CyberSubApp {
     ui_state: UiState,
     game_state: GameState,
     game_settings: GameSettings,
+    commands: Vec<Command>,
     resources: Resources,
     mutable_resources: MutableResources,
     mutable_sub_resources: Vec<MutableSubResources>,
@@ -148,6 +149,7 @@ impl Default for CyberSubApp {
                 placing_object: None,
                 submarine_templates: Vec::new(),
             },
+            commands: Vec::new(),
             game_state: GameState {
                 last_update: None,
                 rock_grid: RockGrid::new(WIDTH, HEIGHT),
@@ -273,11 +275,14 @@ impl CyberSubApp {
                 delta -= 1.0 / 30.0;
 
                 update_game(
+                    &self.commands,
                     &mut self.game_state,
                     &mut self.game_settings,
                     &mut self.mutable_resources,
                     &mut self.mutable_sub_resources,
                 );
+
+                self.commands.clear();
             }
         }
 
@@ -293,9 +298,10 @@ impl CyberSubApp {
                 ctx,
                 &mut self.ui_state,
                 &mut self.game_settings,
-                &mut self.game_state,
+                &self.game_state,
                 &self.mutable_sub_resources,
                 &self.timings,
+                &mut self.commands,
             );
         }
     }
@@ -305,12 +311,13 @@ impl CyberSubApp {
     }
 
     pub fn handle_pointer_input(&mut self) {
-        for (sub_index, submarine) in &mut self.game_state.submarines.iter_mut().enumerate() {
+        for (sub_index, submarine) in &mut self.game_state.submarines.iter().enumerate() {
             let mutable_resources = self
                 .mutable_sub_resources
                 .get_mut(sub_index)
                 .expect("All submarines should have a MutableSubResources instance");
             handle_pointer_input(
+                &mut self.commands,
                 submarine,
                 sub_index,
                 mutable_resources,

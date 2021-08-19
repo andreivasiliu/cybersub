@@ -6,6 +6,7 @@ use crate::{
     objects::{compute_navigation, OBJECT_TYPES},
     resources::MutableSubResources,
     saveload::{load_from_directory, load_from_file_data, save_to_directory, save_to_file_data},
+    update::Command,
     wires::WireColor,
     Timings,
 };
@@ -54,9 +55,10 @@ pub(crate) fn draw_ui(
     ctx: &egui::CtxRef,
     ui_state: &mut UiState,
     settings: &mut GameSettings,
-    state: &mut GameState,
+    state: &GameState,
     mutable_sub_resources: &[MutableSubResources],
     timings: &Timings,
+    commands: &mut Vec<Command>,
 ) {
     let UiState {
         error_message,
@@ -122,7 +124,7 @@ pub(crate) fn draw_ui(
                     if ui.button("Load submarine").clicked() {
                         *show_load_dialog = true;
                     }
-                    if let Some(submarine) = submarines.get_mut(*current_submarine) {
+                    if submarines.len() > *current_submarine {
                         ui.scope(|ui| {
                             ui.set_enabled(!cfg!(target_arch = "wasm32"));
                             if ui
@@ -135,7 +137,9 @@ pub(crate) fn draw_ui(
                         });
 
                         if ui.button("Clear water").clicked() {
-                            submarine.water_grid.clear();
+                            commands.push(Command::ClearWater {
+                                submarine_id: *current_submarine,
+                            });
                         }
                     } else {
                         ui.label("<no submarine selected>");
@@ -213,7 +217,7 @@ pub(crate) fn draw_ui(
                 ui.label("y:".to_string());
                 ui.colored_label(Color32::GREEN, camera.pointing_at.1.to_string());
 
-                if let Some(submarine) = submarines.get_mut(*current_submarine) {
+                if let Some(submarine) = submarines.get(*current_submarine) {
                     ui.label("speed:".to_string());
                     ui.colored_label(Color32::YELLOW, submarine.navigation.speed.0.to_string());
                     ui.label("/".to_string());
@@ -399,7 +403,7 @@ pub(crate) fn draw_ui(
 
     if *show_navigation_info {
         egui::Window::new("Navigation info").show(ctx, |ui| {
-            if let Some(submarine) = submarines.get_mut(*current_submarine) {
+            if let Some(submarine) = submarines.get(*current_submarine) {
                 fn add_info(ui: &mut Ui, label: &str, value: (i32, i32)) {
                     ui.horizontal(|ui| {
                         ui.label(format!("{}:", label));

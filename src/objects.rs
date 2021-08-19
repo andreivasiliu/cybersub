@@ -581,26 +581,29 @@ fn cycle_i8(value: &mut i8) {
     };
 }
 
-pub(crate) fn hover_over_object(object: &mut Object, hover_position: (f32, f32)) {
-    if let ObjectType::Sonar {
-        active: true,
-        sonar_info,
-        ..
-    } = &mut object.object_type
-    {
-        let sonar_middle = (9.5, 7.5);
-        let cursor = (
-            hover_position.0 - sonar_middle.0,
-            hover_position.1 - sonar_middle.1,
-        );
+pub(crate) fn hover_over_object(_object: &Object, _hover_position: (f32, f32)) {
+    // FIXME: Need per-object mutable draw state
 
-        let length_squared = cursor.0 * cursor.0 + cursor.1 * cursor.1;
-        sonar_info.cursor = if length_squared < 5.0 * 5.0 {
-            Some(cursor)
-        } else {
-            None
-        };
-    }
+    // if let ObjectType::Sonar {
+    //     active: true,
+    //     sonar_info,
+    //     ..
+    // } = &object.object_type
+    // {
+    //     let sonar_middle = (9.5, 7.5);
+    //     let cursor = (
+    //         hover_position.0 - sonar_middle.0,
+    //         hover_position.1 - sonar_middle.1,
+    //     );
+
+    //     let length_squared = cursor.0 * cursor.0 + cursor.1 * cursor.1;
+
+    //     sonar_info.cursor = if length_squared < 5.0 * 5.0 {
+    //         Some(cursor)
+    //     } else {
+    //         None
+    //     };
+    // }
 }
 
 pub(crate) fn compute_navigation(navigation: &Navigation) -> NavControl {

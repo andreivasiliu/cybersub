@@ -1,12 +1,37 @@
 use crate::{
     app::{GameSettings, GameState},
     collisions::{update_rock_collisions, update_submarine_collisions},
-    objects::update_objects,
+    objects::{interact_with_object, update_objects, Object, ObjectType},
     resources::{MutableResources, MutableSubResources},
     sonar::update_sonar,
+    wires::WireColor,
 };
 
+/// A request to mutate state. Created by the UI and player actions.
+pub(crate) enum Command {
+    Interact {
+        submarine_id: usize,
+        object_id: usize,
+    },
+    Cell {
+        submarine_id: usize,
+        cell: (usize, usize),
+        cell_command: CellCommand,
+    },
+    ClearWater {
+        submarine_id: usize,
+    },
+}
+
+pub(crate) enum CellCommand {
+    EditWire { color: WireColor },
+    EditWalls { add: bool },
+    EditWater { add: bool },
+    AddObject { object_type: ObjectType },
+}
+
 pub(crate) fn update_game(
+    commands: &[Command],
     game_state: &mut GameState,
     game_settings: &mut GameSettings,
     mutable_resources: &mut MutableResources,
@@ -15,6 +40,52 @@ pub(crate) fn update_game(
     let update_settings = &game_settings.update_settings;
 
     mutable_resources.collisions.clear();
+
+    for command in commands {
+        match command {
+            Command::Interact {
+                submarine_id,
+                object_id,
+            } => {
+                if let Some(submarine) = game_state.submarines.get_mut(*submarine_id) {
+                    if let Some(object) = submarine.objects.get_mut(*object_id) {
+                        interact_with_object(object);
+                    }
+                };
+            }
+            Command::Cell {
+                submarine_id,
+                cell,
+                cell_command,
+            } => {
+                if let Some(submarine) = game_state.submarines.get_mut(*submarine_id) {
+                    let water_cell = submarine.water_grid.cell_mut(cell.0, cell.1);
+
+                    match cell_command {
+                        CellCommand::EditWater { add: true } => water_cell.fill(),
+                        CellCommand::EditWater { add: false } => water_cell.empty(),
+                        CellCommand::EditWalls { add: true } => water_cell.make_wall(),
+                        CellCommand::EditWalls { add: false } => water_cell.clear_wall(),
+                        CellCommand::EditWire { color } => {
+                            submarine.wire_grid.make_wire(cell.0, cell.1, *color)
+                        }
+                        CellCommand::AddObject { object_type } => {
+                            submarine.objects.push(Object {
+                                object_type: object_type.clone(),
+                                position: (cell.0 as u32, cell.1 as u32),
+                                current_frame: 0,
+                            });
+                        }
+                    }
+                }
+            }
+            Command::ClearWater { submarine_id } => {
+                if let Some(submarine) = game_state.submarines.get_mut(*submarine_id) {
+                    submarine.water_grid.clear();
+                }
+            }
+        }
+    }
 
     for (sub_index, submarine) in game_state.submarines.iter_mut().enumerate() {
         let mutable_sub_resources = mutable_sub_resources
