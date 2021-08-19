@@ -10,6 +10,7 @@ mod rocks;
 mod saveload;
 mod sonar;
 mod ui;
+mod update;
 mod water;
 mod wires;
 

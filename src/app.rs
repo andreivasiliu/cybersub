@@ -1,13 +1,13 @@
 use crate::{
-    collisions::{update_rock_collisions, update_submarine_collisions},
     draw::{draw_game, Camera, DrawSettings},
     input::{handle_keyboard_input, handle_pointer_input},
-    objects::{update_objects, Object, ObjectType},
+    objects::{Object, ObjectType},
     resources::{MutableResources, MutableSubResources, Resources},
     rocks::RockGrid,
     saveload::{load_from_file_data, load_rocks_from_png, save_to_file_data, SubmarineData},
-    sonar::{find_visible_edge_cells, Sonar},
+    sonar::Sonar,
     ui::{draw_ui, UiState},
+    update::update_game,
     water::WaterGrid,
     wires::{WireColor, WireGrid},
     SubmarineFileData,
@@ -252,12 +252,10 @@ impl CyberSubApp {
             self.load_submarine(submarine.1).ok();
         }
 
-        let last_update = &mut self.game_state.last_update;
-        let last_draw = &mut self.game_settings.last_draw;
         self.game_settings.animation_ticks = 0;
 
-        if let Some(last_draw) = last_draw {
-            let mut delta = (game_time - *last_draw).clamp(0.0, 0.5);
+        if let Some(last_draw) = self.game_settings.last_draw {
+            let mut delta = (game_time - last_draw).clamp(0.0, 0.5);
 
             while delta > 0.0 {
                 // 60 animation updates per second, regardless of FPS
@@ -267,131 +265,24 @@ impl CyberSubApp {
             }
         }
 
-        if let Some(last_update) = last_update {
+        if let Some(last_update) = &mut self.game_state.last_update {
             let mut delta = (game_time - *last_update).clamp(0.0, 0.5);
-            let update_settings = &self.game_settings.update_settings;
 
             while delta > 0.0 {
                 // 30 updates per second, regardless of FPS
                 delta -= 1.0 / 30.0;
-                self.game_settings.animation_ticks += 1;
 
-                self.mutable_resources.collisions.clear();
-
-                for (sub_index, submarine) in &mut self.game_state.submarines.iter_mut().enumerate()
-                {
-                    let mutable_resources = self
-                        .mutable_sub_resources
-                        .get_mut(sub_index)
-                        .expect("All submarines should have a MutableSubResources instance");
-
-                    if update_settings.update_position {
-                        let navigation = &mut submarine.navigation;
-
-                        // Compute weight based on number of walls
-                        let weight = submarine.water_grid.total_walls() as i32;
-
-                        // Compute buoyancy; the numbers are just random stuff that seems to
-                        // somewhat work for both the Dugong and the Bunyip
-                        let mut buoyancy = 0;
-                        buoyancy -= weight * 16;
-                        buoyancy += submarine.water_grid.total_inside() as i32 * 13;
-                        buoyancy -= submarine.water_grid.total_water() as i32 * 16 / 1024;
-
-                        // Massive submarines are harder to move
-                        let mass = (weight * weight / 1500 / 1500).max(1);
-
-                        let y_acceleration = (buoyancy * weight) / 1024 / 100;
-                        navigation.acceleration.1 = -y_acceleration / 8 / mass;
-
-                        navigation.speed.0 =
-                            (navigation.speed.0 + navigation.acceleration.0).clamp(-2048, 2048);
-                        navigation.speed.1 =
-                            (navigation.speed.1 + navigation.acceleration.1).clamp(-2048, 2048);
-
-                        navigation.position.0 += navigation.speed.0 / 256;
-                        navigation.position.1 += navigation.speed.1 / 256;
-                    }
-
-                    if update_settings.update_water {
-                        submarine.water_grid.update(
-                            self.game_settings.enable_gravity,
-                            self.game_settings.enable_inertia,
-                        );
-                    }
-                    if update_settings.update_wires {
-                        for _ in 0..3 {
-                            submarine
-                                .wire_grid
-                                .update(&mut mutable_resources.signals_updated);
-                        }
-                    }
-                    if update_settings.update_objects {
-                        update_objects(submarine, mutable_resources);
-                    }
-                    if update_settings.update_sonar {
-                        update_sonar(
-                            &mut submarine.sonar,
-                            &submarine.navigation,
-                            submarine.water_grid.size(),
-                            &self.game_state.rock_grid,
-                            mutable_resources,
-                        );
-                    }
-
-                    if update_settings.update_collision {
-                        mutable_resources.collisions.clear();
-                        update_rock_collisions(
-                            &submarine.water_grid,
-                            &self.game_state.rock_grid,
-                            &submarine.navigation,
-                            &mut self.mutable_resources,
-                            mutable_resources,
-                        );
-                    }
-                }
-
-                if update_settings.update_collision {
-                    for (sub1_index, submarine1) in self.game_state.submarines.iter().enumerate() {
-                        for (sub2_index, submarine2) in
-                            self.game_state.submarines.iter().enumerate()
-                        {
-                            if sub1_index == sub2_index {
-                                continue;
-                            }
-
-                            let mutable_resources =
-                                self.mutable_sub_resources.get_mut(sub1_index).expect(
-                                    "All submarines should have a MutableSubResources instance",
-                                );
-
-                            update_submarine_collisions(
-                                &submarine1.water_grid,
-                                &submarine2.water_grid,
-                                &submarine1.navigation,
-                                &submarine2.navigation,
-                                mutable_resources,
-                            );
-                        }
-                    }
-                }
-
-                let submarine_camera = self
-                    .game_state
-                    .submarines
-                    .get(self.game_settings.current_submarine)
-                    .map(|submarine| {
-                        (
-                            submarine.navigation.position.0,
-                            submarine.navigation.position.1,
-                        )
-                    });
-
-                self.game_settings.camera.current_submarine = submarine_camera;
+                update_game(
+                    &mut self.game_state,
+                    &mut self.game_settings,
+                    &mut self.mutable_resources,
+                    &mut self.mutable_sub_resources,
+                );
             }
         }
-        *last_draw = Some(game_time);
-        *last_update = Some(game_time);
+
+        self.game_settings.last_draw = Some(game_time);
+        self.game_state.last_update = Some(game_time);
     }
 
     /// Called each time the UI needs repainting, which may be many times per second.
@@ -441,26 +332,5 @@ impl CyberSubApp {
             &mut self.mutable_resources,
             &mut self.mutable_sub_resources,
         );
-    }
-}
-
-fn update_sonar(
-    sonar: &mut Sonar,
-    navigation: &Navigation,
-    sub_size: (usize, usize),
-    rock_grid: &RockGrid,
-    mutable_resources: &mut MutableSubResources,
-) {
-    let center_x = (navigation.position.0 / 16 / 16) as usize;
-    let center_y = (navigation.position.1 / 16 / 16) as usize;
-
-    let sub_center_x = center_x + sub_size.0 / 2 / 16;
-    let sub_center_y = center_y + sub_size.1 / 2 / 16;
-
-    sonar.increase_pulse();
-
-    if sonar.should_update() {
-        find_visible_edge_cells(sonar, (sub_center_x, sub_center_y), rock_grid);
-        mutable_resources.sonar_updated = true;
     }
 }

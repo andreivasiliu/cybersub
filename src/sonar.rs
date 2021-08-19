@@ -1,7 +1,7 @@
 //! Scans the rocks in the world for edges, and runs visibility checks for
 //! them.
 
-use crate::rocks::RockGrid;
+use crate::{app::Navigation, resources::MutableSubResources, rocks::RockGrid};
 
 #[derive(Default)]
 pub(crate) struct Sonar {
@@ -24,6 +24,27 @@ impl Sonar {
 
     pub(crate) fn should_update(&self) -> bool {
         self.pulse == 0
+    }
+}
+
+pub(crate) fn update_sonar(
+    sonar: &mut Sonar,
+    navigation: &Navigation,
+    sub_size: (usize, usize),
+    rock_grid: &RockGrid,
+    mutable_resources: &mut MutableSubResources,
+) {
+    let center_x = (navigation.position.0 / 16 / 16) as usize;
+    let center_y = (navigation.position.1 / 16 / 16) as usize;
+
+    let sub_center_x = center_x + sub_size.0 / 2 / 16;
+    let sub_center_y = center_y + sub_size.1 / 2 / 16;
+
+    sonar.increase_pulse();
+
+    if sonar.should_update() {
+        find_visible_edge_cells(sonar, (sub_center_x, sub_center_y), rock_grid);
+        mutable_resources.sonar_updated = true;
     }
 }
 
