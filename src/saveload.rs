@@ -7,7 +7,14 @@ use flate2::read::GzDecoder;
 use macroquad::prelude::{Image, ImageFormat, BLACK};
 use png::{BitDepth, ColorType, Decoder, Encoder};
 
-use crate::{app::SubmarineState, objects::Object, resources::MutableSubResources, rocks::{RockGrid, RockType}, water::{WallMaterial, WaterGrid}, wires::{WireColor, WireGrid}};
+use crate::{
+    app::SubmarineState,
+    objects::Object,
+    resources::MutableSubResources,
+    rocks::{RockGrid, RockType},
+    water::{WallMaterial, WaterGrid},
+    wires::{WireColor, WireGrid},
+};
 
 pub struct SubmarineFileData {
     pub water_grid: Vec<u8>,

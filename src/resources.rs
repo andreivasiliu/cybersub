@@ -160,7 +160,11 @@ impl Resources {
             include_str!("walls.glsl"),
             MaterialParams {
                 uniforms: vec![("walls_size".to_string(), UniformType::Float2)],
-                textures: vec!["wall_texture".to_string(), "glass_texture".to_string(), "walls".to_string()],
+                textures: vec![
+                    "wall_texture".to_string(),
+                    "glass_texture".to_string(),
+                    "walls".to_string(),
+                ],
                 pipeline_params: blend_alpha,
             },
         )

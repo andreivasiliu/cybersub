@@ -124,8 +124,13 @@ pub(crate) fn handle_pointer_input(
             Tool::EditWires { color } => submarine.wire_grid.make_wire(x, y, *color),
         }
 
-        mutable_resources.walls_updated = true;
-        mutable_resources.wires_updated = true;
+        match current_tool {
+            Tool::Interact => (),
+            Tool::EditWater { .. } | Tool::EditWalls { .. } => {
+                mutable_resources.walls_updated = true
+            }
+            Tool::EditWires { .. } => mutable_resources.wires_updated = true,
+        }
     }
 
     if let Tool::Interact = current_tool {

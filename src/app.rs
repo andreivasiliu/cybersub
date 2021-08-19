@@ -403,7 +403,7 @@ impl CyberSubApp {
                 &mut self.ui_state,
                 &mut self.game_settings,
                 &mut self.game_state,
-                &mut self.mutable_sub_resources,
+                &self.mutable_sub_resources,
                 &self.timings,
             );
         }

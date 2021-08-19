@@ -222,7 +222,10 @@ impl WaterGrid {
                             }
                         }
 
-                        new_cell.cell_type = CellType::Wall { wall_reflect, wall_material };
+                        new_cell.cell_type = CellType::Wall {
+                            wall_reflect,
+                            wall_material,
+                        };
                         new_cell.replan();
 
                         total_walls += 1;

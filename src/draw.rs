@@ -327,7 +327,7 @@ fn draw_walls(
     resources
         .wall_material
         .set_texture("wall_texture", resources.wall);
-        resources
+    resources
         .wall_material
         .set_texture("glass_texture", resources.glass);
     resources
@@ -424,7 +424,8 @@ fn update_wires_texture(
         return;
     }
 
-    if old_size != grid.size() {
+    if old_size != new_size {
+        mutable_resources.sub_wires.delete();
         mutable_resources.sub_wires = render_target(new_size.0 as u32, new_size.1 as u32);
         mutable_resources
             .sub_wires
@@ -572,6 +573,7 @@ fn update_signals_texture(grid: &WireGrid, mutable_resources: &mut MutableSubRes
     }
 
     if old_size != grid.size() {
+        mutable_resources.sub_signals.delete();
         mutable_resources.sub_signals = Texture2D::from_image(image);
     } else {
         mutable_resources.sub_signals.update(image);
@@ -921,6 +923,7 @@ fn draw_sonar(
         ];
 
         for target in &mut targets {
+            target.delete();
             **target = render_target(width, height);
             target.texture.set_filter(FilterMode::Nearest);
         }
