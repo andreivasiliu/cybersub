@@ -1,8 +1,7 @@
 use crate::{
-    app::{GameSettings, GameState},
+    app::{GameState, UpdateSettings},
     collisions::{update_rock_collisions, update_submarine_collisions},
     objects::{interact_with_object, update_objects, Object, ObjectType},
-    resources::{MutableResources, MutableSubResources},
     sonar::update_sonar,
     wires::WireColor,
 };
@@ -21,25 +20,35 @@ pub(crate) enum Command {
     ClearWater {
         submarine_id: usize,
     },
+    ChangeUpdateSettings {
+        update_settings: UpdateSettings,
+    },
 }
 
 pub(crate) enum CellCommand {
-    EditWire { color: WireColor },
+    EditWires { color: WireColor },
     EditWalls { add: bool },
     EditWater { add: bool },
     AddObject { object_type: ObjectType },
 }
 
+pub(crate) enum UpdateEvent {
+    Submarine { submarine_id: usize, submarine_event: SubmarineUpdateEvent },
+}
+
+pub(crate) enum SubmarineUpdateEvent {
+    SonarUpdated,
+    WallsUpdated,
+    WiresUpdated,
+    SignalsUpdated,
+}
+
 pub(crate) fn update_game(
     commands: &[Command],
     game_state: &mut GameState,
-    game_settings: &mut GameSettings,
-    mutable_resources: &mut MutableResources,
-    mutable_sub_resources: &mut [MutableSubResources],
+    events: &mut Vec<UpdateEvent>,
 ) {
-    let update_settings = &game_settings.update_settings;
-
-    mutable_resources.collisions.clear();
+    game_state.collisions.clear();
 
     for command in commands {
         match command {
@@ -66,7 +75,7 @@ pub(crate) fn update_game(
                         CellCommand::EditWater { add: false } => water_cell.empty(),
                         CellCommand::EditWalls { add: true } => water_cell.make_wall(),
                         CellCommand::EditWalls { add: false } => water_cell.clear_wall(),
-                        CellCommand::EditWire { color } => {
+                        CellCommand::EditWires { color } => {
                             submarine.wire_grid.make_wire(cell.0, cell.1, *color)
                         }
                         CellCommand::AddObject { object_type } => {
@@ -77,6 +86,22 @@ pub(crate) fn update_game(
                             });
                         }
                     }
+
+                    match cell_command {
+                        CellCommand::EditWater { .. } | CellCommand::EditWalls { .. } => {
+                            events.push(UpdateEvent::Submarine {
+                                submarine_id: *submarine_id,
+                                submarine_event: SubmarineUpdateEvent::WallsUpdated,
+                            });
+                        }
+                        CellCommand::EditWires { .. } => {
+                            events.push(UpdateEvent::Submarine {
+                                submarine_id: *submarine_id,
+                                submarine_event: SubmarineUpdateEvent::WiresUpdated,
+                            });
+                        }
+                        CellCommand::AddObject { .. } => (),
+                    }
                 }
             }
             Command::ClearWater { submarine_id } => {
@@ -84,14 +109,15 @@ pub(crate) fn update_game(
                     submarine.water_grid.clear();
                 }
             }
+            Command::ChangeUpdateSettings { update_settings } => {
+                game_state.update_settings = update_settings.clone()
+            }
         }
     }
 
-    for (sub_index, submarine) in game_state.submarines.iter_mut().enumerate() {
-        let mutable_sub_resources = mutable_sub_resources
-            .get_mut(sub_index)
-            .expect("All submarines should have a MutableSubResources instance");
+    let update_settings = &game_state.update_settings;
 
+    for (sub_index, submarine) in game_state.submarines.iter_mut().enumerate() {
         if update_settings.update_position {
             let navigation = &mut submarine.navigation;
 
@@ -121,73 +147,73 @@ pub(crate) fn update_game(
         }
 
         if update_settings.update_water {
-            submarine
-                .water_grid
-                .update(game_settings.enable_gravity, game_settings.enable_inertia);
+            submarine.water_grid.update(
+                update_settings.enable_gravity,
+                update_settings.enable_inertia,
+            );
         }
         if update_settings.update_wires {
             for _ in 0..3 {
+                let mut signals_updated = false;
                 submarine
                     .wire_grid
-                    .update(&mut mutable_sub_resources.signals_updated);
+                    .update(&mut signals_updated);
+
+                if signals_updated {
+                    events.push(UpdateEvent::Submarine {
+                        submarine_id: sub_index,
+                        submarine_event: SubmarineUpdateEvent::SignalsUpdated,
+                    });
+                }
             }
         }
         if update_settings.update_objects {
-            update_objects(submarine, mutable_sub_resources);
+            let mut walls_updated = false;
+            update_objects(submarine, &mut walls_updated);
+
+            if walls_updated {
+                events.push(UpdateEvent::Submarine {
+                    submarine_id: sub_index,
+                    submarine_event: SubmarineUpdateEvent::WallsUpdated,
+                });
+            }
         }
         if update_settings.update_sonar {
-            update_sonar(
+            let updated = update_sonar(
                 &mut submarine.sonar,
                 &submarine.navigation,
                 submarine.water_grid.size(),
                 &game_state.rock_grid,
-                mutable_sub_resources,
             );
+
+            if updated {
+                events.push(UpdateEvent::Submarine {
+                    submarine_id: sub_index,
+                    submarine_event: SubmarineUpdateEvent::SonarUpdated,
+                });
+            }
         }
 
         if update_settings.update_collision {
-            mutable_sub_resources.collisions.clear();
-            update_rock_collisions(
-                &submarine.water_grid,
-                &game_state.rock_grid,
-                &submarine.navigation,
-                mutable_resources,
-                mutable_sub_resources,
-            );
+            game_state.collisions.clear();
+            update_rock_collisions(submarine, &game_state.rock_grid, &mut game_state.collisions);
         }
+    }
+
+    for submarine in &mut game_state.submarines {
+        submarine.collisions.clear();
     }
 
     if update_settings.update_collision {
-        for (sub1_index, submarine1) in game_state.submarines.iter().enumerate() {
-            for (sub2_index, submarine2) in game_state.submarines.iter().enumerate() {
-                if sub1_index == sub2_index {
-                    continue;
-                }
+        for sub1_index in 0..game_state.submarines.len() {
+            for sub2_index in sub1_index+1..game_state.submarines.len() {
+                let (left, right) = game_state.submarines.split_at_mut(sub2_index);
+                let submarine1 = &mut left[sub1_index];
+                let submarine2 = &mut right[0];
 
-                let mutable_resources = mutable_sub_resources
-                    .get_mut(sub1_index)
-                    .expect("All submarines should have a MutableSubResources instance");
-
-                update_submarine_collisions(
-                    &submarine1.water_grid,
-                    &submarine2.water_grid,
-                    &submarine1.navigation,
-                    &submarine2.navigation,
-                    mutable_resources,
-                );
+                update_submarine_collisions(submarine1, submarine2);
+                update_submarine_collisions(submarine2, submarine1);
             }
         }
     }
-
-    let submarine_camera = game_state
-        .submarines
-        .get(game_settings.current_submarine)
-        .map(|submarine| {
-            (
-                submarine.navigation.position.0,
-                submarine.navigation.position.1,
-            )
-        });
-
-    game_settings.camera.current_submarine = submarine_camera;
 }

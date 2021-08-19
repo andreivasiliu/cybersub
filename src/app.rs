@@ -1,17 +1,4 @@
-use crate::{
-    draw::{draw_game, Camera, DrawSettings},
-    input::{handle_keyboard_input, handle_pointer_input},
-    objects::{Object, ObjectType},
-    resources::{MutableResources, MutableSubResources, Resources},
-    rocks::RockGrid,
-    saveload::{load_from_file_data, load_rocks_from_png, save_to_file_data, SubmarineData},
-    sonar::Sonar,
-    ui::{draw_ui, UiState},
-    update::{update_game, Command},
-    water::WaterGrid,
-    wires::{WireColor, WireGrid},
-    SubmarineFileData,
-};
+use crate::{SubmarineFileData, draw::{draw_game, Camera, DrawSettings}, input::{handle_keyboard_input, handle_pointer_input}, objects::{Object, ObjectType}, resources::{MutableResources, MutableSubResources, Resources}, rocks::RockGrid, saveload::{load_from_file_data, load_rocks_from_png, save_to_file_data, SubmarineData}, sonar::Sonar, ui::{draw_ui, UiState}, update::{Command, SubmarineUpdateEvent, UpdateEvent, update_game}, water::WaterGrid, wires::{WireColor, WireGrid}};
 
 pub struct CyberSubApp {
     pub timings: Timings,
@@ -19,6 +6,7 @@ pub struct CyberSubApp {
     game_state: GameState,
     game_settings: GameSettings,
     commands: Vec<Command>,
+    update_events: Vec<UpdateEvent>,
     resources: Resources,
     mutable_resources: MutableResources,
     mutable_sub_resources: Vec<MutableSubResources>,
@@ -26,9 +14,6 @@ pub struct CyberSubApp {
 
 pub(crate) struct GameSettings {
     pub draw_settings: DrawSettings,
-    pub update_settings: UpdateSettings,
-    pub enable_gravity: bool,
-    pub enable_inertia: bool,
     pub camera: Camera,
     pub current_submarine: usize,
     pub current_tool: Tool,
@@ -42,8 +27,11 @@ pub(crate) struct GameSettings {
     pub submarine_templates: Vec<(String, SubmarineData)>,
 }
 
+#[derive(Clone, PartialEq, Eq)]
 pub(crate) struct UpdateSettings {
     pub update_water: bool,
+    pub enable_gravity: bool,
+    pub enable_inertia: bool,
     pub update_wires: bool,
     pub update_sonar: bool,
     pub update_objects: bool,
@@ -52,9 +40,11 @@ pub(crate) struct UpdateSettings {
 }
 
 pub(crate) struct GameState {
+    pub update_settings: UpdateSettings,
     pub last_update: Option<f64>,
     pub rock_grid: RockGrid,
     pub submarines: Vec<SubmarineState>,
+    pub collisions: Vec<(usize, usize)>,
 }
 
 pub(crate) struct SubmarineState {
@@ -63,6 +53,7 @@ pub(crate) struct SubmarineState {
     pub objects: Vec<Object>,
     pub sonar: Sonar,
     pub navigation: Navigation,
+    pub collisions: Vec<(usize, usize)>,
 }
 
 #[derive(Default)]
@@ -120,6 +111,8 @@ impl Default for CyberSubApp {
 
         let update_settings = UpdateSettings {
             update_water: !cfg!(debug_assertions), // Very expensive in debug mode
+            enable_gravity: true,
+            enable_inertia: true,
             update_wires: true,
             update_sonar: true,
             update_objects: true,
@@ -131,9 +124,6 @@ impl Default for CyberSubApp {
             timings: Timings::default(),
             game_settings: GameSettings {
                 draw_settings,
-                update_settings,
-                enable_gravity: true,
-                enable_inertia: true,
                 camera: Camera {
                     zoom: -200,
                     ..Default::default()
@@ -150,10 +140,13 @@ impl Default for CyberSubApp {
                 submarine_templates: Vec::new(),
             },
             commands: Vec::new(),
+            update_events: Vec::new(),
             game_state: GameState {
+                update_settings,
                 last_update: None,
                 rock_grid: RockGrid::new(WIDTH, HEIGHT),
                 submarines: Vec::new(),
+                collisions: Vec::new(),
             },
             ui_state: UiState::default(),
             resources: Resources::new(),
@@ -201,6 +194,7 @@ impl CyberSubApp {
                 ..Default::default()
             },
             sonar: Sonar::default(),
+            collisions: Vec::new(),
         });
 
         self.mutable_sub_resources
@@ -251,6 +245,7 @@ impl CyberSubApp {
                 .expect("Template was requested this frame")
                 .clone();
 
+            // FIXME: This should be done through a command somehow
             self.load_submarine(submarine.1).ok();
         }
 
@@ -274,20 +269,57 @@ impl CyberSubApp {
                 // 30 updates per second, regardless of FPS
                 delta -= 1.0 / 30.0;
 
+                self.update_events.clear();
+
                 update_game(
                     &self.commands,
                     &mut self.game_state,
-                    &mut self.game_settings,
-                    &mut self.mutable_resources,
-                    &mut self.mutable_sub_resources,
+                    &mut self.update_events,
                 );
 
                 self.commands.clear();
+
+                for event in &self.update_events {
+                    match event {
+                        UpdateEvent::Submarine { submarine_id, submarine_event } => {
+                            let mutable_sub_resources = self.mutable_sub_resources.get_mut(*submarine_id).expect("All submarines should have their own MutableSubResources instance");
+
+                            match submarine_event {
+                                SubmarineUpdateEvent::SonarUpdated => {
+                                    mutable_sub_resources.sonar_updated = true;
+                                },
+                                SubmarineUpdateEvent::WallsUpdated => {
+                                    mutable_sub_resources.walls_updated = true;
+                                },
+                                SubmarineUpdateEvent::WiresUpdated => {
+                                    mutable_sub_resources.wires_updated = true;
+                                },
+                                SubmarineUpdateEvent::SignalsUpdated => {
+                                    mutable_sub_resources.signals_updated = true;
+                                }
+                            }
+                        },
+                    }
+                }
             }
         }
 
         self.game_settings.last_draw = Some(game_time);
         self.game_state.last_update = Some(game_time);
+
+        // Follow submarine with camera
+        let submarine_camera = self
+            .game_state
+            .submarines
+            .get(self.game_settings.current_submarine)
+            .map(|submarine| {
+                (
+                    submarine.navigation.position.0,
+                    submarine.navigation.position.1,
+                )
+            });
+
+        self.game_settings.camera.current_submarine = submarine_camera;
     }
 
     /// Called each time the UI needs repainting, which may be many times per second.

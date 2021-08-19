@@ -119,7 +119,7 @@ pub(crate) fn handle_pointer_input(
             Tool::Interact => None,
             Tool::EditWater { add } => Some(CellCommand::EditWater { add }),
             Tool::EditWalls { add } => Some(CellCommand::EditWalls { add }),
-            Tool::EditWires { color } => Some(CellCommand::EditWire { color }),
+            Tool::EditWires { color } => Some(CellCommand::EditWires { color }),
         };
 
         if let Some(cell_command) = cell_command {
@@ -128,14 +128,6 @@ pub(crate) fn handle_pointer_input(
                 cell: (x, y),
                 submarine_id: sub_index,
             });
-        }
-
-        match current_tool {
-            Tool::Interact => (),
-            Tool::EditWater { .. } | Tool::EditWalls { .. } => {
-                mutable_resources.walls_updated = true
-            }
-            Tool::EditWires { .. } => mutable_resources.wires_updated = true,
         }
     }
 

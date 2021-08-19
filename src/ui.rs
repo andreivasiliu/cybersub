@@ -79,9 +79,6 @@ pub(crate) fn draw_ui(
 
     let GameSettings {
         draw_settings,
-        update_settings,
-        enable_gravity,
-        enable_inertia,
         camera,
         current_submarine,
         current_tool,
@@ -92,7 +89,11 @@ pub(crate) fn draw_ui(
         ..
     } = settings;
 
-    let GameState { submarines, .. } = state;
+    let GameState {
+        submarines,
+        update_settings,
+        ..
+    } = state;
 
     let DrawSettings {
         draw_egui,
@@ -108,14 +109,18 @@ pub(crate) fn draw_ui(
         draw_engine_turbulence,
     } = draw_settings;
 
+    let mut new_update_settings = update_settings.clone();
+
     let UpdateSettings {
         update_water,
+        enable_gravity,
+        enable_inertia,
         update_wires,
         update_sonar,
         update_objects,
         update_position,
         update_collision,
-    } = update_settings;
+    } = &mut new_update_settings;
 
     if *show_bars {
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
@@ -556,6 +561,12 @@ pub(crate) fn draw_ui(
             if ui.button("Close").clicked() {
                 *show_help = false;
             }
+        });
+    }
+
+    if new_update_settings != *update_settings {
+        commands.push(Command::ChangeUpdateSettings {
+            update_settings: new_update_settings,
         });
     }
 }

@@ -1,9 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    app::{Navigation, SubmarineState},
-    resources::MutableSubResources,
-};
+use crate::app::{Navigation, SubmarineState};
 
 #[derive(Serialize, Deserialize, Clone)]
 pub(crate) struct Object {
@@ -187,10 +184,7 @@ pub(crate) const OBJECT_TYPES: &[(&str, ObjectType)] = &[
 ];
 
 // What an object does on every physics update tick.
-pub(crate) fn update_objects(
-    submarine: &mut SubmarineState,
-    mutable_resources: &mut MutableSubResources,
-) {
+pub(crate) fn update_objects(submarine: &mut SubmarineState, walls_updated: &mut bool) {
     let SubmarineState {
         objects,
         water_grid,
@@ -229,11 +223,11 @@ pub(crate) fn update_objects(
                         if should_be_open(x) {
                             if !cell.is_inside() {
                                 cell.make_inside();
-                                mutable_resources.walls_updated = true;
+                                *walls_updated = true;
                             }
                         } else if !cell.is_wall() {
                             cell.make_wall();
-                            mutable_resources.walls_updated = true;
+                            *walls_updated = true;
                         }
                     }
                 }

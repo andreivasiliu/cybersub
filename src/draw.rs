@@ -132,7 +132,12 @@ pub(crate) fn draw_game(
     }
 
     if draw_settings.draw_rocks {
-        draw_rocks(rock_grid, resources, mutable_resources);
+        draw_rocks(
+            rock_grid,
+            &game_state.collisions,
+            resources,
+            mutable_resources,
+        );
     }
 
     push_camera_state();
@@ -149,7 +154,12 @@ pub(crate) fn draw_game(
         }
 
         if draw_settings.draw_walls {
-            draw_walls(&submarine.water_grid, resources, mutable_resources);
+            draw_walls(
+                &submarine.water_grid,
+                resources,
+                &submarine.collisions,
+                mutable_resources,
+            );
         }
 
         if draw_settings.draw_wires {
@@ -289,6 +299,7 @@ fn draw_background(mutable_resources: &MutableSubResources) {
 fn draw_walls(
     grid: &WaterGrid,
     resources: &Resources,
+    collisions: &[(usize, usize)],
     mutable_resources: &mut MutableSubResources,
 ) {
     let (width, height) = grid.size();
@@ -354,7 +365,7 @@ fn draw_walls(
 
     gl_use_default_material();
 
-    for &(x, y) in &mutable_resources.collisions {
+    for &(x, y) in collisions {
         let pos = to_screen_coords(x, y) + vec2(0.5, 0.5);
         draw_circle(pos.x, pos.y, 0.5, RED);
     }
@@ -859,7 +870,12 @@ fn draw_engine_turbulence(
     }
 }
 
-fn draw_rocks(grid: &RockGrid, resources: &Resources, mutable_resources: &mut MutableResources) {
+fn draw_rocks(
+    grid: &RockGrid,
+    collisions: &[(usize, usize)],
+    resources: &Resources,
+    mutable_resources: &mut MutableResources,
+) {
     update_rocks_texture(grid, mutable_resources);
 
     let (width, height) = grid.size();
@@ -891,7 +907,7 @@ fn draw_rocks(grid: &RockGrid, resources: &Resources, mutable_resources: &mut Mu
 
     gl_use_default_material();
 
-    for &(x, y) in &mutable_resources.collisions {
+    for &(x, y) in collisions {
         let pos = vec2(x as f32 + 0.5, y as f32 + 0.5) * 16.0;
         draw_rect_at(pos, 8.0, Color::new(0.78, 0.48, 1.00, 0.2));
     }
