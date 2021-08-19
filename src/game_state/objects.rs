@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::app::{Navigation, SubmarineState};
+use crate::game_state::state::{Navigation, SubmarineState};
 
 #[derive(Serialize, Deserialize, Clone)]
 pub(crate) struct Object {

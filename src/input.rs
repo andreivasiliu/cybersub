@@ -4,11 +4,12 @@ use macroquad::prelude::{
 };
 
 use crate::{
-    app::{GameSettings, SubmarineState, Tool},
+    app::{GameSettings, Tool},
     draw::{object_rect, object_size, Camera},
-    objects::hover_over_object,
+    game_state::objects::hover_over_object,
+    game_state::state::SubmarineState,
+    game_state::update::{CellCommand, Command},
     resources::MutableSubResources,
-    update::{CellCommand, Command},
 };
 
 fn from_screen_coords(pos: Vec2) -> (usize, usize) {

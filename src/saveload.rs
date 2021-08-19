@@ -8,12 +8,12 @@ use macroquad::prelude::{Image, ImageFormat, BLACK};
 use png::{BitDepth, ColorType, Decoder, Encoder};
 
 use crate::{
-    app::SubmarineState,
-    objects::Object,
+    game_state::objects::Object,
+    game_state::rocks::{RockGrid, RockType},
+    game_state::state::SubmarineState,
+    game_state::water::{WallMaterial, WaterGrid},
+    game_state::wires::{WireColor, WireGrid},
     resources::MutableSubResources,
-    rocks::{RockGrid, RockType},
-    water::{WallMaterial, WaterGrid},
-    wires::{WireColor, WireGrid},
 };
 
 pub struct SubmarineFileData {

@@ -1,8 +1,8 @@
-use crate::{
-    app::{GameState, UpdateSettings},
+use crate::game_state::{
     collisions::{update_rock_collisions, update_submarine_collisions},
     objects::{interact_with_object, update_objects, Object, ObjectType},
     sonar::update_sonar,
+    state::{GameState, UpdateSettings},
     wires::WireColor,
 };
 
@@ -33,14 +33,17 @@ pub(crate) enum CellCommand {
 }
 
 pub(crate) enum UpdateEvent {
-    Submarine { submarine_id: usize, submarine_event: SubmarineUpdateEvent },
+    Submarine {
+        submarine_id: usize,
+        submarine_event: SubmarineUpdatedEvent,
+    },
 }
 
-pub(crate) enum SubmarineUpdateEvent {
-    SonarUpdated,
-    WallsUpdated,
-    WiresUpdated,
-    SignalsUpdated,
+pub(crate) enum SubmarineUpdatedEvent {
+    Sonar,
+    Walls,
+    Wires,
+    Signals,
 }
 
 pub(crate) fn update_game(
@@ -91,13 +94,13 @@ pub(crate) fn update_game(
                         CellCommand::EditWater { .. } | CellCommand::EditWalls { .. } => {
                             events.push(UpdateEvent::Submarine {
                                 submarine_id: *submarine_id,
-                                submarine_event: SubmarineUpdateEvent::WallsUpdated,
+                                submarine_event: SubmarineUpdatedEvent::Walls,
                             });
                         }
                         CellCommand::EditWires { .. } => {
                             events.push(UpdateEvent::Submarine {
                                 submarine_id: *submarine_id,
-                                submarine_event: SubmarineUpdateEvent::WiresUpdated,
+                                submarine_event: SubmarineUpdatedEvent::Wires,
                             });
                         }
                         CellCommand::AddObject { .. } => (),
@@ -155,14 +158,12 @@ pub(crate) fn update_game(
         if update_settings.update_wires {
             for _ in 0..3 {
                 let mut signals_updated = false;
-                submarine
-                    .wire_grid
-                    .update(&mut signals_updated);
+                submarine.wire_grid.update(&mut signals_updated);
 
                 if signals_updated {
                     events.push(UpdateEvent::Submarine {
                         submarine_id: sub_index,
-                        submarine_event: SubmarineUpdateEvent::SignalsUpdated,
+                        submarine_event: SubmarineUpdatedEvent::Signals,
                     });
                 }
             }
@@ -174,7 +175,7 @@ pub(crate) fn update_game(
             if walls_updated {
                 events.push(UpdateEvent::Submarine {
                     submarine_id: sub_index,
-                    submarine_event: SubmarineUpdateEvent::WallsUpdated,
+                    submarine_event: SubmarineUpdatedEvent::Walls,
                 });
             }
         }
@@ -189,7 +190,7 @@ pub(crate) fn update_game(
             if updated {
                 events.push(UpdateEvent::Submarine {
                     submarine_id: sub_index,
-                    submarine_event: SubmarineUpdateEvent::SonarUpdated,
+                    submarine_event: SubmarineUpdatedEvent::Sonar,
                 });
             }
         }
@@ -206,7 +207,7 @@ pub(crate) fn update_game(
 
     if update_settings.update_collision {
         for sub1_index in 0..game_state.submarines.len() {
-            for sub2_index in sub1_index+1..game_state.submarines.len() {
+            for sub2_index in sub1_index + 1..game_state.submarines.len() {
                 let (left, right) = game_state.submarines.split_at_mut(sub2_index);
                 let submarine1 = &mut left[sub1_index];
                 let submarine2 = &mut right[0];

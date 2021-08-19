@@ -12,13 +12,15 @@ use macroquad::{
 };
 
 use crate::{
-    app::{GameSettings, GameState, Navigation, PlacingObject, SubmarineState},
-    objects::{Object, ObjectType},
+    app::{GameSettings, PlacingObject},
+    game_state::objects::{Object, ObjectType},
+    game_state::rocks::RockGrid,
+    game_state::sonar::Sonar,
+    game_state::state::{GameState, Navigation, SubmarineState},
+    game_state::water::WallMaterial,
+    game_state::water::WaterGrid,
+    game_state::wires::{WireColor, WireGrid},
     resources::{MutableResources, MutableSubResources, Resources, TurbulenceParticle},
-    rocks::RockGrid,
-    sonar::Sonar,
-    water::WaterGrid,
-    wires::{WireColor, WireGrid},
     Timings,
 };
 
@@ -318,8 +320,8 @@ fn draw_walls(
 
                 if let Some(wall_material) = cell.wall_material() {
                     let color = match wall_material {
-                        crate::water::WallMaterial::Normal => WHITE,
-                        crate::water::WallMaterial::Glass => Color::new(0.0, 1.0, 1.0, 1.0),
+                        WallMaterial::Normal => WHITE,
+                        WallMaterial::Glass => Color::new(0.0, 1.0, 1.0, 1.0),
                     };
                     image.set_pixel(x as u32, y as u32, color);
                 }

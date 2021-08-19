@@ -1,4 +1,16 @@
-use crate::{SubmarineFileData, draw::{draw_game, Camera, DrawSettings}, input::{handle_keyboard_input, handle_pointer_input}, objects::{Object, ObjectType}, resources::{MutableResources, MutableSubResources, Resources}, rocks::RockGrid, saveload::{load_from_file_data, load_rocks_from_png, save_to_file_data, SubmarineData}, sonar::Sonar, ui::{draw_ui, UiState}, update::{Command, SubmarineUpdateEvent, UpdateEvent, update_game}, water::WaterGrid, wires::{WireColor, WireGrid}};
+use crate::{
+    draw::{draw_game, Camera, DrawSettings},
+    game_state::objects::ObjectType,
+    game_state::sonar::Sonar,
+    game_state::state::{GameState, Navigation, SubmarineState},
+    game_state::update::{update_game, Command, SubmarineUpdatedEvent, UpdateEvent},
+    game_state::wires::WireColor,
+    input::{handle_keyboard_input, handle_pointer_input},
+    resources::{MutableResources, MutableSubResources, Resources},
+    saveload::{load_from_file_data, load_rocks_from_png, save_to_file_data, SubmarineData},
+    ui::{draw_ui, UiState},
+    SubmarineFileData,
+};
 
 pub struct CyberSubApp {
     pub timings: Timings,
@@ -27,43 +39,6 @@ pub(crate) struct GameSettings {
     pub submarine_templates: Vec<(String, SubmarineData)>,
 }
 
-#[derive(Clone, PartialEq, Eq)]
-pub(crate) struct UpdateSettings {
-    pub update_water: bool,
-    pub enable_gravity: bool,
-    pub enable_inertia: bool,
-    pub update_wires: bool,
-    pub update_sonar: bool,
-    pub update_objects: bool,
-    pub update_position: bool,
-    pub update_collision: bool,
-}
-
-pub(crate) struct GameState {
-    pub update_settings: UpdateSettings,
-    pub last_update: Option<f64>,
-    pub rock_grid: RockGrid,
-    pub submarines: Vec<SubmarineState>,
-    pub collisions: Vec<(usize, usize)>,
-}
-
-pub(crate) struct SubmarineState {
-    pub water_grid: WaterGrid,
-    pub wire_grid: WireGrid,
-    pub objects: Vec<Object>,
-    pub sonar: Sonar,
-    pub navigation: Navigation,
-    pub collisions: Vec<(usize, usize)>,
-}
-
-#[derive(Default)]
-pub(crate) struct Navigation {
-    pub target: (i32, i32),
-    pub position: (i32, i32),
-    pub speed: (i32, i32),
-    pub acceleration: (i32, i32),
-}
-
 #[derive(PartialEq, Eq)]
 pub(crate) enum Tool {
     Interact,
@@ -90,9 +65,6 @@ pub(crate) struct PlacingObject {
     pub object_type: ObjectType,
 }
 
-const WIDTH: usize = 300;
-const HEIGHT: usize = 100;
-
 impl Default for CyberSubApp {
     fn default() -> Self {
         let draw_settings = DrawSettings {
@@ -107,17 +79,6 @@ impl Default for CyberSubApp {
             draw_water: true,
             draw_sonar: true,
             draw_engine_turbulence: true,
-        };
-
-        let update_settings = UpdateSettings {
-            update_water: !cfg!(debug_assertions), // Very expensive in debug mode
-            enable_gravity: true,
-            enable_inertia: true,
-            update_wires: true,
-            update_sonar: true,
-            update_objects: true,
-            update_position: true,
-            update_collision: true,
         };
 
         Self {
@@ -141,13 +102,7 @@ impl Default for CyberSubApp {
             },
             commands: Vec::new(),
             update_events: Vec::new(),
-            game_state: GameState {
-                update_settings,
-                last_update: None,
-                rock_grid: RockGrid::new(WIDTH, HEIGHT),
-                submarines: Vec::new(),
-                collisions: Vec::new(),
-            },
+            game_state: GameState::default(),
             ui_state: UiState::default(),
             resources: Resources::new(),
             mutable_resources: MutableResources::new(),
@@ -281,24 +236,27 @@ impl CyberSubApp {
 
                 for event in &self.update_events {
                     match event {
-                        UpdateEvent::Submarine { submarine_id, submarine_event } => {
+                        UpdateEvent::Submarine {
+                            submarine_id,
+                            submarine_event,
+                        } => {
                             let mutable_sub_resources = self.mutable_sub_resources.get_mut(*submarine_id).expect("All submarines should have their own MutableSubResources instance");
 
                             match submarine_event {
-                                SubmarineUpdateEvent::SonarUpdated => {
+                                SubmarineUpdatedEvent::Sonar => {
                                     mutable_sub_resources.sonar_updated = true;
-                                },
-                                SubmarineUpdateEvent::WallsUpdated => {
+                                }
+                                SubmarineUpdatedEvent::Walls => {
                                     mutable_sub_resources.walls_updated = true;
-                                },
-                                SubmarineUpdateEvent::WiresUpdated => {
+                                }
+                                SubmarineUpdatedEvent::Wires => {
                                     mutable_sub_resources.wires_updated = true;
-                                },
-                                SubmarineUpdateEvent::SignalsUpdated => {
+                                }
+                                SubmarineUpdatedEvent::Signals => {
                                     mutable_sub_resources.signals_updated = true;
                                 }
                             }
-                        },
+                        }
                     }
                 }
             }

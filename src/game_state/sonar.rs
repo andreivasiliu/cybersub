@@ -1,7 +1,7 @@
 //! Scans the rocks in the world for edges, and runs visibility checks for
 //! them.
 
-use crate::{app::Navigation, rocks::RockGrid};
+use crate::game_state::{rocks::RockGrid, state::Navigation};
 
 #[derive(Default)]
 pub(crate) struct Sonar {

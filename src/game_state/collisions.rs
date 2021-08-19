@@ -1,4 +1,7 @@
-use crate::{app::SubmarineState, rocks::RockGrid};
+use crate::game_state::{
+    rocks::{RockGrid, RockType},
+    state::SubmarineState,
+};
 
 pub(crate) fn update_rock_collisions(
     submarine: &mut SubmarineState,
@@ -24,12 +27,12 @@ pub(crate) fn update_rock_collisions(
             let inner_y = (submarine.navigation.position.1 / 16 + sub_y as i32) % 16;
 
             let collided = match rock_cell.rock_type() {
-                crate::rocks::RockType::Empty => unreachable!(),
-                crate::rocks::RockType::WallFilled => true,
-                crate::rocks::RockType::WallLowerLeft => inner_x < inner_y,
-                crate::rocks::RockType::WallLowerRight => (15 - inner_x) < inner_y,
-                crate::rocks::RockType::WallUpperLeft => (15 - inner_x) > inner_y,
-                crate::rocks::RockType::WallUpperRight => inner_x > inner_y,
+                RockType::Empty => unreachable!(),
+                RockType::WallFilled => true,
+                RockType::WallLowerLeft => inner_x < inner_y,
+                RockType::WallLowerRight => (15 - inner_x) < inner_y,
+                RockType::WallUpperLeft => (15 - inner_x) > inner_y,
+                RockType::WallUpperRight => inner_x > inner_y,
             };
 
             if collided {

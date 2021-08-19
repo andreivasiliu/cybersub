@@ -1,13 +1,14 @@
 use egui::{vec2, Align2, Button, Color32, Label, Slider, Ui};
 
 use crate::{
-    app::{GameSettings, GameState, PlacingObject, Tool, UpdateSettings},
+    app::{GameSettings, PlacingObject, Tool},
     draw::DrawSettings,
-    objects::{compute_navigation, OBJECT_TYPES},
+    game_state::objects::{compute_navigation, OBJECT_TYPES},
+    game_state::state::{GameState, UpdateSettings},
+    game_state::update::Command,
+    game_state::wires::WireColor,
     resources::MutableSubResources,
     saveload::{load_from_directory, load_from_file_data, save_to_directory, save_to_file_data},
-    update::Command,
-    wires::WireColor,
     Timings,
 };
 
@@ -377,7 +378,7 @@ pub(crate) fn draw_ui(
                     ui.radio_value(current_tool, Tool::Interact, "Interact");
                     ui.radio_value(current_tool, Tool::EditWater { add: true }, "Edit Water");
                     ui.radio_value(current_tool, Tool::EditWalls { add: true }, "Edit Walls");
-                    ui.radio_value(current_tool, Tool::EditWires { color: crate::wires::WireColor::Brown }, "Edit Wires");
+                    ui.radio_value(current_tool, Tool::EditWires { color: WireColor::Brown }, "Edit Wires");
                 } else if let Tool::EditWater { add } = current_tool {
                     ui.label("Edit water:");
                     ui.radio_value(add, true, "Add");
