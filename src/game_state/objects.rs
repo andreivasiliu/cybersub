@@ -60,8 +60,8 @@ pub(crate) enum ObjectType {
         active: bool,
         #[serde(default, skip_serializing_if = "is_default")]
         powered: bool,
-        #[serde(default, skip_serializing)]
-        sonar_info: SonarInfo,
+        #[serde(default, skip_serializing_if = "is_default")]
+        navigation_target: Option<(usize, usize)>,
     },
     Engine {
         #[serde(default, skip_serializing_if = "is_default")]
@@ -82,12 +82,6 @@ pub(crate) enum DoorState {
     Closing,
 }
 
-#[derive(Serialize, Deserialize, Clone, Default, PartialEq)]
-pub(crate) struct SonarInfo {
-    pub cursor: Option<(f32, f32)>,
-    pub set_target: Option<(f32, f32)>,
-}
-
 pub(crate) struct NavControl {
     pub target_speed: (i32, i32),
     pub target_acceleration: (i32, i32),
@@ -105,14 +99,14 @@ impl Default for DoorState {
 }
 
 impl Object {
-    pub(crate) fn active_sonar_info(&self) -> Option<&SonarInfo> {
+    pub(crate) fn active_sonar_target(&self) -> Option<Option<(usize, usize)>> {
         if let ObjectType::Sonar {
             active: true,
             powered: true,
-            sonar_info,
+            navigation_target,
         } = &self.object_type
         {
-            Some(sonar_info)
+            Some(*navigation_target)
         } else {
             None
         }
@@ -166,10 +160,7 @@ pub(crate) const OBJECT_TYPES: &[(&str, ObjectType)] = &[
         ObjectType::Sonar {
             active: true,
             powered: false,
-            sonar_info: SonarInfo {
-                cursor: None,
-                set_target: None,
-            },
+            navigation_target: None,
         },
     ),
     (
@@ -439,7 +430,7 @@ pub(crate) fn update_objects(submarine: &mut SubmarineState, walls_updated: &mut
             ObjectType::Sonar {
                 active,
                 powered,
-                sonar_info,
+                navigation_target,
             } => {
                 let x = object.position.0 as usize + 2;
                 let y = object.position.1 as usize + 15;
@@ -447,19 +438,8 @@ pub(crate) fn update_objects(submarine: &mut SubmarineState, walls_updated: &mut
                 *powered = wire_grid.cell(x, y).minimum_power(100);
 
                 if *powered && *active {
-                    if let Some(target) = sonar_info.set_target {
-                        // 16 sub-cells per rock-cell, 16 movement points per rock-cell
-                        let world_ratio = 16.0 * 16.0;
-                        // 75 rock-cells radius, on 6-pixels per cell resolution
-                        let sonar_ratio = 75.0 / 6.0;
-
-                        let target_x = submarine.navigation.position.0
-                            + (target.0 * world_ratio * sonar_ratio) as i32;
-                        let target_y = submarine.navigation.position.1
-                            + (target.1 * world_ratio * sonar_ratio) as i32;
-                        submarine.navigation.target = (target_x, target_y);
-
-                        sonar_info.set_target = None;
+                    if let Some(target) = *navigation_target {
+                        submarine.navigation.target = (target.0 as i32, target.1 as i32);
                     }
                 }
 
@@ -550,15 +530,7 @@ pub(crate) fn interact_with_object(object: &mut Object) {
         ObjectType::LargePump { target_speed, .. } => cycle_i8(target_speed),
         ObjectType::JunctionBox => (),
         ObjectType::NavController { active, .. } => *active = !*active,
-        ObjectType::Sonar {
-            active, sonar_info, ..
-        } => {
-            if let Some(cursor) = sonar_info.cursor {
-                sonar_info.set_target = Some(cursor);
-            } else {
-                *active = !*active;
-            }
-        }
+        ObjectType::Sonar { active, .. } => *active = !*active,
         ObjectType::Engine { target_speed, .. } => cycle_i8(target_speed),
         ObjectType::Battery { .. } => (),
     }
@@ -573,31 +545,6 @@ fn cycle_i8(value: &mut i8) {
         -64 => 0,
         _ => 0,
     };
-}
-
-pub(crate) fn hover_over_object(_object: &Object, _hover_position: (f32, f32)) {
-    // FIXME: Need per-object mutable draw state
-
-    // if let ObjectType::Sonar {
-    //     active: true,
-    //     sonar_info,
-    //     ..
-    // } = &object.object_type
-    // {
-    //     let sonar_middle = (9.5, 7.5);
-    //     let cursor = (
-    //         hover_position.0 - sonar_middle.0,
-    //         hover_position.1 - sonar_middle.1,
-    //     );
-
-    //     let length_squared = cursor.0 * cursor.0 + cursor.1 * cursor.1;
-
-    //     sonar_info.cursor = if length_squared < 5.0 * 5.0 {
-    //         Some(cursor)
-    //     } else {
-    //         None
-    //     };
-    // }
 }
 
 pub(crate) fn compute_navigation(navigation: &Navigation) -> NavControl {

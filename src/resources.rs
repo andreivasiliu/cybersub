@@ -52,6 +52,7 @@ pub(crate) struct MutableSubResources {
     pub new_sonar_target: RenderTarget,
     pub old_sonar_target: RenderTarget,
     pub sonar_updated: bool,
+    pub sonar_cursor: Option<(usize, (f32, f32))>,
     pub turbulence_particles: Vec<TurbulenceParticle>,
     pub highlighting_object: Option<usize>,
 }
@@ -253,12 +254,13 @@ impl MutableSubResources {
             walls_updated: false,
             sub_wires: render_target(0, 0),
             wires_updated: false,
-            sub_signals: Texture2D::empty(),
             sub_signals_image: Image::empty(),
+            sub_signals: Texture2D::empty(),
             signals_updated: false,
             new_sonar_target: render_target(0, 0),
             old_sonar_target: render_target(0, 0),
             sonar_updated: false,
+            sonar_cursor: None,
             turbulence_particles: Vec::new(),
             highlighting_object: None,
         }

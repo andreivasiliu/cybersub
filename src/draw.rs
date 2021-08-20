@@ -1017,9 +1017,9 @@ fn draw_sonar(
     let (width, height) = grid_size;
     let texture = mutable_resources.new_sonar_target.texture;
 
-    for object in objects {
-        let sonar_info = match object.active_sonar_info() {
-            Some(sonar_info) => sonar_info,
+    for (obj_index, object) in objects.iter().enumerate() {
+        let sonar_target = match object.active_sonar_target() {
+            Some(target) => target,
             None => continue,
         };
 
@@ -1072,7 +1072,11 @@ fn draw_sonar(
         );
 
         // Cursor (last point where mouse was)
-        if let Some(cursor) = sonar_info.cursor {
+        let cursor = match mutable_resources.sonar_cursor {
+            Some((obj, cursor)) if obj == obj_index => Some(cursor),
+            Some(_) | None => None,
+        };
+        if let Some(cursor) = cursor {
             let cursor = center + cursor.into();
             draw_line(
                 cursor.x - 0.2,
@@ -1090,17 +1094,18 @@ fn draw_sonar(
                 0.05,
                 DARKGREEN,
             );
-            // draw_rectangle_lines(cursor.x - 0.2, cursor.y - 0.2, 0.4, 0.4, 0.05, DARKGREEN);
         }
 
         // Navigation target
-        let target = vec2(
-            (navigation.target.0 - navigation.position.0) as f32,
-            (navigation.target.1 - navigation.position.1) as f32,
-        );
-        let target = center + (target / 16.0 / 16.0 / 75.0 * 6.0).clamp_length_max(5.5);
-        draw_line(center.x, center.y, target.x, target.y, 0.05, DARKGREEN);
-        draw_rectangle_lines(target.x - 0.1, target.y - 0.1, 0.2, 0.2, 0.05, DARKGREEN);
+        if let Some(sonar_target) = sonar_target {
+            let target = vec2(
+                (sonar_target.0 as i32 - navigation.position.0) as f32,
+                (sonar_target.1 as i32 - navigation.position.1) as f32,
+            );
+            let target = center + (target / 16.0 / 16.0 / 75.0 * 6.0).clamp_length_max(5.5);
+            draw_line(center.x, center.y, target.x, target.y, 0.05, DARKGREEN);
+            draw_rectangle_lines(target.x - 0.1, target.y - 0.1, 0.2, 0.2, 0.05, DARKGREEN);
+        }
 
         // Current velocity
         let speed = vec2(

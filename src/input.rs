@@ -6,9 +6,11 @@ use macroquad::prelude::{
 use crate::{
     app::{GameSettings, Tool},
     draw::{object_rect, object_size, Camera},
-    game_state::objects::hover_over_object,
-    game_state::state::SubmarineState,
     game_state::update::{CellCommand, Command},
+    game_state::{
+        objects::{Object, ObjectType},
+        state::{Navigation, SubmarineState},
+    },
     resources::MutableSubResources,
 };
 
@@ -144,6 +146,58 @@ pub(crate) fn handle_pointer_input(
     }
 }
 
+fn hovering_over_sonar(
+    object: &Object,
+    obj_index: usize,
+    hover_position: Vec2,
+    mutable_resources: &mut MutableSubResources,
+) -> bool {
+    if let ObjectType::Sonar {
+        active: true,
+        powered,
+        ..
+    } = &object.object_type
+    {
+        if !powered {
+            // Acknowledge hovering, but don't set target
+            return true;
+        }
+        let sonar_middle = (9.5, 7.5);
+        let cursor = (
+            hover_position.x - sonar_middle.0,
+            hover_position.y - sonar_middle.1,
+        );
+
+        let length_squared = cursor.0 * cursor.0 + cursor.1 * cursor.1;
+
+        if length_squared < 5.0 * 5.0 {
+            mutable_resources.sonar_cursor = Some((obj_index, cursor));
+            return true;
+        }
+    }
+
+    false
+}
+
+fn sonar_target(
+    navigation: &Navigation,
+    mutable_resources: &MutableSubResources,
+) -> (usize, usize) {
+    if let Some((_obj, target)) = mutable_resources.sonar_cursor {
+        // 16 sub-cells per rock-cell, 16 movement points per rock-cell
+        let world_ratio = 16.0 * 16.0;
+        // 75 rock-cells radius, on 6-pixels per cell resolution
+        let sonar_ratio = 75.0 / 6.0;
+
+        let target_x = navigation.position.0 + (target.0 * world_ratio * sonar_ratio) as i32;
+        let target_y = navigation.position.1 + (target.1 * world_ratio * sonar_ratio) as i32;
+
+        (target_x as usize, target_y as usize)
+    } else {
+        unreachable!("Checked by hovering_over_sonar()")
+    }
+}
+
 fn interact(
     commands: &mut Vec<Command>,
     submarine: &SubmarineState,
@@ -155,6 +209,8 @@ fn interact(
     let camera = &mut game_settings.camera;
     let dragging_object = &mut game_settings.dragging_object;
 
+    mutable_resources.sonar_cursor = None;
+
     for (obj_index, object) in submarine.objects.iter().enumerate() {
         let draw_rect = object_rect(object);
 
@@ -163,9 +219,18 @@ fn interact(
 
             let hover_position = mouse_position - draw_rect.point();
 
-            hover_over_object(object, (hover_position.x, hover_position.y));
+            let clicked = is_mouse_button_pressed(MouseButton::Left);
+            let hovering_over_sonar =
+                hovering_over_sonar(object, obj_index, hover_position, mutable_resources);
 
-            if is_mouse_button_pressed(MouseButton::Left) {
+            if hovering_over_sonar && clicked {
+                commands.push(Command::SetSonarTarget {
+                    submarine_id: sub_index,
+                    object_id: obj_index,
+                    rock_position: sonar_target(&submarine.navigation, mutable_resources),
+                });
+                return;
+            } else if clicked {
                 commands.push(Command::Interact {
                     submarine_id: sub_index,
                     object_id: obj_index,

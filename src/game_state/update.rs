@@ -23,6 +23,11 @@ pub(crate) enum Command {
     ChangeUpdateSettings {
         update_settings: UpdateSettings,
     },
+    SetSonarTarget {
+        submarine_id: usize,
+        object_id: usize,
+        rock_position: (usize, usize),
+    },
 }
 
 pub(crate) enum CellCommand {
@@ -114,6 +119,22 @@ pub(crate) fn update_game(
             }
             Command::ChangeUpdateSettings { update_settings } => {
                 game_state.update_settings = update_settings.clone()
+            }
+            Command::SetSonarTarget {
+                submarine_id,
+                object_id,
+                rock_position,
+            } => {
+                if let Some(submarine) = game_state.submarines.get_mut(*submarine_id) {
+                    if let Some(object) = submarine.objects.get_mut(*object_id) {
+                        if let ObjectType::Sonar {
+                            navigation_target, ..
+                        } = &mut object.object_type
+                        {
+                            *navigation_target = Some(*rock_position);
+                        }
+                    }
+                };
             }
         }
     }

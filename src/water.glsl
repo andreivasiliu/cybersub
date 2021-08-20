@@ -1,6 +1,6 @@
 #version 100
 
-precision highp float;
+precision lowp float;
 
 varying lowp vec2 uv;
 
@@ -23,10 +23,10 @@ uniform vec2 sea_dust_size;
 vec4 caustics(vec2 dust_uv) {
 	float scaled_time = time * 0.1 + 23.0;
     // uv should be the 0-1 uv of texture...
-	vec2 uv = dust_uv;
+	highp vec2 uv = dust_uv;
     
-    vec2 p = mod(uv*TAU, TAU)-250.0;
-	vec2 i = vec2(p);
+    highp vec2 p = mod(uv*TAU, TAU)-250.0;
+	highp vec2 i = vec2(p);
 	float c = 1.0;
 	float inten = .005;
 
@@ -47,7 +47,8 @@ vec4 caustics(vec2 dust_uv) {
 void main() {
 	vec4 dust_color = vec4(0.0, 0.0, 0.0, 1.0);
 	vec4 caustics_color = vec4(0.0, 0.0, 0.0, 0.0);
-	vec2 dust_uv = uv * sea_dust_size / world_size;
+	highp vec2 uv = uv;
+	vec2 dust_uv = fract(uv * sea_dust_size / world_size);
 
 	if (enable_caustics == 1.0) {
 		caustics_color = caustics(fract(dust_uv + time_offset / 3.0)) * 0.3;
