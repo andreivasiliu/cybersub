@@ -1,7 +1,4 @@
-use std::{
-    io::{Read, Write},
-    path::Path,
-};
+use std::{io::Write, path::Path};
 
 use flate2::read::GzDecoder;
 use macroquad::prelude::{Image, ImageFormat, BLACK};
@@ -11,8 +8,11 @@ use crate::{
     game_state::objects::Object,
     game_state::rocks::{RockGrid, RockType},
     game_state::state::SubmarineState,
-    game_state::water::{WallMaterial, WaterGrid},
-    game_state::wires::{WireColor, WireGrid},
+    game_state::wires::{WireColor, WireGrid, WirePoints},
+    game_state::{
+        state::SubmarineTemplate,
+        water::{CellTemplate, WallMaterial, WaterGrid},
+    },
     resources::MutableSubResources,
 };
 
@@ -23,28 +23,27 @@ pub struct SubmarineFileData {
     pub wires: Vec<u8>,
 }
 
-#[derive(Clone)]
-pub(crate) struct SubmarineData {
-    pub water_grid: WaterGrid,
-    pub background: Image,
-    pub objects: Vec<Object>,
-    pub wire_grid: WireGrid,
-}
-
-pub(crate) fn load_from_file_data(file_data: SubmarineFileData) -> Result<SubmarineData, String> {
-    let water_grid = load_water_from_png(&file_data.water_grid)?;
+pub(crate) fn load_template_from_data(
+    file_data: SubmarineFileData,
+) -> Result<SubmarineTemplate, String> {
+    let water_cells = load_water_cells_from_png(&file_data.water_grid)?;
+    let wire_points = load_wire_points_from_yaml(&file_data.wires)?;
     let objects = load_objects_from_yaml(&file_data.objects)?;
+    let background_image =
+        Image::from_file_with_format(&file_data.background, Some(ImageFormat::Png));
 
-    let background = Image::from_file_with_format(&file_data.background, Some(ImageFormat::Png));
+    let (width, height, water_cells) = water_cells;
 
-    let (width, height) = water_grid.size();
-    let wire_grid = load_wires_from_yaml(&file_data.wires, width, height)?;
+    if background_image.width() != width || background_image.height() != height {
+        return Err("Background size does not correspond to water grid size.".to_string());
+    }
 
-    Ok(SubmarineData {
-        water_grid,
-        background,
+    Ok(SubmarineTemplate {
+        size: (width, height),
+        water_cells,
+        background_pixels: background_image.bytes,
         objects,
-        wire_grid,
+        wire_points,
     })
 }
 
@@ -166,13 +165,6 @@ pub(crate) fn load_grid_from_bin() -> Result<WaterGrid, String> {
     Ok(grid)
 }
 
-pub(crate) fn load_water_from_png(bytes: &[u8]) -> Result<WaterGrid, String> {
-    let reader = std::io::BufReader::new(bytes);
-    let png_decoder = Decoder::new(reader);
-
-    load_water_from_decoder(png_decoder)
-}
-
 pub(crate) fn save_water_to_png(grid: &WaterGrid) -> Result<Vec<u8>, String> {
     if cfg!(target_arch = "wasm32") {
         return Err("Saving not yet possible on browsers".to_string());
@@ -219,13 +211,18 @@ pub(crate) fn save_water_to_png(grid: &WaterGrid) -> Result<Vec<u8>, String> {
     Ok(bytes)
 }
 
-fn load_water_from_decoder(png_decoder: Decoder<impl Read>) -> Result<WaterGrid, String> {
+fn load_water_cells_from_png(
+    png_bytes: &[u8],
+) -> Result<(usize, usize, Vec<CellTemplate>), String> {
+    let reader = std::io::BufReader::new(png_bytes);
+    let png_decoder = Decoder::new(reader);
+
     let (png_info, mut png_reader) = png_decoder
         .read_info()
         .map_err(|err| format!("Could not read PNG header: {}", err))?;
 
     let (width, height) = (png_info.width as usize, png_info.height as usize);
-    let mut grid = WaterGrid::new(width, height);
+    let mut water_template = vec![CellTemplate::Sea; width * height];
 
     if png_info.bit_depth != BitDepth::Eight {
         return Err("PNG must be RGBA with 8 bits per channel".to_owned());
@@ -238,13 +235,13 @@ fn load_water_from_decoder(png_decoder: Decoder<impl Read>) -> Result<WaterGrid,
             .expect("Expected row count to equal PNG height");
 
         for x in 0..width {
-            let cell = grid.cell_mut(x, y);
+            let cell = &mut water_template[y * width + x];
 
-            match data[x * 4..x * 4 + 4] {
-                [0, 0, 255, 255] => cell.make_sea(),
-                [0, 255, 255, 255] => cell.make_glass(),
-                [255, 255, 255, 255] => cell.make_wall(),
-                [0, 0, 0, 0] => cell.make_inside(),
+            *cell = match data[x * 4..x * 4 + 4] {
+                [0, 0, 255, 255] => CellTemplate::Sea,
+                [0, 255, 255, 255] => CellTemplate::Glass,
+                [255, 255, 255, 255] => CellTemplate::Wall,
+                [0, 0, 0, 0] => CellTemplate::Inside,
                 [r, g, b, a] => {
                     return Err(format!(
                     "Unknown color code {}/{}/{}/{}; expected blue, white, or black-transparent",
@@ -256,36 +253,14 @@ fn load_water_from_decoder(png_decoder: Decoder<impl Read>) -> Result<WaterGrid,
         }
     }
 
-    // Edges don't need to be updated ever again after this.
-    grid.update_edges();
-
-    Ok(grid)
+    Ok((width, height, water_template))
 }
 
-fn load_wires_from_yaml(bytes: &[u8], width: usize, height: usize) -> Result<WireGrid, String> {
+fn load_wire_points_from_yaml(bytes: &[u8]) -> Result<Vec<WirePoints>, String> {
     let wire_points: Vec<(WireColor, Vec<(usize, usize)>)> = serde_yaml::from_slice(bytes)
         .map_err(|err| format!("Could not load wires from YAML file: {}", err))?;
-    let mut wire_grid = WireGrid::new(width, height);
 
-    for (color, wire_points) in wire_points {
-        for pair in wire_points.windows(2) {
-            let [(x1, y1), (x2, y2)] = match pair {
-                [p1, p2] => [p1, p2],
-                _ => unreachable!(),
-            };
-
-            let (x1, x2) = (x1.min(x2), x1.max(x2));
-            let (y1, y2) = (y1.min(y2), y1.max(y2));
-
-            for y in *y1..=*y2 {
-                for x in *x1..=*x2 {
-                    wire_grid.make_wire(x, y, color);
-                }
-            }
-        }
-    }
-
-    Ok(wire_grid)
+    Ok(wire_points)
 }
 
 fn save_wires_to_yaml(wire_grid: &WireGrid) -> Result<Vec<u8>, String> {
@@ -349,4 +324,21 @@ fn load_rocks_from_image(image: Image) -> RockGrid {
     grid.update_edges();
 
     grid
+}
+
+pub(crate) fn pixels_to_image(width: usize, height: usize, pixels: &[u8]) -> Image {
+    let mut image = Image::gen_image_color(width as u16, height as u16, BLACK);
+
+    let img_bytes = image.get_image_data_mut();
+
+    for y in 0..height {
+        for x in 0..width {
+            let pixel = &pixels[y * width * 4 + x * 4..y * width * 4 + x * 4 + 4];
+            let img_pixel = &mut img_bytes[y * width + x];
+
+            img_pixel[..4].clone_from_slice(&pixel[..4]);
+        }
+    }
+
+    image
 }

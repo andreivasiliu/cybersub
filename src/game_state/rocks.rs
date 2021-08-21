@@ -2,19 +2,22 @@
 //! exists and collides with. The cells are 16x larger than a single submarine
 //! cell.
 
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize)]
 pub(crate) struct RockGrid {
     cells: Vec<RockCell>,
     width: usize,
     height: usize,
 }
 
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Serialize, Deserialize)]
 pub(crate) struct RockCell {
     rock_type: RockType,
     edge: bool,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Serialize, Deserialize)]
 pub(crate) enum RockType {
     Empty = 0,          // □
     WallFilled = 1,     // ■

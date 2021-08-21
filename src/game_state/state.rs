@@ -1,6 +1,14 @@
-use super::{objects::Object, rocks::RockGrid, sonar::Sonar, water::WaterGrid, wires::WireGrid};
+use serde::{Deserialize, Serialize};
 
-#[derive(Clone, PartialEq, Eq)]
+use super::{
+    objects::Object,
+    rocks::RockGrid,
+    sonar::Sonar,
+    water::{CellTemplate, WaterGrid},
+    wires::{WireGrid, WirePoints},
+};
+
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct UpdateSettings {
     pub update_water: bool,
     pub enable_gravity: bool,
@@ -12,14 +20,15 @@ pub(crate) struct UpdateSettings {
     pub update_collision: bool,
 }
 
+#[derive(Serialize, Deserialize)]
 pub(crate) struct GameState {
     pub update_settings: UpdateSettings,
-    pub last_update: Option<f64>,
     pub rock_grid: RockGrid,
     pub submarines: Vec<SubmarineState>,
     pub collisions: Vec<(usize, usize)>,
 }
 
+#[derive(Serialize, Deserialize)]
 pub(crate) struct SubmarineState {
     pub water_grid: WaterGrid,
     pub wire_grid: WireGrid,
@@ -29,12 +38,21 @@ pub(crate) struct SubmarineState {
     pub collisions: Vec<(usize, usize)>,
 }
 
-#[derive(Default)]
+#[derive(Default, Serialize, Deserialize)]
 pub(crate) struct Navigation {
     pub target: (i32, i32),
     pub position: (i32, i32),
     pub speed: (i32, i32),
     pub acceleration: (i32, i32),
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+pub(crate) struct SubmarineTemplate {
+    pub size: (usize, usize),
+    pub water_cells: Vec<CellTemplate>,
+    pub background_pixels: Vec<u8>,
+    pub objects: Vec<Object>,
+    pub wire_points: Vec<WirePoints>,
 }
 
 impl Default for UpdateSettings {
@@ -56,7 +74,6 @@ impl Default for GameState {
     fn default() -> Self {
         GameState {
             update_settings: UpdateSettings::default(),
-            last_update: None,
             rock_grid: RockGrid::new(0, 0),
             submarines: Vec::new(),
             collisions: Vec::new(),

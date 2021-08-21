@@ -47,6 +47,14 @@ impl Default for CellType {
     }
 }
 
+#[derive(Clone, Copy, Serialize, Deserialize)]
+pub(crate) enum CellTemplate {
+    Sea,
+    Inside,
+    Wall,
+    Glass,
+}
+
 // Currently static; will eventually be based on sub's depth
 const SEA_LEVEL: u32 = 8192;
 
@@ -118,6 +126,27 @@ impl WaterGrid {
             total_inside: 0,
             edges: Vec::new(),
         }
+    }
+
+    pub fn from_cells(width: usize, height: usize, cells: &[CellTemplate]) -> Self {
+        let mut water_grid = WaterGrid::new(width, height);
+
+        for y in 0..height {
+            for x in 0..width {
+                let cell = water_grid.cell_mut(x, y);
+
+                match cells[y * width + x] {
+                    CellTemplate::Sea => cell.make_sea(),
+                    CellTemplate::Inside => cell.make_inside(),
+                    CellTemplate::Wall => cell.make_wall(),
+                    CellTemplate::Glass => cell.make_glass(),
+                }
+            }
+        }
+
+        water_grid.update_edges();
+
+        water_grid
     }
 
     pub fn size(&self) -> (usize, usize) {

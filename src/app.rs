@@ -1,13 +1,15 @@
 use crate::{
     draw::{draw_game, Camera, DrawSettings},
     game_state::objects::ObjectType,
-    game_state::sonar::Sonar,
-    game_state::state::{GameState, Navigation, SubmarineState},
-    game_state::update::{update_game, Command, SubmarineUpdatedEvent, UpdateEvent},
+    game_state::state::GameState,
     game_state::wires::WireColor,
+    game_state::{
+        state::SubmarineTemplate,
+        update::{update_game, Command, SubmarineUpdatedEvent, UpdateEvent},
+    },
     input::{handle_keyboard_input, handle_pointer_input},
     resources::{MutableResources, MutableSubResources, Resources},
-    saveload::{load_from_file_data, load_rocks_from_png, save_to_file_data, SubmarineData},
+    saveload::{load_rocks_from_png, load_template_from_data, pixels_to_image, save_to_file_data},
     ui::{draw_ui, UiState},
     SubmarineFileData,
 };
@@ -32,11 +34,12 @@ pub(crate) struct GameSettings {
     pub quit_game: bool,
     pub dragging_object: bool,
     pub highlighting_settings: bool,
+    pub last_update: Option<f64>,
     pub last_draw: Option<f64>,
     pub animation_ticks: u32,
     pub add_submarine: Option<usize>,
     pub placing_object: Option<PlacingObject>,
-    pub submarine_templates: Vec<(String, SubmarineData)>,
+    pub submarine_templates: Vec<(String, SubmarineTemplate)>,
 }
 
 #[derive(PartialEq, Eq)]
@@ -94,6 +97,7 @@ impl Default for CyberSubApp {
                 quit_game: false,
                 dragging_object: false,
                 highlighting_settings: false,
+                last_update: None,
                 last_draw: None,
                 animation_ticks: 0,
                 add_submarine: None,
@@ -112,14 +116,27 @@ impl Default for CyberSubApp {
 }
 
 impl CyberSubApp {
-    fn load_submarine(&mut self, template: SubmarineData) -> Result<(), String> {
-        let SubmarineData {
-            water_grid,
-            background,
-            objects,
-            wire_grid,
-        } = template;
-        let (width, height) = water_grid.size();
+    pub fn load_submarine_template(
+        &mut self,
+        name: impl Into<String>,
+        file_data: SubmarineFileData,
+    ) -> Result<usize, String> {
+        let template = load_template_from_data(file_data)?;
+        self.game_settings
+            .submarine_templates
+            .push((name.into(), template));
+        Ok(self.game_settings.submarine_templates.len() - 1)
+    }
+
+    pub fn add_submarine(&mut self, template_index: usize) {
+        let (_name, template) = self
+            .game_settings
+            .submarine_templates
+            .get(template_index)
+            .expect("Template was requested this frame")
+            .clone();
+
+        let (width, height) = template.size;
 
         // Middle of the world
         let (rock_width, rock_height) = self.game_state.rock_grid.size();
@@ -134,44 +151,10 @@ impl CyberSubApp {
             middle_y - height as i32 * 16 / 2,
         );
 
-        // Change camera to its middle and set it as current
-        self.game_settings.current_submarine = self.game_state.submarines.len();
-        self.game_settings.camera.offset_x = -(width as f32) / 2.0;
-        self.game_settings.camera.offset_y = -(height as f32) / 2.0;
-
-        self.game_state.submarines.push(SubmarineState {
-            water_grid,
-            wire_grid,
-            objects,
-            navigation: Navigation {
-                position: (pos_x, pos_y),
-                target: (pos_x, pos_y),
-                ..Default::default()
-            },
-            sonar: Sonar::default(),
-            collisions: Vec::new(),
+        self.commands.push(Command::CreateSubmarine {
+            submarine_template: Box::new(template),
+            rock_position: (pos_x as usize, pos_y as usize),
         });
-
-        self.mutable_sub_resources
-            .push(MutableSubResources::new(background));
-
-        Ok(())
-    }
-
-    pub fn load_submarine_template(
-        &mut self,
-        name: impl Into<String>,
-        file_data: SubmarineFileData,
-    ) -> Result<usize, String> {
-        let template = load_from_file_data(file_data)?;
-        self.game_settings
-            .submarine_templates
-            .push((name.into(), template));
-        Ok(self.game_settings.submarine_templates.len() - 1)
-    }
-
-    pub fn add_submarine(&mut self, template_index: usize) {
-        self.game_settings.add_submarine = Some(template_index);
     }
 
     pub fn save_submarines(&mut self) -> Result<SubmarineFileData, String> {
@@ -191,19 +174,6 @@ impl CyberSubApp {
     }
 
     pub fn update_game(&mut self, game_time: f64) {
-        if let Some(template_id) = self.game_settings.add_submarine {
-            self.game_settings.add_submarine = None;
-            let submarine = self
-                .game_settings
-                .submarine_templates
-                .get(template_id)
-                .expect("Template was requested this frame")
-                .clone();
-
-            // FIXME: This should be done through a command somehow
-            self.load_submarine(submarine.1).ok();
-        }
-
         self.game_settings.animation_ticks = 0;
 
         if let Some(last_draw) = self.game_settings.last_draw {
@@ -217,14 +187,12 @@ impl CyberSubApp {
             }
         }
 
-        if let Some(last_update) = &mut self.game_state.last_update {
+        if let Some(last_update) = &mut self.game_settings.last_update {
             let mut delta = (game_time - *last_update).clamp(0.0, 0.5);
 
             while delta > 0.0 {
                 // 30 updates per second, regardless of FPS
                 delta -= 1.0 / 30.0;
-
-                self.update_events.clear();
 
                 update_game(
                     &self.commands,
@@ -234,13 +202,13 @@ impl CyberSubApp {
 
                 self.commands.clear();
 
-                for event in &self.update_events {
+                for event in self.update_events.drain(0..self.update_events.len()) {
                     match event {
                         UpdateEvent::Submarine {
                             submarine_id,
                             submarine_event,
                         } => {
-                            let mutable_sub_resources = self.mutable_sub_resources.get_mut(*submarine_id).expect("All submarines should have their own MutableSubResources instance");
+                            let mutable_sub_resources = self.mutable_sub_resources.get_mut(submarine_id).expect("All submarines should have their own MutableSubResources instance");
 
                             match submarine_event {
                                 SubmarineUpdatedEvent::Sonar => {
@@ -257,13 +225,28 @@ impl CyberSubApp {
                                 }
                             }
                         }
+                        UpdateEvent::SubmarineCreated {
+                            width,
+                            height,
+                            background_image,
+                        } => {
+                            let image = pixels_to_image(width, height, &background_image);
+                            self.mutable_sub_resources
+                                .push(MutableSubResources::new(image));
+
+                            // Change camera to its middle and set it as current
+                            self.game_settings.current_submarine =
+                                self.game_state.submarines.len() - 1;
+                            self.game_settings.camera.offset_x = -(width as f32) / 2.0;
+                            self.game_settings.camera.offset_y = -(height as f32) / 2.0;
+                        }
                     }
                 }
             }
         }
 
         self.game_settings.last_draw = Some(game_time);
-        self.game_state.last_update = Some(game_time);
+        self.game_settings.last_update = Some(game_time);
 
         // Follow submarine with camera
         let submarine_camera = self

@@ -8,7 +8,9 @@ use crate::{
     game_state::update::Command,
     game_state::wires::WireColor,
     resources::MutableSubResources,
-    saveload::{load_from_directory, load_from_file_data, save_to_directory, save_to_file_data},
+    saveload::{
+        load_from_directory, load_template_from_data, save_to_directory, save_to_file_data,
+    },
     Timings,
 };
 
@@ -270,7 +272,7 @@ pub(crate) fn draw_ui(
                                 Err("Not yet implemented on browsers".to_string())
                             } else {
                                 let file_data = load_from_directory(submarine_name)?;
-                                let template = load_from_file_data(file_data)?;
+                                let template = load_template_from_data(file_data)?;
                                 submarine_templates.push((submarine_name.to_owned(), template));
                                 Ok(())
                             }

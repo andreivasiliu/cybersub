@@ -6,6 +6,13 @@ use crate::game_state::{
     wires::WireColor,
 };
 
+use super::{
+    sonar::Sonar,
+    state::{Navigation, SubmarineState, SubmarineTemplate},
+    water::WaterGrid,
+    wires::WireGrid,
+};
+
 /// A request to mutate state. Created by the UI and player actions.
 pub(crate) enum Command {
     Interact {
@@ -28,6 +35,10 @@ pub(crate) enum Command {
         object_id: usize,
         rock_position: (usize, usize),
     },
+    CreateSubmarine {
+        submarine_template: Box<SubmarineTemplate>,
+        rock_position: (usize, usize),
+    },
 }
 
 pub(crate) enum CellCommand {
@@ -41,6 +52,11 @@ pub(crate) enum UpdateEvent {
     Submarine {
         submarine_id: usize,
         submarine_event: SubmarineUpdatedEvent,
+    },
+    SubmarineCreated {
+        width: usize,
+        height: usize,
+        background_image: Vec<u8>,
     },
 }
 
@@ -135,6 +151,39 @@ pub(crate) fn update_game(
                         }
                     }
                 };
+            }
+            Command::CreateSubmarine {
+                submarine_template,
+                rock_position,
+            } => {
+                let (width, height) = submarine_template.size;
+                let position = (rock_position.0 as i32, rock_position.1 as i32);
+                game_state.submarines.push(SubmarineState {
+                    water_grid: WaterGrid::from_cells(
+                        width,
+                        height,
+                        &submarine_template.water_cells,
+                    ),
+                    wire_grid: WireGrid::from_wire_points(
+                        width,
+                        height,
+                        &submarine_template.wire_points,
+                    ),
+                    objects: submarine_template.objects.clone(),
+                    navigation: Navigation {
+                        position,
+                        target: position,
+                        ..Default::default()
+                    },
+                    sonar: Sonar::default(),
+                    collisions: Vec::new(),
+                });
+
+                events.push(UpdateEvent::SubmarineCreated {
+                    width,
+                    height,
+                    background_image: submarine_template.background_pixels.clone(),
+                });
             }
         }
     }

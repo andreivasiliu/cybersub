@@ -1,9 +1,11 @@
 //! Scans the rocks in the world for edges, and runs visibility checks for
 //! them.
 
+use serde::{Deserialize, Serialize};
+
 use crate::game_state::{rocks::RockGrid, state::Navigation};
 
-#[derive(Default)]
+#[derive(Default, Serialize, Deserialize)]
 pub(crate) struct Sonar {
     visible_edge_cells: Vec<(i16, i16)>,
     pulse: usize,

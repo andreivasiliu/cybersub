@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 // Still need to implement cable bundles and voltage/demand-based current and supply.
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub(crate) struct WireGrid {
     cells: Vec<WireCell>,
     width: usize,
@@ -14,12 +14,12 @@ pub(crate) struct WireGrid {
     connected_wires: [Vec<(usize, usize)>; COLORS],
 }
 
-#[derive(Default, Clone, Copy)]
+#[derive(Default, Clone, Copy, Serialize, Deserialize)]
 pub(crate) struct WireCell {
     value: [WireValue; COLORS],
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Serialize, Deserialize)]
 pub(crate) enum WireValue {
     NotConnected,
     NoSignal,
@@ -34,6 +34,8 @@ pub(crate) enum WireColor {
     Blue = 2,
     Green = 3,
 }
+
+pub(crate) type WirePoints = (WireColor, Vec<(usize, usize)>);
 
 const NEIGHBOUR_OFFSETS: &[(i32, i32)] = &[(1, 0), (0, 1), (-1, 0), (0, -1)];
 
@@ -76,6 +78,30 @@ impl WireGrid {
             height: other_grid.height,
             connected_wires: other_grid.connected_wires.clone(),
         }
+    }
+
+    pub fn from_wire_points(width: usize, height: usize, wire_points: &[WirePoints]) -> Self {
+        let mut wire_grid = WireGrid::new(width, height);
+
+        for (color, wire_points) in wire_points {
+            for pair in wire_points.windows(2) {
+                let [(x1, y1), (x2, y2)] = match pair {
+                    [p1, p2] => [p1, p2],
+                    _ => unreachable!(),
+                };
+
+                let (x1, x2) = (x1.min(x2), x1.max(x2));
+                let (y1, y2) = (y1.min(y2), y1.max(y2));
+
+                for y in *y1..=*y2 {
+                    for x in *x1..=*x2 {
+                        wire_grid.make_wire(x, y, *color);
+                    }
+                }
+            }
+        }
+
+        wire_grid
     }
 
     pub fn size(&self) -> (usize, usize) {
@@ -278,7 +304,7 @@ impl WireGrid {
         wire_sets
     }
 
-    pub fn wire_points(&self) -> Vec<(WireColor, Vec<(usize, usize)>)> {
+    pub fn wire_points(&self) -> Vec<WirePoints> {
         let wire_sets = self.wire_sets();
         let mut wire_points = Vec::new();
 
