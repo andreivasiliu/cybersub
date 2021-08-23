@@ -8,7 +8,10 @@ use crate::{
     game_state::objects::Object,
     game_state::rocks::{RockGrid, RockType},
     game_state::state::SubmarineState,
-    game_state::wires::{WireColor, WireGrid, WirePoints},
+    game_state::{
+        objects::ObjectTemplate,
+        wires::{WireColor, WireGrid, WirePoints},
+    },
     game_state::{
         state::SubmarineTemplate,
         water::{CellTemplate, WallMaterial, WaterGrid},
@@ -271,12 +274,19 @@ fn save_wires_to_yaml(wire_grid: &WireGrid) -> Result<Vec<u8>, String> {
 }
 
 fn load_objects_from_yaml(object_bytes: &[u8]) -> Result<Vec<Object>, String> {
-    serde_yaml::from_slice(object_bytes)
-        .map_err(|err| format!("Error loading objects from yaml: {}", err))
+    let objects: Vec<ObjectTemplate> = serde_yaml::from_slice(object_bytes)
+        .map_err(|err| format!("Error loading objects from yaml: {}", err))?;
+
+    Ok(objects.iter().map(|object| object.to_object()).collect())
 }
 
 fn save_objects_to_yaml(objects: &[Object]) -> Result<Vec<u8>, String> {
-    serde_yaml::to_vec(objects).map_err(|err| format!("Error saving objects to yaml: {}", err))
+    let objects: Vec<ObjectTemplate> = objects
+        .iter()
+        .map(|object| ObjectTemplate::from_object(object))
+        .collect();
+
+    serde_yaml::to_vec(&objects).map_err(|err| format!("Error saving objects to yaml: {}", err))
 }
 
 pub(crate) fn load_rocks_from_png(bytes: &[u8]) -> RockGrid {

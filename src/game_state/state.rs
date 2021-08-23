@@ -20,7 +20,7 @@ pub(crate) struct UpdateSettings {
     pub update_collision: bool,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub(crate) struct GameState {
     pub update_settings: UpdateSettings,
     pub rock_grid: RockGrid,
@@ -28,8 +28,9 @@ pub(crate) struct GameState {
     pub collisions: Vec<(usize, usize)>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub(crate) struct SubmarineState {
+    pub background_pixels: Vec<u8>,
     pub water_grid: WaterGrid,
     pub wire_grid: WireGrid,
     pub objects: Vec<Object>,
@@ -38,7 +39,7 @@ pub(crate) struct SubmarineState {
     pub collisions: Vec<(usize, usize)>,
 }
 
-#[derive(Default, Serialize, Deserialize)]
+#[derive(Default, Serialize, Deserialize, Clone)]
 pub(crate) struct Navigation {
     pub target: (i32, i32),
     pub position: (i32, i32),

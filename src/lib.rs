@@ -6,6 +6,7 @@ mod game_state;
 mod input;
 mod resources;
 mod saveload;
+mod server;
 mod ui;
 
 pub use app::{CyberSubApp, Timings};

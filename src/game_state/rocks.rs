@@ -4,7 +4,7 @@
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub(crate) struct RockGrid {
     cells: Vec<RockCell>,
     width: usize,

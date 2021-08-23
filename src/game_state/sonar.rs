@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::game_state::{rocks::RockGrid, state::Navigation};
 
-#[derive(Default, Serialize, Deserialize)]
+#[derive(Default, Serialize, Deserialize, Clone)]
 pub(crate) struct Sonar {
     visible_edge_cells: Vec<(i16, i16)>,
     pulse: usize,

@@ -1,19 +1,16 @@
+use serde::{Deserialize, Serialize};
+
 use crate::game_state::{
     collisions::{update_rock_collisions, update_submarine_collisions},
     objects::{interact_with_object, update_objects, Object, ObjectType},
-    sonar::update_sonar,
-    state::{GameState, UpdateSettings},
-    wires::WireColor,
-};
-
-use super::{
-    sonar::Sonar,
-    state::{Navigation, SubmarineState, SubmarineTemplate},
+    sonar::{update_sonar, Sonar},
+    state::{GameState, Navigation, SubmarineState, SubmarineTemplate, UpdateSettings},
     water::WaterGrid,
-    wires::WireGrid,
+    wires::{WireColor, WireGrid},
 };
 
 /// A request to mutate state. Created by the UI and player actions.
+#[derive(Serialize, Deserialize, Clone)]
 pub(crate) enum Command {
     Interact {
         submarine_id: usize,
@@ -41,6 +38,7 @@ pub(crate) enum Command {
     },
 }
 
+#[derive(Serialize, Deserialize, Clone)]
 pub(crate) enum CellCommand {
     EditWires { color: WireColor },
     EditWalls { add: bool },
@@ -53,11 +51,8 @@ pub(crate) enum UpdateEvent {
         submarine_id: usize,
         submarine_event: SubmarineUpdatedEvent,
     },
-    SubmarineCreated {
-        width: usize,
-        height: usize,
-        background_image: Vec<u8>,
-    },
+    SubmarineCreated,
+    GameStateReset,
 }
 
 pub(crate) enum SubmarineUpdatedEvent {
@@ -68,7 +63,7 @@ pub(crate) enum SubmarineUpdatedEvent {
 }
 
 pub(crate) fn update_game(
-    commands: &[Command],
+    commands: impl Iterator<Item = Command>,
     game_state: &mut GameState,
     events: &mut Vec<UpdateEvent>,
 ) {
@@ -80,8 +75,8 @@ pub(crate) fn update_game(
                 submarine_id,
                 object_id,
             } => {
-                if let Some(submarine) = game_state.submarines.get_mut(*submarine_id) {
-                    if let Some(object) = submarine.objects.get_mut(*object_id) {
+                if let Some(submarine) = game_state.submarines.get_mut(submarine_id) {
+                    if let Some(object) = submarine.objects.get_mut(object_id) {
                         interact_with_object(object);
                     }
                 };
@@ -91,10 +86,10 @@ pub(crate) fn update_game(
                 cell,
                 cell_command,
             } => {
-                if let Some(submarine) = game_state.submarines.get_mut(*submarine_id) {
+                if let Some(submarine) = game_state.submarines.get_mut(submarine_id) {
                     let water_cell = submarine.water_grid.cell_mut(cell.0, cell.1);
 
-                    match cell_command {
+                    match &cell_command {
                         CellCommand::EditWater { add: true } => water_cell.fill(),
                         CellCommand::EditWater { add: false } => water_cell.empty(),
                         CellCommand::EditWalls { add: true } => water_cell.make_wall(),
@@ -111,16 +106,16 @@ pub(crate) fn update_game(
                         }
                     }
 
-                    match cell_command {
+                    match &cell_command {
                         CellCommand::EditWater { .. } | CellCommand::EditWalls { .. } => {
                             events.push(UpdateEvent::Submarine {
-                                submarine_id: *submarine_id,
+                                submarine_id: submarine_id,
                                 submarine_event: SubmarineUpdatedEvent::Walls,
                             });
                         }
                         CellCommand::EditWires { .. } => {
                             events.push(UpdateEvent::Submarine {
-                                submarine_id: *submarine_id,
+                                submarine_id: submarine_id,
                                 submarine_event: SubmarineUpdatedEvent::Wires,
                             });
                         }
@@ -129,25 +124,25 @@ pub(crate) fn update_game(
                 }
             }
             Command::ClearWater { submarine_id } => {
-                if let Some(submarine) = game_state.submarines.get_mut(*submarine_id) {
+                if let Some(submarine) = game_state.submarines.get_mut(submarine_id) {
                     submarine.water_grid.clear();
                 }
             }
             Command::ChangeUpdateSettings { update_settings } => {
-                game_state.update_settings = update_settings.clone()
+                game_state.update_settings = update_settings
             }
             Command::SetSonarTarget {
                 submarine_id,
                 object_id,
                 rock_position,
             } => {
-                if let Some(submarine) = game_state.submarines.get_mut(*submarine_id) {
-                    if let Some(object) = submarine.objects.get_mut(*object_id) {
+                if let Some(submarine) = game_state.submarines.get_mut(submarine_id) {
+                    if let Some(object) = submarine.objects.get_mut(object_id) {
                         if let ObjectType::Sonar {
                             navigation_target, ..
                         } = &mut object.object_type
                         {
-                            *navigation_target = Some(*rock_position);
+                            *navigation_target = Some(rock_position);
                         }
                     }
                 };
@@ -159,6 +154,7 @@ pub(crate) fn update_game(
                 let (width, height) = submarine_template.size;
                 let position = (rock_position.0 as i32, rock_position.1 as i32);
                 game_state.submarines.push(SubmarineState {
+                    background_pixels: submarine_template.background_pixels,
                     water_grid: WaterGrid::from_cells(
                         width,
                         height,
@@ -169,7 +165,7 @@ pub(crate) fn update_game(
                         height,
                         &submarine_template.wire_points,
                     ),
-                    objects: submarine_template.objects.clone(),
+                    objects: submarine_template.objects,
                     navigation: Navigation {
                         position,
                         target: position,
@@ -179,11 +175,7 @@ pub(crate) fn update_game(
                     collisions: Vec::new(),
                 });
 
-                events.push(UpdateEvent::SubmarineCreated {
-                    width,
-                    height,
-                    background_image: submarine_template.background_pixels.clone(),
-                });
+                events.push(UpdateEvent::SubmarineCreated);
             }
         }
     }

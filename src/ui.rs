@@ -86,7 +86,6 @@ pub(crate) fn draw_ui(
         current_submarine,
         current_tool,
         quit_game,
-        add_submarine,
         placing_object,
         submarine_templates,
         ..
@@ -198,11 +197,12 @@ pub(crate) fn draw_ui(
                     }
                 });
                 egui::menu::menu(ui, "Submarines", |ui| {
-                    for (template_index, (name, _template)) in
-                        submarine_templates.iter().enumerate()
-                    {
+                    for (name, template) in submarine_templates.iter() {
                         if ui.button(name).clicked() {
-                            *add_submarine = Some(template_index);
+                            commands.push(Command::CreateSubmarine {
+                                submarine_template: Box::new(template.clone()),
+                                rock_position: (100, 100),
+                            });
                         }
                     }
                 });

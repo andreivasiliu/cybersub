@@ -8,12 +8,64 @@ pub(crate) struct Object {
 
     pub position: (u32, u32),
 
-    #[serde(default, skip_serializing_if = "is_default")]
     pub current_frame: u16,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
 pub(crate) enum ObjectType {
+    Door {
+        state: DoorState,
+        progress: u8,
+    },
+    VerticalDoor {
+        state: DoorState,
+        progress: u8,
+    },
+    Reactor {
+        active: bool,
+    },
+    Lamp,
+    Gauge {
+        value: i8,
+    },
+    SmallPump {
+        target_speed: i8,
+        speed: i8,
+        progress: u8,
+    },
+    LargePump {
+        target_speed: i8,
+        speed: i8,
+        progress: u8,
+    },
+    JunctionBox,
+    NavController {
+        active: bool,
+        progress: u8,
+    },
+    Sonar {
+        active: bool,
+        powered: bool,
+        navigation_target: Option<(usize, usize)>,
+    },
+    Engine {
+        target_speed: i8,
+        speed: i8,
+        progress: u8,
+    },
+    Battery {
+        charge: u16,
+    },
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub(crate) struct ObjectTemplate {
+    pub object_type: ObjectTypeTemplate,
+    pub position: (u32, u32),
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub(crate) enum ObjectTypeTemplate {
     Door {
         #[serde(default, skip_serializing_if = "is_default")]
         state: DoorState,
@@ -563,5 +615,124 @@ pub(crate) fn compute_navigation(navigation: &Navigation) -> NavControl {
         target_speed: (target_speed_x, target_speed_y),
         target_acceleration: (target_acceleration_x, target_acceleration_y),
         engine_and_pump_speed: (engine_speed, pump_speed),
+    }
+}
+
+impl ObjectTemplate {
+    pub fn from_object(object: &Object) -> Self {
+        let object_type = match object.object_type.clone() {
+            ObjectType::Door { state, progress } => ObjectTypeTemplate::Door { state, progress },
+            ObjectType::VerticalDoor { state, progress } => {
+                ObjectTypeTemplate::VerticalDoor { state, progress }
+            }
+            ObjectType::Reactor { active } => ObjectTypeTemplate::Reactor { active },
+            ObjectType::Lamp => ObjectTypeTemplate::Lamp,
+            ObjectType::Gauge { value } => ObjectTypeTemplate::Gauge { value },
+            ObjectType::SmallPump {
+                target_speed,
+                speed,
+                progress,
+            } => ObjectTypeTemplate::SmallPump {
+                target_speed,
+                speed,
+                progress,
+            },
+            ObjectType::LargePump {
+                target_speed,
+                speed,
+                progress,
+            } => ObjectTypeTemplate::LargePump {
+                target_speed,
+                speed,
+                progress,
+            },
+            ObjectType::JunctionBox => ObjectTypeTemplate::JunctionBox,
+            ObjectType::NavController { active, progress } => {
+                ObjectTypeTemplate::NavController { active, progress }
+            }
+            ObjectType::Sonar {
+                active,
+                powered,
+                navigation_target,
+            } => ObjectTypeTemplate::Sonar {
+                active,
+                powered,
+                navigation_target,
+            },
+            ObjectType::Engine {
+                target_speed,
+                speed,
+                progress,
+            } => ObjectTypeTemplate::Engine {
+                target_speed,
+                speed,
+                progress,
+            },
+            ObjectType::Battery { charge } => ObjectTypeTemplate::Battery { charge },
+        };
+
+        ObjectTemplate {
+            object_type,
+            position: object.position,
+        }
+    }
+
+    pub fn to_object(&self) -> Object {
+        let object_type = match self.object_type.clone() {
+            ObjectTypeTemplate::Door { state, progress } => ObjectType::Door { state, progress },
+            ObjectTypeTemplate::VerticalDoor { state, progress } => {
+                ObjectType::VerticalDoor { state, progress }
+            }
+            ObjectTypeTemplate::Reactor { active } => ObjectType::Reactor { active },
+            ObjectTypeTemplate::Lamp => ObjectType::Lamp,
+            ObjectTypeTemplate::Gauge { value } => ObjectType::Gauge { value },
+            ObjectTypeTemplate::SmallPump {
+                target_speed,
+                speed,
+                progress,
+            } => ObjectType::SmallPump {
+                target_speed,
+                speed,
+                progress,
+            },
+            ObjectTypeTemplate::LargePump {
+                target_speed,
+                speed,
+                progress,
+            } => ObjectType::LargePump {
+                target_speed,
+                speed,
+                progress,
+            },
+            ObjectTypeTemplate::JunctionBox => ObjectType::JunctionBox,
+            ObjectTypeTemplate::NavController { active, progress } => {
+                ObjectType::NavController { active, progress }
+            }
+            ObjectTypeTemplate::Sonar {
+                active,
+                powered,
+                navigation_target,
+            } => ObjectType::Sonar {
+                active,
+                powered,
+                navigation_target,
+            },
+            ObjectTypeTemplate::Engine {
+                target_speed,
+                speed,
+                progress,
+            } => ObjectType::Engine {
+                target_speed,
+                speed,
+                progress,
+            },
+            ObjectTypeTemplate::Battery { charge } => ObjectType::Battery { charge },
+        };
+
+        Object {
+            object_type,
+            position: self.position,
+            current_frame: 0,
+        }
     }
 }

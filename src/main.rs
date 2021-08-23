@@ -37,7 +37,14 @@ async fn main() -> Result<(), String> {
     let dugong = load_submarine_files("dugong").await?;
     cybersub_app.load_submarine_template("Dugong", dugong)?;
 
-    cybersub_app.add_submarine(1);
+    if std::env::args().any(|arg| arg == "--join") {
+        eprintln!("Joining.");
+        cybersub_app.join_server();
+    } else if std::env::args().any(|arg| arg == "--server") {
+        eprintln!("Starting server.");
+        cybersub_app.start_server();
+        cybersub_app.add_submarine(1);
+    }
 
     let mut last_time = None;
     let mut delta_time = || {

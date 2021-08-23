@@ -10,6 +10,7 @@ use crate::{
     input::{handle_keyboard_input, handle_pointer_input},
     resources::{MutableResources, MutableSubResources, Resources},
     saveload::{load_rocks_from_png, load_template_from_data, pixels_to_image, save_to_file_data},
+    server::{connect, serve, LocalClient, RemoteConnection, Server},
     ui::{draw_ui, UiState},
     SubmarineFileData,
 };
@@ -21,6 +22,7 @@ pub struct CyberSubApp {
     game_settings: GameSettings,
     commands: Vec<Command>,
     update_events: Vec<UpdateEvent>,
+    update_source: UpdateSource,
     resources: Resources,
     mutable_resources: MutableResources,
     mutable_sub_resources: Vec<MutableSubResources>,
@@ -37,7 +39,6 @@ pub(crate) struct GameSettings {
     pub last_update: Option<f64>,
     pub last_draw: Option<f64>,
     pub animation_ticks: u32,
-    pub add_submarine: Option<usize>,
     pub placing_object: Option<PlacingObject>,
     pub submarine_templates: Vec<(String, SubmarineTemplate)>,
 }
@@ -66,6 +67,12 @@ pub(crate) struct PlacingObject {
     pub submarine: usize,
     pub position: Option<(usize, usize)>,
     pub object_type: ObjectType,
+}
+
+enum UpdateSource {
+    Local,
+    LocalServer(Server, LocalClient),
+    Remote(RemoteConnection),
 }
 
 impl Default for CyberSubApp {
@@ -100,12 +107,12 @@ impl Default for CyberSubApp {
                 last_update: None,
                 last_draw: None,
                 animation_ticks: 0,
-                add_submarine: None,
                 placing_object: None,
                 submarine_templates: Vec::new(),
             },
             commands: Vec::new(),
             update_events: Vec::new(),
+            update_source: UpdateSource::Local,
             game_state: GameState::default(),
             ui_state: UiState::default(),
             resources: Resources::new(),
@@ -169,6 +176,18 @@ impl CyberSubApp {
         Err("No submarine selected".to_string())
     }
 
+    pub fn start_server(&mut self) {
+        let (server, client) = serve();
+
+        self.update_source = UpdateSource::LocalServer(server, client);
+    }
+
+    pub fn join_server(&mut self) {
+        let remote_connection = connect();
+
+        self.update_source = UpdateSource::Remote(remote_connection);
+    }
+
     pub fn load_rocks(&mut self, world_bytes: &[u8]) {
         self.game_state.rock_grid = load_rocks_from_png(world_bytes);
     }
@@ -187,20 +206,16 @@ impl CyberSubApp {
             }
         }
 
-        if let Some(last_update) = &mut self.game_settings.last_update {
-            let mut delta = (game_time - *last_update).clamp(0.0, 0.5);
+        let last_update = self.game_settings.last_update.get_or_insert(game_time);
 
-            while delta > 0.0 {
-                // 30 updates per second, regardless of FPS
-                delta -= 1.0 / 30.0;
+        while *last_update < game_time {
+            // 30 updates per second, regardless of FPS
+            *last_update += 1.0 / 60.0;
 
-                update_game(
-                    &self.commands,
-                    &mut self.game_state,
-                    &mut self.update_events,
-                );
-
-                self.commands.clear();
+            if true {
+                let commands = self.commands.drain(0..self.commands.len());
+                self.update_source
+                    .update(&mut self.game_state, commands, &mut self.update_events);
 
                 for event in self.update_events.drain(0..self.update_events.len()) {
                     match event {
@@ -225,14 +240,44 @@ impl CyberSubApp {
                                 }
                             }
                         }
-                        UpdateEvent::SubmarineCreated {
-                            width,
-                            height,
-                            background_image,
-                        } => {
-                            let image = pixels_to_image(width, height, &background_image);
+                        UpdateEvent::SubmarineCreated => {
+                            let submarine = self
+                                .game_state
+                                .submarines
+                                .last()
+                                .expect("Submarine just created");
+                            let (width, height) = submarine.water_grid.size();
+                            let image =
+                                pixels_to_image(width, height, &submarine.background_pixels);
                             self.mutable_sub_resources
                                 .push(MutableSubResources::new(image));
+
+                            // Change camera to its middle and set it as current
+                            self.game_settings.current_submarine =
+                                self.game_state.submarines.len() - 1;
+                            self.game_settings.camera.offset_x = -(width as f32) / 2.0;
+                            self.game_settings.camera.offset_y = -(height as f32) / 2.0;
+                        }
+                        UpdateEvent::GameStateReset => {
+                            // FIXME: Delete textures
+                            self.mutable_sub_resources.clear();
+
+                            // FIXME: factor out
+                            for submarine in &self.game_state.submarines {
+                                let (width, height) = submarine.water_grid.size();
+                                let image =
+                                    pixels_to_image(width, height, &submarine.background_pixels);
+                                self.mutable_sub_resources
+                                    .push(MutableSubResources::new(image))
+                            }
+
+                            // Get last submarine
+                            let submarine = self
+                                .game_state
+                                .submarines
+                                .last()
+                                .expect("Submarine just created");
+                            let (width, height) = submarine.water_grid.size();
 
                             // Change camera to its middle and set it as current
                             self.game_settings.current_submarine =
@@ -246,7 +291,6 @@ impl CyberSubApp {
         }
 
         self.game_settings.last_draw = Some(game_time);
-        self.game_settings.last_update = Some(game_time);
 
         // Follow submarine with camera
         let submarine_camera = self
@@ -312,5 +356,35 @@ impl CyberSubApp {
             &mut self.mutable_resources,
             &mut self.mutable_sub_resources,
         );
+    }
+}
+
+impl UpdateSource {
+    fn update(
+        &mut self,
+        game_state: &mut GameState,
+        commands: impl Iterator<Item = Command>,
+        events: &mut Vec<UpdateEvent>,
+    ) {
+        match self {
+            UpdateSource::Local => {
+                update_game(commands, game_state, events);
+            }
+            UpdateSource::LocalServer(server, local_client) => {
+                server.relay_messages();
+                local_client.send_commands(commands);
+                server.relay_messages();
+                server.tick(game_state, events);
+                server.relay_messages();
+            }
+            UpdateSource::Remote(remote_connection) => {
+                remote_connection.send_messages(commands);
+                remote_connection.receive_messages();
+
+                while let Some(commands) = remote_connection.receive_commands(game_state, events) {
+                    update_game(commands, game_state, events);
+                }
+            }
+        }
     }
 }
