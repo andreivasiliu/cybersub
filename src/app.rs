@@ -1,4 +1,5 @@
 use crate::{
+    client::{connect, RemoteConnection},
     draw::{draw_game, Camera, DrawSettings},
     game_state::objects::ObjectType,
     game_state::state::GameState,
@@ -10,10 +11,13 @@ use crate::{
     input::{handle_keyboard_input, handle_pointer_input},
     resources::{MutableResources, MutableSubResources, Resources},
     saveload::{load_rocks_from_png, load_template_from_data, pixels_to_image, save_to_file_data},
-    server::{connect, serve, LocalClient, RemoteConnection, Server},
     ui::{draw_ui, UiState},
     SubmarineFileData,
 };
+
+#[cfg(not(target_arch = "wasm32"))]
+use crate::server::{serve, LocalClient, Server};
+
 
 pub struct CyberSubApp {
     pub timings: Timings,
@@ -71,6 +75,7 @@ pub(crate) struct PlacingObject {
 
 enum UpdateSource {
     Local,
+    #[cfg(not(target_arch = "wasm32"))]
     LocalServer(Server, LocalClient),
     Remote(RemoteConnection),
 }
@@ -176,6 +181,7 @@ impl CyberSubApp {
         Err("No submarine selected".to_string())
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn start_server(&mut self) {
         let (server, client) = serve();
 
@@ -370,6 +376,7 @@ impl UpdateSource {
             UpdateSource::Local => {
                 update_game(commands, game_state, events);
             }
+            #[cfg(not(target_arch = "wasm32"))]
             UpdateSource::LocalServer(server, local_client) => {
                 server.relay_messages();
                 local_client.send_commands(commands);
