@@ -7,16 +7,14 @@ use std::{
     time::Duration,
 };
 
-use bus::{Bus, BusReader};
-use crossbeam::channel::{unbounded, Receiver, Sender};
-use quad_net::quad_socket::{
-    server::{Settings, SocketHandle},
-};
+use crate::client::NetEvent;
 use crate::game_state::{
     state::GameState,
     update::{update_game, Command, UpdateEvent},
 };
-use crate::client::NetEvent;
+use bus::{Bus, BusReader};
+use crossbeam::channel::{unbounded, Receiver, Sender};
+use quad_net::quad_socket::server::{Settings, SocketHandle};
 
 #[derive(Default)]
 struct NetState {
@@ -93,7 +91,7 @@ impl Server {
     }
 }
 
-pub(crate) fn serve() -> (Server, LocalClient) {
+pub(crate) fn serve(tcp_addr: String, ws_addr: String) -> (Server, LocalClient) {
     let (client_sender, client_receiver) = unbounded();
 
     let bus = Arc::new(Mutex::new(Bus::new(1024)));
@@ -118,8 +116,8 @@ pub(crate) fn serve() -> (Server, LocalClient) {
         };
 
         quad_net::quad_socket::server::listen(
-            "127.0.0.1:3300",
-            "127.0.0.1:3080",
+            tcp_addr,
+            ws_addr,
             Settings {
                 on_message,
                 on_timer,
@@ -228,4 +226,3 @@ fn on_disconnect(state: &NetState) {
         local_state.sender.send(NetEvent::Disconnected).ok();
     }
 }
-

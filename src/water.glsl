@@ -1,8 +1,8 @@
 #version 100
 
-precision lowp float;
+precision highp float;
 
-varying lowp vec2 uv;
+varying vec2 uv;
 
 uniform float enable_dust;
 uniform float enable_caustics;

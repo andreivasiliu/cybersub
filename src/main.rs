@@ -36,17 +36,14 @@ async fn main() -> Result<(), String> {
     cybersub_app.load_submarine_template("Bunyip shuttle", bunyip)?;
     let dugong = load_submarine_files("dugong").await?;
     cybersub_app.load_submarine_template("Dugong", dugong)?;
+    cybersub_app.add_submarine(1);
 
-    if cfg!(target_arch = "wasm32") || std::env::args().any(|arg| arg == "--join") {
+    if std::env::args().any(|arg| arg == "--join") {
         eprintln!("Joining.");
         cybersub_app.join_server();
-    } else if !cfg!(target_arch = "wasm32") && std::env::args().any(|arg| arg == "--server") {
+    } else if std::env::args().any(|arg| arg == "--server") {
         eprintln!("Starting server.");
-        #[cfg(not(target_arch = "wasm32"))]
         cybersub_app.start_server();
-        cybersub_app.add_submarine(1);
-    } else {
-        cybersub_app.add_submarine(1);
     }
 
     let mut last_time = None;

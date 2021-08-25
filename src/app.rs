@@ -18,7 +18,6 @@ use crate::{
 #[cfg(not(target_arch = "wasm32"))]
 use crate::server::{serve, LocalClient, Server};
 
-
 pub struct CyberSubApp {
     pub timings: Timings,
     ui_state: UiState,
@@ -34,6 +33,7 @@ pub struct CyberSubApp {
 
 pub(crate) struct GameSettings {
     pub draw_settings: DrawSettings,
+    pub network_settings: NetworkSettings,
     pub camera: Camera,
     pub current_submarine: usize,
     pub current_tool: Tool,
@@ -45,6 +45,19 @@ pub(crate) struct GameSettings {
     pub animation_ticks: u32,
     pub placing_object: Option<PlacingObject>,
     pub submarine_templates: Vec<(String, SubmarineTemplate)>,
+}
+
+pub(crate) struct NetworkSettings {
+    pub server_tcp_address: String,
+    pub server_ws_address: String,
+    pub client_tcp_address: String,
+    pub client_ws_address: String,
+    pub start_server: bool,
+    pub server_started: bool,
+    pub connect_client: bool,
+    pub client_connected: bool,
+    pub network_status: String,
+    pub network_error: Option<String>,
 }
 
 #[derive(PartialEq, Eq)]
@@ -96,10 +109,24 @@ impl Default for CyberSubApp {
             draw_engine_turbulence: true,
         };
 
+        let network_settings = NetworkSettings {
+            server_tcp_address: "127.0.0.1:3300".to_string(),
+            server_ws_address: "0.0.0.0:3380".to_string(),
+            client_tcp_address: "127.0.0.1:3300".to_string(),
+            client_ws_address: "ws://192.168.15.101:3380".to_string(),
+            start_server: false,
+            server_started: false,
+            connect_client: false,
+            client_connected: false,
+            network_status: "Not connected".to_string(),
+            network_error: None,
+        };
+
         Self {
             timings: Timings::default(),
             game_settings: GameSettings {
                 draw_settings,
+                network_settings,
                 camera: Camera {
                     zoom: -200,
                     ..Default::default()
@@ -181,17 +208,12 @@ impl CyberSubApp {
         Err("No submarine selected".to_string())
     }
 
-    #[cfg(not(target_arch = "wasm32"))]
     pub fn start_server(&mut self) {
-        let (server, client) = serve();
-
-        self.update_source = UpdateSource::LocalServer(server, client);
+        self.game_settings.network_settings.start_server = true;
     }
 
     pub fn join_server(&mut self) {
-        let remote_connection = connect();
-
-        self.update_source = UpdateSource::Remote(remote_connection);
+        self.game_settings.network_settings.connect_client = true;
     }
 
     pub fn load_rocks(&mut self, world_bytes: &[u8]) {
@@ -215,13 +237,17 @@ impl CyberSubApp {
         let last_update = self.game_settings.last_update.get_or_insert(game_time);
 
         while *last_update < game_time {
-            // 30 updates per second, regardless of FPS
+            // 60 updates per second, regardless of FPS
             *last_update += 1.0 / 60.0;
 
             if true {
                 let commands = self.commands.drain(0..self.commands.len());
-                self.update_source
-                    .update(&mut self.game_state, commands, &mut self.update_events);
+                self.update_source.update(
+                    &mut self.game_state,
+                    commands,
+                    &mut self.update_events,
+                    &mut self.game_settings.network_settings,
+                );
 
                 for event in self.update_events.drain(0..self.update_events.len()) {
                     match event {
@@ -371,22 +397,71 @@ impl UpdateSource {
         game_state: &mut GameState,
         commands: impl Iterator<Item = Command>,
         events: &mut Vec<UpdateEvent>,
+        network_settings: &mut NetworkSettings,
     ) {
+        #[cfg(not(target_arch = "wasm32"))]
+        if network_settings.start_server {
+            assert_eq!(network_settings.client_connected, false);
+
+            let (server, client) = serve(
+                network_settings.server_tcp_address.clone(),
+                network_settings.server_ws_address.clone(),
+            );
+
+            *self = UpdateSource::LocalServer(server, client);
+
+            network_settings.start_server = false;
+            network_settings.server_started = true;
+            network_settings.network_status = format!(
+                "Listening on tcp://{} and ws://{}",
+                network_settings.server_tcp_address, network_settings.server_ws_address,
+            );
+            network_settings.network_error = None;
+        }
+
+        if network_settings.connect_client {
+            assert_eq!(network_settings.server_started, false);
+
+            let address = if cfg!(target_arch = "wasm32") {
+                &network_settings.client_ws_address
+            } else {
+                &network_settings.client_tcp_address
+            };
+
+            match connect(address) {
+                Ok(remote_connection) => {
+                    *self = UpdateSource::Remote(remote_connection);
+                    network_settings.client_connected = true;
+                    network_settings.network_status = format!("Connected to {}", address);
+                    network_settings.network_error = None;
+                }
+                Err(error) => {
+                    network_settings.network_error = Some(error);
+                }
+            };
+
+            network_settings.connect_client = false;
+        }
+
         match self {
             UpdateSource::Local => {
                 update_game(commands, game_state, events);
             }
             #[cfg(not(target_arch = "wasm32"))]
             UpdateSource::LocalServer(server, local_client) => {
-                server.relay_messages();
                 local_client.send_commands(commands);
                 server.relay_messages();
                 server.tick(game_state, events);
-                server.relay_messages();
             }
             UpdateSource::Remote(remote_connection) => {
-                remote_connection.send_messages(commands);
-                remote_connection.receive_messages();
+                match remote_connection.send_messages(commands) {
+                    Ok(()) => {
+                        remote_connection.receive_messages();
+                    }
+                    Err(err) => {
+                        network_settings.network_error = Some(err);
+                    }
+                }
 
                 while let Some(commands) = remote_connection.receive_commands(game_state, events) {
                     update_game(commands, game_state, events);

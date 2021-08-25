@@ -1,9 +1,12 @@
 use std::sync::Arc;
 
 use quad_net::quad_socket::client::QuadSocket;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
-use crate::game_state::{state::GameState, update::{Command, UpdateEvent}};
+use crate::game_state::{
+    state::GameState,
+    update::{Command, UpdateEvent},
+};
 
 #[derive(Serialize, Deserialize, Clone)]
 pub(crate) enum NetEvent {
@@ -26,41 +29,48 @@ pub(crate) struct RemoteConnection {
 }
 
 impl RemoteConnection {
-    fn send_message(&mut self, message: NetEvent) {
+    fn send_message(&mut self, message: NetEvent) -> Result<(), String> {
         #[cfg(target_arch = "wasm32")]
         {
             if !self.socket.is_wasm_websocket_connected() {
                 self.send_message_buffer.push(message);
-                return;
+                return Ok(());
             }
         }
 
         let message =
             bincode::serialize(&message).expect("Local state should always be serializable");
 
-        // FIXME: Handle disconnect.
-        self.socket.send(&u32::to_be_bytes(message.len() as u32)).ok();
-        self.socket.send(&message).ok();
+        self.socket
+            .send(&u32::to_be_bytes(message.len() as u32))
+            .map_err(|err| format!("Could not send message: {:?}", err))?;
+        self.socket
+            .send(&message)
+            .map_err(|err| format!("Could not send message: {:?}", err))?;
+
+        Ok(())
     }
 
-    pub fn send_messages(&mut self, commands: impl Iterator<Item = Command>) {
+    pub fn send_messages(&mut self, commands: impl Iterator<Item = Command>) -> Result<(), String> {
         #[cfg(target_arch = "wasm32")]
         if !self.send_message_buffer.is_empty() {
             let mut messages = Vec::new();
             std::mem::swap(&mut self.send_message_buffer, &mut messages);
             for message in messages {
-                self.send_message(message);
+                self.send_message(message)?;
             }
-        }        
-        
+        }
+
         if !self.requested_state {
             self.requested_state = true;
-            self.send_message(NetEvent::RequestState);
+            self.send_message(NetEvent::RequestState)?;
         }
 
         for command in commands {
-            self.send_message(NetEvent::Command(command));
+            self.send_message(NetEvent::Command(command))?;
         }
+
+        Ok(())
     }
 
     pub fn receive_messages(&mut self) {
@@ -73,7 +83,9 @@ impl RemoteConnection {
                 }
 
                 use std::convert::TryInto;
-                let four_bytes: [u8; 4] = self.buffer[0..4].try_into().unwrap();
+                let four_bytes: [u8; 4] = self.buffer[0..4]
+                    .try_into()
+                    .expect("Sliced exactly 4 bytes");
 
                 let message_size = u32::from_be_bytes(four_bytes) as usize;
 
@@ -109,15 +121,13 @@ impl RemoteConnection {
                     NetEvent::Command(command) => self.recv_command_buffer.push(command),
                     NetEvent::Disconnected => (),
                     NetEvent::RequestState => (),
-                    NetEvent::State(new_state) => match Arc::try_unwrap(new_state) {
-                        Ok(new_state) => {
-                            *state = new_state;
-                            events.push(UpdateEvent::GameStateReset);
-                        }
-                        Err(_new_state) => {
-                            unreachable!("Arc should not be cloned; this is the only client");
-                        }
-                    },
+                    NetEvent::State(new_state) => {
+                        let new_state = Arc::try_unwrap(new_state)
+                            .map_err(|_arc| "Arc was cloned")
+                            .expect("Arc should not be cloned; this is the only client");
+                        *state = new_state;
+                        events.push(UpdateEvent::GameStateReset);
+                    }
                     NetEvent::Tick => return Some(self.recv_command_buffer.drain(..)),
                     NetEvent::Hello => (),
                 }
@@ -128,15 +138,10 @@ impl RemoteConnection {
     }
 }
 
-pub(crate) fn connect() -> RemoteConnection {
-    let address = if cfg!(target_arch = "wasm32") {
-        "ws://127.0.0.1:3080"
-    } else {
-        "127.0.0.1:3300"
-    };
-
+pub(crate) fn connect(address: &str) -> Result<RemoteConnection, String> {
     // FIXME: Make this a string error
-    let socket = QuadSocket::connect(address).expect("Failed to connect");
+    let socket =
+        QuadSocket::connect(address).map_err(|err| format!("Failed to connect: {:?}", err))?;
 
     let remote_connection = RemoteConnection {
         socket,
@@ -148,5 +153,5 @@ pub(crate) fn connect() -> RemoteConnection {
         recv_command_buffer: Vec::new(),
     };
 
-    remote_connection
+    Ok(remote_connection)
 }

@@ -1,7 +1,7 @@
 use egui::{vec2, Align2, Button, Color32, Label, Slider, Ui};
 
 use crate::{
-    app::{GameSettings, PlacingObject, Tool},
+    app::{GameSettings, NetworkSettings, PlacingObject, Tool},
     draw::DrawSettings,
     game_state::objects::{compute_navigation, OBJECT_TYPES},
     game_state::state::{GameState, UpdateSettings},
@@ -27,6 +27,8 @@ pub(crate) struct UiState {
     show_update_settings: bool,
     show_load_dialog: bool,
     show_save_dialog: bool,
+    show_host_dialog: bool,
+    show_join_dialog: bool,
     submarine_name: String,
     overwrite_save: bool,
 }
@@ -46,6 +48,8 @@ impl Default for UiState {
             show_update_settings: false,
             show_load_dialog: false,
             show_save_dialog: false,
+            show_host_dialog: false,
+            show_join_dialog: false,
             submarine_name: "NewSubmarine".to_string(),
             overwrite_save: false,
         }
@@ -76,12 +80,15 @@ pub(crate) fn draw_ui(
         show_update_settings,
         show_load_dialog,
         show_save_dialog,
+        show_host_dialog,
+        show_join_dialog,
         submarine_name,
         overwrite_save,
     } = ui_state;
 
     let GameSettings {
         draw_settings,
+        network_settings,
         camera,
         current_submarine,
         current_tool,
@@ -123,6 +130,19 @@ pub(crate) fn draw_ui(
         update_position,
         update_collision,
     } = &mut new_update_settings;
+
+    let NetworkSettings {
+        server_tcp_address,
+        server_ws_address,
+        client_tcp_address,
+        client_ws_address,
+        start_server,
+        server_started,
+        connect_client,
+        client_connected,
+        network_status,
+        network_error,
+    } = network_settings;
 
     if *show_bars {
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
@@ -204,6 +224,19 @@ pub(crate) fn draw_ui(
                                 rock_position: (100, 100),
                             });
                         }
+                    }
+                });
+                egui::menu::menu(ui, "Network", |ui| {
+                    ui.scope(|ui| {
+                        let button = ui
+                            .button("Host game")
+                            .on_disabled_hover_text("Only available on the native client");
+                        if button.clicked() {
+                            *show_host_dialog = true;
+                        }
+                    });
+                    if ui.button("Join game").clicked() {
+                        *show_join_dialog = true;
                     }
                 });
             });
@@ -333,6 +366,70 @@ pub(crate) fn draw_ui(
                     }
                 });
             });
+    }
+
+    if *show_host_dialog {
+        egui::Window::new("Host game").show(ctx, |ui| {
+            ui.scope(|ui| {
+                ui.set_enabled(!*server_started && !*client_connected);
+
+                ui.horizontal(|ui| {
+                    ui.label("TCP address:");
+                    ui.text_edit_singleline(server_tcp_address);
+                });
+                ui.horizontal(|ui| {
+                    ui.label("WebSocket address:");
+                    ui.text_edit_singleline(server_ws_address);
+                });
+                if ui.button("Start server").clicked() {
+                    *start_server = true;
+                }
+            });
+
+            ui.separator();
+
+            ui.label(format!("Status: {}", network_status));
+            if ui.button("Close").clicked() {
+                *show_host_dialog = false;
+            }
+        });
+    }
+
+    if *show_join_dialog {
+        egui::Window::new("Join game").show(ctx, |ui| {
+            ui.scope(|ui| {
+                ui.set_enabled(!*server_started && !*client_connected);
+
+                ui.horizontal(|ui| {
+                    ui.set_enabled(!cfg!(target_arch = "wasm32"));
+                    ui.label("TCP address:");
+                    ui.text_edit_singleline(client_tcp_address)
+                        .on_disabled_hover_text("Not available on browser client");
+                });
+                ui.horizontal(|ui| {
+                    ui.set_enabled(cfg!(target_arch = "wasm32"));
+                    ui.label("WebSocket address:");
+                    ui.text_edit_singleline(client_ws_address)
+                        .on_disabled_hover_text("Only available on browser client");
+                });
+                if ui.button("Connect to server").clicked() {
+                    *connect_client = true;
+                }
+            });
+
+            ui.separator();
+
+            ui.label(format!("Status: {}", network_status));
+            if let Some(error) = network_error {
+                ui.horizontal(|ui| {
+                    ui.label("Error:");
+                    ui.colored_label(Color32::RED, error.as_str());
+                });
+            }
+            if ui.button("Close").clicked() {
+                *show_join_dialog = false;
+            }
+        });
     }
 
     if *show_main_settings {
