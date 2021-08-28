@@ -166,7 +166,7 @@ fn local_on_message(
 
     match message {
         Ok(message) => {
-            if let None = state.local_state {
+            if state.local_state.is_none() {
                 state.local_state = Some(ClientToServer {
                     receiver: Mutex::new(local_server.receiver_source.lock().unwrap().add_rx()),
                     sender: local_server.sender.clone(),

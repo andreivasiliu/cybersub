@@ -56,7 +56,7 @@ void main() {
 
 	if (enable_dust == 1.0) {
 		vec4 a = texture2D(sea_dust, fract(dust_uv + time_offset / 1.0 + camera_offset * 0.2));
-		vec4 b = texture2D(sea_dust, fract(dust_uv + time_offset / 1.5 + camera_offset * 1.5).yx);
+		vec4 b = texture2D(sea_dust, fract(dust_uv + time_offset / 2.0 + camera_offset * 1.5).yx);
 		vec4 c = texture2D(sea_dust, fract(-(dust_uv + time_offset / 3.0 + camera_offset * 2.0)));
 
 		dust_color = max(max(a, b), c);

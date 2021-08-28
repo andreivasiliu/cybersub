@@ -1,4 +1,4 @@
-use std::{cell::RefCell, mem::swap};
+use std::{cell::RefCell, collections::HashSet, mem::swap};
 
 use macroquad::{
     camera::{pop_camera_state, push_camera_state, set_default_camera},
@@ -909,7 +909,8 @@ fn draw_rocks(
 
     gl_use_default_material();
 
-    for &(x, y) in collisions {
+    let collision_set: HashSet<_> = collisions.iter().collect();
+    for &(x, y) in collision_set {
         let pos = vec2(x as f32 + 0.5, y as f32 + 0.5) * 16.0;
         draw_rect_at(pos, 8.0, Color::new(0.78, 0.48, 1.00, 0.2));
     }

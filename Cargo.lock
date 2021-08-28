@@ -1069,6 +1069,7 @@ dependencies = [
 [[package]]
 name = "quad-net"
 version = "0.2.0"
+source = "git+https://github.com/andreivasiliu/quad-net?branch=big-messages#aaf29394d8dfcb2a87643a5739acbe3f359fb6c1"
 dependencies = [
  "nanoserde",
  "qws",

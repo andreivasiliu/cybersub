@@ -109,13 +109,13 @@ pub(crate) fn update_game(
                     match &cell_command {
                         CellCommand::EditWater { .. } | CellCommand::EditWalls { .. } => {
                             events.push(UpdateEvent::Submarine {
-                                submarine_id: submarine_id,
+                                submarine_id,
                                 submarine_event: SubmarineUpdatedEvent::Walls,
                             });
                         }
                         CellCommand::EditWires { .. } => {
                             events.push(UpdateEvent::Submarine {
-                                submarine_id: submarine_id,
+                                submarine_id,
                                 submarine_event: SubmarineUpdatedEvent::Wires,
                             });
                         }
@@ -181,6 +181,10 @@ pub(crate) fn update_game(
     }
 
     let update_settings = &game_state.update_settings;
+
+    for submarine in &mut game_state.submarines {
+        submarine.collisions.clear();
+    }
 
     for (sub_index, submarine) in game_state.submarines.iter_mut().enumerate() {
         if update_settings.update_position {
@@ -261,10 +265,6 @@ pub(crate) fn update_game(
             game_state.collisions.clear();
             update_rock_collisions(submarine, &game_state.rock_grid, &mut game_state.collisions);
         }
-    }
-
-    for submarine in &mut game_state.submarines {
-        submarine.collisions.clear();
     }
 
     if update_settings.update_collision {

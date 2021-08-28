@@ -401,7 +401,7 @@ impl UpdateSource {
     ) {
         #[cfg(not(target_arch = "wasm32"))]
         if network_settings.start_server {
-            assert_eq!(network_settings.client_connected, false);
+            assert!(!network_settings.client_connected);
 
             let (server, client) = serve(
                 network_settings.server_tcp_address.clone(),
@@ -420,7 +420,7 @@ impl UpdateSource {
         }
 
         if network_settings.connect_client {
-            assert_eq!(network_settings.server_started, false);
+            assert!(!network_settings.server_started);
 
             let address = if cfg!(target_arch = "wasm32") {
                 &network_settings.client_ws_address
