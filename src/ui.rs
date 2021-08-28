@@ -142,6 +142,7 @@ pub(crate) fn draw_ui(
         client_connected,
         network_status,
         network_error,
+        download_progress,
     } = network_settings;
 
     if *show_bars {
@@ -228,6 +229,7 @@ pub(crate) fn draw_ui(
                 });
                 egui::menu::menu(ui, "Network", |ui| {
                     ui.scope(|ui| {
+                        ui.set_enabled(!cfg!(target_arch = "wasm32"));
                         let button = ui
                             .button("Host game")
                             .on_disabled_hover_text("Only available on the native client");
@@ -428,6 +430,12 @@ pub(crate) fn draw_ui(
             }
             if ui.button("Close").clicked() {
                 *show_join_dialog = false;
+            }
+
+            if let Some(progress) = download_progress {
+                ui.separator();
+                let progress = *progress as f32 / 100.0;
+                ui.add(egui::ProgressBar::new(progress).animate(true));
             }
         });
     }
@@ -637,24 +645,21 @@ pub(crate) fn draw_ui(
                     make up for my lack of artistic skill. I couldn't figure out why such realistic water would exist in cyberspace \
                     though, so I dropped the idea; but for now I don't have a better alternative so I'm sticking with it."
                 );
-                ui.label("Left-click to add water or interact with objects.");
+                ui.label("Left-click to interact with objects, hold LMB to drag camera. RMB can also drag camera regardless of the current tool.");
                 ui.label("On browsers, the right-click menu is disabled, in order to make scrolling easier. You can still shift-right-click.");
                 ui.label(
-                    "WASD, arrow keys, or hold right-click to move camera. Keypad +/- or scroll mouse-wheel to zoom. Minus doesn't \
-                    work on browsers. No idea why. There is currently no way to move the camera with a touch-screen."
+                    "Regardless of the selected tool, you can use WASD, arrow keys, or hold the right mouse button to move camera."
                 );
                 ui.label(
-                    "Use the tool controls (Add Water, Add Walls, etc) at the bottom to switch what left-click paints. Holding \
-                    shift or ctrl is a shortcut for switching."
+                    "Use the tool controls (Add Water, Add Walls, etc) at the bottom to switch what left-click does."
                 );
                 ui.label(
-                    "On some browsers, the sea dust shader is acting very strangely, with the dust specs looking much larger. \
-                    No idea why."
+                    "On some devices, the sea dust shader is acting very strangely, with the dust specs looking much larger. \
+                    This is related to the float precision (highp vs lowp). It can be fixed, just need to figure out how."
                 );
-                ui.label("Firefox is having issues with rendering the whole thing; my phone and other browsers work fine though.");
                 ui.label(
-                    "If you're getting low FPS, disable the caustics shader, updating water and updating wires. I plan to revamp \
-                    wires and optimize the other two, so it won't be a problem for long."
+                    "If you're getting low FPS, disable the caustics shader and/or updating water. I plan to revamp \
+                    or optimize them, so it won't be a problem for long."
                 );
             });
 

@@ -322,7 +322,7 @@ dependencies = [
  "egui-macroquad",
  "flate2",
  "macroquad",
- "png",
+ "png 0.17.0",
  "quad-net",
  "serde",
  "serde_yaml",
@@ -354,6 +354,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "deflate"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5f95bf05dffba6e6cce8dfbb30def788154949ccd9aed761b472119c21e01c70"
+dependencies = [
+ "adler32",
+]
+
+[[package]]
 name = "dlib"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -376,18 +385,18 @@ checksum = "56899898ce76aaf4a0f24d914c97ea6ed976d42fec6ad33fcbb0a1103e07b2b0"
 
 [[package]]
 name = "egui"
-version = "0.13.1"
+version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "77f9b394ccacc0cccb30f6de7371038a116931aa3186acd908b9ec61f405f15c"
+checksum = "56df2f3c802727b65eddaf927abf8084e60128ec7c94432834f1eac98f1e74cd"
 dependencies = [
  "epaint",
 ]
 
 [[package]]
 name = "egui-macroquad"
-version = "0.5.0"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c4419da8b0e8f52063f96173c3e8cbf96794964da9cfdcd07a974c80b1fb0a2f"
+checksum = "b563582c65d32146d825ecdf74d075748be7b146d6464e703334eacdbeaa409d"
 dependencies = [
  "egui",
  "egui-miniquad",
@@ -396,9 +405,9 @@ dependencies = [
 
 [[package]]
 name = "egui-miniquad"
-version = "0.5.0"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c46433e7c81a43f3acb910cfcfbba02dffcfd3a7eb258d873f1828c206f48893"
+checksum = "89daaf9fa175672ec90c7224e98e50b365e2bb28ff75aa70cfdd62ce2c8f7e39"
 dependencies = [
  "copypasta",
  "egui",
@@ -408,15 +417,15 @@ dependencies = [
 
 [[package]]
 name = "emath"
-version = "0.13.0"
+version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "80eea7508c08a7b4e2a041adcdca6f400d8606622c6bb980ecbbdc5f1aff9a4c"
+checksum = "cca5179aa9d15128cebb79bb56dda73a79cc66b402056ff19a992e54b365e15c"
 
 [[package]]
 name = "epaint"
-version = "0.13.0"
+version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "132e30d483d9fa252fe06aa112de777d068503c379fa51bc5834204ee3258fce"
+checksum = "136e7d88da926182bcfdb8217137dd347dfe5dc03b8988eaba3ef8becf83394a"
 dependencies = [
  "ab_glyph",
  "ahash 0.7.4",
@@ -575,7 +584,7 @@ dependencies = [
  "num-iter",
  "num-rational",
  "num-traits",
- "png",
+ "png 0.16.8",
 ]
 
 [[package]]
@@ -1044,8 +1053,20 @@ checksum = "3c3287920cb847dee3de33d301c463fba14dda99db24214ddf93f83d3021f4c6"
 dependencies = [
  "bitflags",
  "crc32fast",
- "deflate",
+ "deflate 0.8.6",
  "miniz_oxide 0.3.7",
+]
+
+[[package]]
+name = "png"
+version = "0.17.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9c2ea6221e9aa7dccc581e610d92af4621d3589f7faa36ffd420bc52904e4aa9"
+dependencies = [
+ "bitflags",
+ "crc32fast",
+ "deflate 0.9.1",
+ "miniz_oxide 0.4.4",
 ]
 
 [[package]]

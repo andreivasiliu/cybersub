@@ -214,7 +214,9 @@ fn on_timer(socket: &mut SocketHandle<'_>, state: &NetState) {
             socket
                 .send(&u32::to_be_bytes(message_bytes.len() as u32))
                 .unwrap();
-            socket.send(&message_bytes).unwrap();
+            for chunk in message_bytes.chunks(16 * 1024) {
+                socket.send(chunk).unwrap();
+            }
         } else {
             // No point in sending events until the client has the state
         }

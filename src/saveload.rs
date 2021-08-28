@@ -116,7 +116,7 @@ fn image_to_png(image: &Image) -> Result<Vec<u8>, String> {
 
     let (width, height) = (image.width(), image.height());
     let mut png_encoder = Encoder::new(&mut png_bytes, width as u32, height as u32);
-    png_encoder.set_color(ColorType::RGBA);
+    png_encoder.set_color(ColorType::Rgba);
     png_encoder.set_depth(BitDepth::Eight);
 
     let mut png_writer = png_encoder
@@ -178,7 +178,7 @@ pub(crate) fn save_water_to_png(grid: &WaterGrid) -> Result<Vec<u8>, String> {
 
     let (width, height) = grid.size();
     let mut png_encoder = Encoder::new(writer, width as u32, height as u32);
-    png_encoder.set_color(ColorType::RGBA);
+    png_encoder.set_color(ColorType::Rgba);
     png_encoder.set_depth(BitDepth::Eight);
 
     let mut png_writer = png_encoder
@@ -220,9 +220,11 @@ fn load_water_cells_from_png(
     let reader = std::io::BufReader::new(png_bytes);
     let png_decoder = Decoder::new(reader);
 
-    let (png_info, mut png_reader) = png_decoder
+    let mut png_reader = png_decoder
         .read_info()
         .map_err(|err| format!("Could not read PNG header: {}", err))?;
+
+    let png_info = png_reader.info();
 
     let (width, height) = (png_info.width as usize, png_info.height as usize);
     let mut water_template = vec![CellTemplate::Sea; width * height];
@@ -232,10 +234,12 @@ fn load_water_cells_from_png(
     }
 
     for y in 0..height {
-        let data = png_reader
+        let row = png_reader
             .next_row()
             .map_err(|err| format!("Error reading PNG row: {}", err))?
             .expect("Expected row count to equal PNG height");
+
+        let data = row.data();
 
         for x in 0..width {
             let cell = &mut water_template[y * width + x];

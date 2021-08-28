@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{convert::TryInto, sync::Arc};
 
 use quad_net::quad_socket::client::QuadSocket;
 use serde::{Deserialize, Serialize};
@@ -73,7 +73,11 @@ impl RemoteConnection {
         Ok(())
     }
 
-    pub fn receive_messages(&mut self) {
+    pub fn receive_messages(&mut self, download_progress: &mut Option<u8>) {
+        if self.buffer.is_empty() {
+            *download_progress = None;
+        }
+
         'recv: while let Some(bytes) = self.socket.try_recv() {
             self.buffer.extend_from_slice(&bytes);
 
@@ -82,12 +86,18 @@ impl RemoteConnection {
                     continue 'recv;
                 }
 
-                use std::convert::TryInto;
                 let four_bytes: [u8; 4] = self.buffer[0..4]
                     .try_into()
                     .expect("Sliced exactly 4 bytes");
 
                 let message_size = u32::from_be_bytes(four_bytes) as usize;
+
+                if message_size > 1024 {
+                    let progress = (self.buffer.len() * 100 / message_size)
+                        .try_into()
+                        .expect("Less than u8::MAX");
+                    *download_progress = Some(progress);
+                }
 
                 if self.buffer.len() < message_size + 4 {
                     continue 'recv;

@@ -58,6 +58,7 @@ pub(crate) struct NetworkSettings {
     pub client_connected: bool,
     pub network_status: String,
     pub network_error: Option<String>,
+    pub download_progress: Option<u8>,
 }
 
 #[derive(PartialEq, Eq)]
@@ -120,6 +121,7 @@ impl Default for CyberSubApp {
             client_connected: false,
             network_status: "Not connected".to_string(),
             network_error: None,
+            download_progress: None,
         };
 
         Self {
@@ -456,7 +458,7 @@ impl UpdateSource {
             UpdateSource::Remote(remote_connection) => {
                 match remote_connection.send_messages(commands) {
                     Ok(()) => {
-                        remote_connection.receive_messages();
+                        remote_connection.receive_messages(&mut network_settings.download_progress);
                     }
                     Err(err) => {
                         network_settings.network_error = Some(err);
