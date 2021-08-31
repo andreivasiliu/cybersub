@@ -306,9 +306,11 @@ pub(crate) fn update_objects(submarine: &mut SubmarineState, walls_updated: &mut
                     if should_be_open(y) {
                         if !cell.is_inside() {
                             cell.make_inside();
+                            *walls_updated = true;
                         }
                     } else if !cell.is_wall() {
                         cell.make_wall();
+                        *walls_updated = true;
                     }
                 }
             }

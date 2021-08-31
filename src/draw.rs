@@ -4,25 +4,14 @@ use macroquad::{
     camera::{pop_camera_state, push_camera_state, set_default_camera},
     prelude::{
         clear_background, draw_circle, draw_line, draw_rectangle, draw_rectangle_lines, draw_text,
-        draw_texture, draw_texture_ex, get_time, gl_use_default_material, gl_use_material,
-        render_target, screen_height, screen_width, set_camera, vec2, Camera2D, Color,
-        DrawTextureParams, FilterMode, Image, Rect, Texture2D, Vec2, BLACK, BLANK, DARKBLUE,
-        DARKGRAY, DARKGREEN, PURPLE, RED, WHITE,
+        draw_texture, draw_texture_ex, draw_triangle, get_time, gl_use_default_material,
+        gl_use_material, render_target, screen_height, screen_width, set_camera, vec2, Camera2D,
+        Color, DrawTextureParams, FilterMode, Image, Rect, Texture2D, Vec2, BLACK, BLANK, DARKBLUE,
+        DARKGRAY, DARKGREEN, PURPLE, RED, WHITE, YELLOW,
     },
 };
 
-use crate::{
-    app::{GameSettings, PlacingObject},
-    game_state::objects::{Object, ObjectType},
-    game_state::rocks::RockGrid,
-    game_state::sonar::Sonar,
-    game_state::state::{GameState, Navigation, SubmarineState},
-    game_state::water::WallMaterial,
-    game_state::water::WaterGrid,
-    game_state::wires::{WireColor, WireGrid},
-    resources::{MutableResources, MutableSubResources, Resources, TurbulenceParticle},
-    Timings,
-};
+use crate::{Timings, app::{GameSettings, PlacingObject}, game_state::objects::{Object, ObjectType}, game_state::rocks::RockGrid, game_state::sonar::Sonar, game_state::state::{GameState, Navigation, SubmarineState}, game_state::water::WallMaterial, game_state::water::WaterGrid, game_state::wires::{WireColor, WireGrid}, resources::{MutableResources, MutableSubResources, Resources, TurbulenceParticle}, shadows::{Edge, Triangle, add_border_edges, filter_edges_by_direction, filter_edges_by_region, find_shadow_edges, find_shadow_triangles}};
 
 pub(crate) struct DrawSettings {
     pub draw_egui: bool,
@@ -36,6 +25,7 @@ pub(crate) struct DrawSettings {
     pub draw_water: bool,
     pub draw_sonar: bool,
     pub draw_engine_turbulence: bool,
+    pub debug_shadows: bool,
 }
 
 #[derive(Debug, Default)]
@@ -162,6 +152,11 @@ pub(crate) fn draw_game(
                 &submarine.collisions,
                 mutable_resources,
             );
+        }
+
+        if draw_settings.debug_shadows {
+            update_shadow_edges(&submarine.water_grid, mutable_resources);
+            draw_shadow_edges(&mutable_resources.shadow_edges, mutable_resources.sub_cursor);
         }
 
         if draw_settings.draw_wires {
@@ -416,6 +411,76 @@ fn draw_water(grid: &WaterGrid) {
                     );
                 }
             }
+        }
+    }
+}
+
+fn update_shadow_edges(water_grid: &WaterGrid, mutable_resources: &mut MutableSubResources) {
+    if mutable_resources.shadow_edges_updated {
+        mutable_resources.shadow_edges = find_shadow_edges(water_grid);
+        mutable_resources.shadow_edges_updated = false;
+    }
+}
+
+fn draw_shadow_edges(edges: &[Edge], cursor: Option<(f32, f32)>) -> () {
+    for edge in edges {
+        let (start, end) = edge.line();
+
+        draw_line(start.x, start.y, end.x, end.y, 0.1, PURPLE);
+    }
+
+    let range = 30.0;
+
+    if let Some(cursor) = cursor {
+        let cursor: Vec2 = cursor.into();
+
+        let edges = filter_edges_by_region(edges, cursor, range);
+
+        for edge in &edges {
+            let (start, end) = edge.line();
+
+            draw_line(start.x, start.y, end.x, end.y, 0.1, RED);
+
+            let gray = Color::new(0.4, 0.0, 0.0, 0.2);
+
+            draw_line(cursor.x, cursor.y, start.x, start.y, 0.1, gray);
+            draw_line(cursor.x, cursor.y, end.x, end.y, 0.1, gray);
+        }
+
+        let mut edges = filter_edges_by_direction(edges, cursor);
+
+        for edge in &edges {
+            let (start, end) = edge.line();
+
+            draw_line(
+                start.x as f32,
+                start.y as f32,
+                end.x as f32,
+                end.y as f32,
+                0.1,
+                YELLOW,
+            );
+
+            let yellow = Color::new(0.0, 0.4, 0.0, 0.2);
+
+            draw_line(cursor.x, cursor.y, start.x, start.y, 0.1, yellow);
+            draw_line(cursor.x, cursor.y, end.x, end.y, 0.1, yellow);
+        }
+
+        add_border_edges(&mut edges, cursor, range);
+        let (triangles, points) = find_shadow_triangles(edges, cursor, range);
+
+        for Triangle(p1, p2, p3) in triangles {
+            let purple = Color::new(0.2, 0.0, 0.2, 0.2);
+
+            draw_triangle(p1, p2, p3, purple);
+        }
+
+        for (point_index, point) in points.iter().enumerate() {
+            // Show order of points by gradually making them yellower
+            let green = 1.0 * point_index as f32 / points.len() as f32;
+            let color = Color::new(1.0, green, 0.0, 1.0);
+            draw_circle(point.x, point.y, 1.0, color);
         }
     }
 }

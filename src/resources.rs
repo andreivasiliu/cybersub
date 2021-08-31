@@ -6,6 +6,8 @@ use macroquad::{
     },
 };
 
+use crate::shadows::Edge;
+
 pub(crate) struct Resources {
     pub settings: Texture2D,
     pub sea_water: Material,
@@ -55,6 +57,9 @@ pub(crate) struct MutableSubResources {
     pub sonar_cursor: Option<(usize, (f32, f32))>,
     pub turbulence_particles: Vec<TurbulenceParticle>,
     pub highlighting_object: Option<usize>,
+    pub sub_cursor: Option<(f32, f32)>,
+    pub shadow_edges: Vec<Edge>,
+    pub shadow_edges_updated: bool,
 }
 
 pub(crate) struct TurbulenceParticle {
@@ -251,18 +256,21 @@ impl MutableSubResources {
             sub_background_image,
             sub_background,
             sub_walls: Texture2D::empty(),
-            walls_updated: false,
+            walls_updated: true,
             sub_wires: render_target(0, 0),
-            wires_updated: false,
+            wires_updated: true,
             sub_signals_image: Image::empty(),
             sub_signals: Texture2D::empty(),
-            signals_updated: false,
+            signals_updated: true,
             new_sonar_target: render_target(0, 0),
             old_sonar_target: render_target(0, 0),
-            sonar_updated: false,
+            sonar_updated: true,
             sonar_cursor: None,
             turbulence_particles: Vec::new(),
             highlighting_object: None,
+            sub_cursor: None,
+            shadow_edges: Vec::new(),
+            shadow_edges_updated: true,
         }
     }
 }

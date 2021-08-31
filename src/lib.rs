@@ -9,6 +9,7 @@ mod resources;
 mod saveload;
 #[cfg(not(target_arch = "wasm32"))]
 mod server;
+mod shadows;
 mod ui;
 
 pub use app::{CyberSubApp, Timings};

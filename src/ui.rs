@@ -116,6 +116,7 @@ pub(crate) fn draw_ui(
         draw_water,
         draw_sonar,
         draw_engine_turbulence,
+        debug_shadows,
     } = draw_settings;
 
     let mut new_update_settings = update_settings.clone();
@@ -586,6 +587,8 @@ pub(crate) fn draw_ui(
             ui.checkbox(draw_water, "Draw water");
             ui.checkbox(draw_sonar, "Draw sonar");
             ui.checkbox(draw_engine_turbulence, "Draw engine turbulence");
+
+            ui.checkbox(debug_shadows, "Debug shadows");
 
             if ui.button("Close").clicked() {
                 *show_draw_settings = false;

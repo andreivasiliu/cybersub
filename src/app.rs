@@ -108,6 +108,7 @@ impl Default for CyberSubApp {
             draw_water: true,
             draw_sonar: true,
             draw_engine_turbulence: true,
+            debug_shadows: false,
         };
 
         let network_settings = NetworkSettings {
