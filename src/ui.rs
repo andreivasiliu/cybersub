@@ -1,4 +1,7 @@
-use egui::{vec2, Align2, Button, Color32, Label, Slider, Ui};
+use egui::{
+    plot::{Line, Plot, Value, Values},
+    vec2, Align2, Button, Color32, Label, Slider, Ui,
+};
 
 use crate::{
     app::{GameSettings, NetworkSettings, PlacingObject, Tool},
@@ -204,7 +207,7 @@ pub(crate) fn draw_ui(
                     if ui.button("Show update settings").clicked() {
                         *show_update_settings = !*show_update_settings;
                     }
-                    if cfg!(not(target_arch = "wasm32")) && ui.button("Show timings").clicked() {
+                    if ui.button("Show timings").clicked() {
                         *show_timings = !*show_timings;
                     }
                 });
@@ -255,8 +258,8 @@ pub(crate) fn draw_ui(
                     egui::Hyperlink::new("https://github.com/not-fl3/macroquad/").text("macroquad"),
                 );
                 egui::warn_if_debug_build(ui);
-                ui.label("FPS:".to_string());
-                ui.colored_label(Color32::GREEN, timings.fps.to_string());
+                ui.label("FPS average:".to_string());
+                ui.colored_label(Color32::GREEN, timings.fps_average.to_string());
                 ui.label("x:".to_string());
                 ui.colored_label(Color32::GREEN, camera.pointing_at.0.to_string());
                 ui.label("y:".to_string());
@@ -467,10 +470,7 @@ pub(crate) fn draw_ui(
                 ui.checkbox(show_navigation_info, "Show navigation info");
                 ui.checkbox(show_draw_settings, "Show draw settings");
                 ui.checkbox(show_update_settings, "Show update settings");
-                if cfg!(not(target_arch = "wasm32")) {
-                    // Timing not available in browsers
-                    ui.checkbox(show_timings, "Show timings");
-                }
+                ui.checkbox(show_timings, "Show timings");
             });
             ui.collapsing("Performance settings", |ui| {
                 ui.checkbox(draw_sea_caustics, "Draw caustics");
@@ -628,12 +628,56 @@ pub(crate) fn draw_ui(
                 });
             };
 
-            show_timer("egui_layout", timings.egui_layout);
-            show_timer("egui_drawing", timings.egui_drawing);
-            show_timer("input_handling", timings.input_handling);
-            show_timer("game_update", timings.game_update);
-            show_timer("game_layout", timings.game_layout);
-            show_timer("frame_update", timings.frame_update);
+            if !cfg!(target_arch = "wasm32") {
+                show_timer("egui_layout", timings.egui_layout);
+                show_timer("egui_drawing", timings.egui_drawing);
+                show_timer("input_handling", timings.input_handling);
+                show_timer("game_update", timings.game_update);
+                show_timer("game_layout", timings.game_layout);
+                show_timer("frame_update", timings.frame_update);
+            }
+            show_timer("FPS", timings.fps);
+            show_timer("FPS average", timings.fps_average);
+
+            ui.collapsing("Graphs", |ui| {
+                let first_timing = timings.fps_history.front().map(|(x, _y)| *x).unwrap_or(0.0);
+
+                ui.label("FPS:");
+                let fps_line = Line::new(Values::from_values_iter(
+                    timings
+                        .fps_history
+                        .iter()
+                        .map(|(x, y)| Value::new(*x - first_timing, *y)),
+                ));
+                let plot = Plot::new("FPS")
+                    .line(fps_line)
+                    .width(200.0)
+                    .height(100.0)
+                    .show_x(false)
+                    .include_x(0.0)
+                    .include_x(1.0)
+                    .include_y(0.0)
+                    .include_y(144.0);
+                ui.add(plot);
+
+                ui.label("FPS average:");
+                let fps_average_line = Line::new(Values::from_values_iter(
+                    timings
+                        .fps_average_history
+                        .iter()
+                        .map(|(x, y)| Value::new(*x - first_timing, *y)),
+                ));
+                let plot = Plot::new("Average FPS")
+                    .line(fps_average_line)
+                    .width(200.0)
+                    .height(100.0)
+                    .show_x(false)
+                    .include_x(0.0)
+                    .include_x(1.0)
+                    .include_y(0.0)
+                    .include_y(144.0);
+                ui.add(plot);
+            });
 
             if ui.button("Close").clicked() {
                 *show_timings = false;

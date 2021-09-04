@@ -95,8 +95,38 @@ async fn main() -> Result<(), String> {
         next_frame().await;
 
         cybersub_app.timings.frame_update = delta_time();
-        cybersub_app.timings.fps = get_fps() as u32;
+
         cybersub_app.timings.frame_time = (get_frame_time() * 1_000_000.0) as u32;
+
+        let fps = get_fps();
+        let time = get_time();
+        cybersub_app.timings.fps = fps as u32;
+        cybersub_app
+            .timings
+            .fps_history
+            .push_back((time, fps as f64));
+        cybersub_app
+            .timings
+            .fps_history
+            .retain(|point| point.0 > time - 1.0);
+
+        let fps_average: f64 = cybersub_app
+            .timings
+            .fps_history
+            .iter()
+            .map(|(_x, y)| *y)
+            .sum();
+        let fps_average = fps_average / cybersub_app.timings.fps_history.len() as f64;
+
+        cybersub_app.timings.fps_average = fps_average as u32;
+        cybersub_app
+            .timings
+            .fps_average_history
+            .push_back((time, fps_average));
+        cybersub_app
+            .timings
+            .fps_average_history
+            .retain(|point| point.0 > time - 1.0);
     }
 }
 

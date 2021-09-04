@@ -1,3 +1,5 @@
+use std::collections::VecDeque;
+
 use crate::{
     client::{connect, RemoteConnection},
     draw::{draw_game, Camera, DrawSettings},
@@ -78,7 +80,10 @@ pub struct Timings {
     pub game_layout: u32,
     pub frame_update: u32,
     pub fps: u32,
+    pub fps_average: u32,
     pub frame_time: u32,
+    pub fps_history: VecDeque<(f64, f64)>,
+    pub fps_average_history: VecDeque<(f64, f64)>,
 }
 
 pub(crate) struct PlacingObject {

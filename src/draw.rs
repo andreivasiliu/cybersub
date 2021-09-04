@@ -252,8 +252,8 @@ pub(crate) fn draw_ui_alternative(
     );
 
     let text = format!(
-        "fps: {}, update: {}, layout: {}",
-        timings.fps, timings.game_update, timings.game_layout
+        "fps average: {}, update: {}, layout: {}",
+        timings.fps_average, timings.game_update, timings.game_layout
     );
     draw_text(&text, 40.0, 25.0, 20.0, PURPLE);
 }
@@ -619,10 +619,11 @@ fn draw_shadows_on_texture(
                     object.position.0 as f32 + 3.5,
                     object.position.1 as f32 + 3.0,
                 );
-                draw_shadow_pointlight(&mutable_resources.shadow_edges,
+                draw_shadow_pointlight(
+                    &mutable_resources.shadow_edges,
                     pointlight,
                     &camera,
-                    resources
+                    resources,
                 );
             }
         }
