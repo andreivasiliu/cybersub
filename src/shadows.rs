@@ -301,11 +301,7 @@ pub(crate) fn find_shadow_edges(water_grid: &WaterGrid) -> Vec<Edge> {
     edges
 }
 
-pub(crate) fn filter_edges_by_region(
-    edges: &[Edge],
-    cursor: Vec2,
-    range: f32,
-) -> Vec<Edge> {
+pub(crate) fn filter_edges_by_region(edges: &[Edge], cursor: Vec2, range: f32) -> Vec<Edge> {
     let region = Rect::new(cursor.x - range, cursor.y - range, range * 2.0, range * 2.0);
     let mut edges_in_region = Vec::new();
 
@@ -393,7 +389,10 @@ fn generate_edge_points(edges: &mut Vec<Edge>, cursor: Vec2, range: f32) -> Vec<
 
         let (start, end) = edge.line;
 
-        let start = vec2(start.x.clamp(r_left, r_right), start.y.clamp(r_top, r_bottom));
+        let start = vec2(
+            start.x.clamp(r_left, r_right),
+            start.y.clamp(r_top, r_bottom),
+        );
         let end = vec2(end.x.clamp(r_left, r_right), end.y.clamp(r_top, r_bottom));
 
         let line = (start, end);
@@ -407,7 +406,11 @@ fn generate_edge_points(edges: &mut Vec<Edge>, cursor: Vec2, range: f32) -> Vec<
         let radians = -(line.0 - cursor).angle_between(vec2(0.0, -1.0));
 
         // And also from 0 to 2*PI, with 0 still being up
-        let clock_radians = if radians < 0.0 { radians + 2.0 * PI } else { radians };
+        let clock_radians = if radians < 0.0 {
+            radians + 2.0 * PI
+        } else {
+            radians
+        };
 
         edge.start_point = EdgePoint {
             starts_edge: !reversed,
@@ -418,7 +421,11 @@ fn generate_edge_points(edges: &mut Vec<Edge>, cursor: Vec2, range: f32) -> Vec<
         };
 
         let radians = -(line.1 - cursor).angle_between(vec2(0.0, -1.0));
-        let clock_radians = if radians < 0.0 { radians + 2.0 * PI } else { radians };
+        let clock_radians = if radians < 0.0 {
+            radians + 2.0 * PI
+        } else {
+            radians
+        };
 
         edge.end_point = EdgePoint {
             starts_edge: reversed,
@@ -445,7 +452,11 @@ fn generate_edge_points(edges: &mut Vec<Edge>, cursor: Vec2, range: f32) -> Vec<
     points
 }
 
-pub(crate) fn find_shadow_triangles(mut edges: Vec<Edge>, cursor: Vec2, range: f32) -> (Vec<Triangle>, Vec<Vec2>) {
+pub(crate) fn find_shadow_triangles(
+    mut edges: Vec<Edge>,
+    cursor: Vec2,
+    range: f32,
+) -> (Vec<Triangle>, Vec<Vec2>) {
     let points = generate_edge_points(&mut edges, cursor, range);
 
     // Remove `mut`.
@@ -547,7 +558,7 @@ pub(crate) fn find_shadow_triangles(mut edges: Vec<Edge>, cursor: Vec2, range: f
                     .filter(|edge_index| **edge_index != point.edge_index)
                     .min_by_key(|edge_index| R32(distances[**edge_index]))
                     .expect("Pushed one in this iteration");
-        
+
                 let distance = distances[next_closest];
 
                 let next_closest_point = cursor + ray * distance;
@@ -593,7 +604,7 @@ pub(crate) fn find_shadow_triangles(mut edges: Vec<Edge>, cursor: Vec2, range: f
     (triangles, three_points)
 }
 
-/// Find where a ray and lie intersect
+/// Find where a ray and line intersect
 fn intersection_distance(ray: (Vec2, Vec2), line: (Vec2, Vec2)) -> f32 {
     let (point, direction) = ray;
     let (line_p1, line_p2) = line;

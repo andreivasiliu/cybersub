@@ -16,6 +16,8 @@ pub(crate) struct Resources {
     pub wall_material: Material,
     pub rock_material: Material,
     pub sonar_material: Material,
+    pub shadow_material: Material,
+    pub pointlight_material: Material,
     pub wires: Texture2D,
     pub sea_dust: Texture2D,
     pub wall: Texture2D,
@@ -39,6 +41,8 @@ pub(crate) struct Resources {
 pub(crate) struct MutableResources {
     pub sea_rocks: Texture2D,
     pub sea_rocks_updated: bool,
+    pub shadows: RenderTarget,
+    pub screen: Texture2D,
 }
 
 pub(crate) struct MutableSubResources {
@@ -202,6 +206,31 @@ impl Resources {
         )
         .expect("Could not load sonar material");
 
+        let shadow_material = load_material(
+            include_str!("vertex.glsl"),
+            include_str!("shadows.glsl"),
+            MaterialParams {
+                uniforms: vec![],
+                textures: vec!["screen".to_string(), "shadows".to_string()],
+                pipeline_params: blend_alpha,
+            },
+        )
+        .expect("Could not load shadow material");
+
+        let pointlight_material = load_material(
+            include_str!("vertex.glsl"),
+            include_str!("pointlight.glsl"),
+            MaterialParams {
+                uniforms: vec![
+                    ("pointlight_size".to_string(), UniformType::Float2),
+                    ("pointlight_position".to_string(), UniformType::Float2),
+                ],
+                textures: vec![],
+                pipeline_params: blend_alpha,
+            },
+        )
+        .expect("Could not load point light material");
+
         Resources {
             settings,
             sea_water,
@@ -210,6 +239,8 @@ impl Resources {
             wall_material,
             rock_material,
             sonar_material,
+            shadow_material,
+            pointlight_material,
             wires,
             sea_dust,
             wall,
@@ -243,6 +274,8 @@ impl MutableResources {
         MutableResources {
             sea_rocks: Texture2D::empty(),
             sea_rocks_updated: false,
+            shadows: render_target(0, 0),
+            screen: Texture2D::empty(),
         }
     }
 }

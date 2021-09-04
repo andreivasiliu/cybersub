@@ -116,6 +116,7 @@ pub(crate) fn draw_ui(
         draw_water,
         draw_sonar,
         draw_engine_turbulence,
+        draw_shadows,
         debug_shadows,
     } = draw_settings;
 
@@ -587,6 +588,7 @@ pub(crate) fn draw_ui(
             ui.checkbox(draw_water, "Draw water");
             ui.checkbox(draw_sonar, "Draw sonar");
             ui.checkbox(draw_engine_turbulence, "Draw engine turbulence");
+            ui.checkbox(draw_shadows, "Draw shadows");
 
             ui.checkbox(debug_shadows, "Debug shadows");
 

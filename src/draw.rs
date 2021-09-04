@@ -11,7 +11,22 @@ use macroquad::{
     },
 };
 
-use crate::{Timings, app::{GameSettings, PlacingObject}, game_state::objects::{Object, ObjectType}, game_state::rocks::RockGrid, game_state::sonar::Sonar, game_state::state::{GameState, Navigation, SubmarineState}, game_state::water::WallMaterial, game_state::water::WaterGrid, game_state::wires::{WireColor, WireGrid}, resources::{MutableResources, MutableSubResources, Resources, TurbulenceParticle}, shadows::{Edge, Triangle, add_border_edges, filter_edges_by_direction, filter_edges_by_region, find_shadow_edges, find_shadow_triangles}};
+use crate::{
+    app::{GameSettings, PlacingObject},
+    game_state::objects::{Object, ObjectType},
+    game_state::rocks::RockGrid,
+    game_state::sonar::Sonar,
+    game_state::state::{GameState, Navigation, SubmarineState},
+    game_state::water::WallMaterial,
+    game_state::water::WaterGrid,
+    game_state::wires::{WireColor, WireGrid},
+    resources::{MutableResources, MutableSubResources, Resources, TurbulenceParticle},
+    shadows::{
+        add_border_edges, filter_edges_by_direction, filter_edges_by_region, find_shadow_edges,
+        find_shadow_triangles, Edge, Triangle,
+    },
+    Timings,
+};
 
 pub(crate) struct DrawSettings {
     pub draw_egui: bool,
@@ -25,6 +40,7 @@ pub(crate) struct DrawSettings {
     pub draw_water: bool,
     pub draw_sonar: bool,
     pub draw_engine_turbulence: bool,
+    pub draw_shadows: bool,
     pub debug_shadows: bool,
 }
 
@@ -132,6 +148,16 @@ pub(crate) fn draw_game(
         );
     }
 
+    if draw_settings.draw_shadows {
+        draw_shadows_on_texture(
+            submarines,
+            camera,
+            resources,
+            mutable_resources,
+            mutable_sub_resources,
+        );
+    }
+
     push_camera_state();
 
     for (sub_index, submarine) in submarines.iter().enumerate() {
@@ -156,7 +182,10 @@ pub(crate) fn draw_game(
 
         if draw_settings.debug_shadows {
             update_shadow_edges(&submarine.water_grid, mutable_resources);
-            draw_shadow_edges(&mutable_resources.shadow_edges, mutable_resources.sub_cursor);
+            draw_shadow_debugging_edges(
+                &mutable_resources.shadow_edges,
+                mutable_resources.sub_cursor.map(Into::into),
+            );
         }
 
         if draw_settings.draw_wires {
@@ -191,6 +220,12 @@ pub(crate) fn draw_game(
     }
 
     pop_camera_state();
+
+    set_default_camera();
+
+    if draw_settings.draw_shadows {
+        draw_shadows_texture(resources, mutable_resources);
+    }
 
     if !draw_settings.draw_egui {
         set_default_camera();
@@ -422,21 +457,22 @@ fn update_shadow_edges(water_grid: &WaterGrid, mutable_resources: &mut MutableSu
     }
 }
 
-fn draw_shadow_edges(edges: &[Edge], cursor: Option<(f32, f32)>) -> () {
+fn draw_shadow_debugging_edges(
+    edges: &[Edge],
+    cursor: Option<Vec2>,
+) -> () {
     for edge in edges {
         let (start, end) = edge.line();
 
         draw_line(start.x, start.y, end.x, end.y, 0.1, PURPLE);
     }
 
-    let range = 30.0;
+    let range = 60.0;
 
     if let Some(cursor) = cursor {
-        let cursor: Vec2 = cursor.into();
+        let edges_in_region = filter_edges_by_region(edges, cursor, range);
 
-        let edges = filter_edges_by_region(edges, cursor, range);
-
-        for edge in &edges {
+        for edge in &edges_in_region {
             let (start, end) = edge.line();
 
             draw_line(start.x, start.y, end.x, end.y, 0.1, RED);
@@ -447,9 +483,9 @@ fn draw_shadow_edges(edges: &[Edge], cursor: Option<(f32, f32)>) -> () {
             draw_line(cursor.x, cursor.y, end.x, end.y, 0.1, gray);
         }
 
-        let mut edges = filter_edges_by_direction(edges, cursor);
+        let mut edges_by_direction = filter_edges_by_direction(edges_in_region, cursor);
 
-        for edge in &edges {
+        for edge in &edges_by_direction {
             let (start, end) = edge.line();
 
             draw_line(
@@ -467,8 +503,8 @@ fn draw_shadow_edges(edges: &[Edge], cursor: Option<(f32, f32)>) -> () {
             draw_line(cursor.x, cursor.y, end.x, end.y, 0.1, yellow);
         }
 
-        add_border_edges(&mut edges, cursor, range);
-        let (triangles, points) = find_shadow_triangles(edges, cursor, range);
+        add_border_edges(&mut edges_by_direction, cursor, range);
+        let (triangles, points) = find_shadow_triangles(edges_by_direction, cursor, range);
 
         for Triangle(p1, p2, p3) in triangles {
             let purple = Color::new(0.2, 0.0, 0.2, 0.2);
@@ -483,6 +519,131 @@ fn draw_shadow_edges(edges: &[Edge], cursor: Option<(f32, f32)>) -> () {
             draw_circle(point.x, point.y, 1.0, color);
         }
     }
+}
+
+fn draw_shadow_pointlight(
+    edges: &[Edge],
+    cursor: Option<Vec2>,
+    camera: &Camera2D,
+    resources: &Resources,
+) -> () {
+    let range = 60.0;
+
+    if let Some(cursor) = cursor {
+        let edges_in_region = filter_edges_by_region(edges, cursor, range);
+
+        let mut edges_by_direction = filter_edges_by_direction(edges_in_region, cursor);
+
+        add_border_edges(&mut edges_by_direction, cursor, range);
+        let (triangles, _points) = find_shadow_triangles(edges_by_direction, cursor, range);
+
+        let screen_cursor = camera.world_to_screen(cursor);
+        let pointlight_size = camera.world_to_screen(cursor + vec2(range, range)) - screen_cursor;
+
+        resources
+            .pointlight_material
+            .set_uniform("pointlight_size", pointlight_size);
+        resources
+            .pointlight_material
+            .set_uniform("pointlight_position", screen_cursor);
+
+        gl_use_material(resources.pointlight_material);
+
+        for Triangle(p1, p2, p3) in triangles {
+            let gray = Color::new(1.0, 1.0, 1.0, 1.0);
+
+            draw_triangle(p1, p2, p3, gray);
+        }
+
+        gl_use_default_material();
+    }
+}
+
+fn draw_shadows_on_texture(
+    submarines: &[SubmarineState],
+    camera: &Camera,
+    resources: &Resources,
+    mutable_resources: &mut MutableResources,
+    mutable_sub_resources: &mut [MutableSubResources],
+) {
+    push_camera_state();
+    let screen_size = vec2(screen_width(), screen_height());
+    let shadows = &mut mutable_resources.shadows;
+
+    if vec2(shadows.texture.width(), shadows.texture.height()) != screen_size {
+        shadows.delete();
+        *shadows = render_target(screen_width() as u32, screen_height() as u32);
+        shadows.texture.set_filter(FilterMode::Linear);
+    }
+    set_camera(&Camera2D {
+        render_target: Some(*shadows),
+        ..Default::default()
+    });
+    clear_background(DARKGRAY);
+
+    for (sub_index, submarine) in submarines.iter().enumerate() {
+        let camera = camera.to_macroquad_camera(Some(submarine.navigation.position));
+        // Render targets flip upside-down: https://github.com/not-fl3/macroquad/issues/171
+        let zoom = camera.zoom * vec2(1.0, -1.0);
+        set_camera(&Camera2D {
+            render_target: Some(*shadows),
+            zoom,
+            ..camera
+        });
+
+        let mutable_resources = mutable_sub_resources
+            .get_mut(sub_index)
+            .expect("All submarines should have their own MutableSubResources instance");
+
+        if let Some((x, y)) = mutable_resources.sub_cursor {
+            let (x, y) = (x as usize, y as usize);
+            let (width, height) = submarine.water_grid.size();
+
+            if x >= width && y >= height {
+                continue;
+            }
+
+            if submarine.water_grid.cell(x, y).is_wall() {
+                continue;
+            }
+
+            update_shadow_edges(&submarine.water_grid, mutable_resources);
+            draw_shadow_pointlight(
+                &mutable_resources.shadow_edges,
+                mutable_resources.sub_cursor.map(Into::into),
+                &camera,
+                resources,
+            );
+        }
+    }
+
+    pop_camera_state();
+}
+
+fn draw_shadows_texture(resources: &Resources, mutable_resources: &mut MutableResources) {
+    let screen_size = vec2(screen_width(), screen_height());
+    let screen = &mut mutable_resources.screen;
+    let shadows = &mut mutable_resources.shadows;
+
+    if vec2(screen.width(), screen.height()) != screen_size {
+        screen.delete();
+        *screen = Texture2D::from_rgba8(
+            screen_width() as u16,
+            screen_height() as u16,
+            &vec![0; 4 * screen_width() as usize * screen_height() as usize],
+        );
+    }
+    screen.grab_screen();
+
+    resources.shadow_material.set_texture("screen", *screen);
+    resources
+        .shadow_material
+        .set_texture("shadows", shadows.texture);
+    gl_use_material(resources.shadow_material);
+
+    draw_rectangle(0.0, 0.0, screen_size.x, screen_size.y, WHITE);
+
+    gl_use_default_material();
 }
 
 fn update_wires_texture(

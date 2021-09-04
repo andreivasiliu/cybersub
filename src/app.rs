@@ -108,6 +108,7 @@ impl Default for CyberSubApp {
             draw_water: true,
             draw_sonar: true,
             draw_engine_turbulence: true,
+            draw_shadows: true,
             debug_shadows: false,
         };
 
@@ -266,6 +267,7 @@ impl CyberSubApp {
                                 }
                                 SubmarineUpdatedEvent::Walls => {
                                     mutable_sub_resources.walls_updated = true;
+                                    mutable_sub_resources.shadow_edges_updated = true;
                                 }
                                 SubmarineUpdatedEvent::Wires => {
                                     mutable_sub_resources.wires_updated = true;
