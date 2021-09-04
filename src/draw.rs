@@ -184,7 +184,7 @@ pub(crate) fn draw_game(
             update_shadow_edges(&submarine.water_grid, mutable_resources);
             draw_shadow_debugging_edges(
                 &mutable_resources.shadow_edges,
-                mutable_resources.sub_cursor.map(Into::into),
+                Some(mutable_resources.sub_cursor.into()),
             );
         }
 
@@ -520,40 +520,38 @@ fn draw_shadow_debugging_edges(edges: &[Edge], cursor: Option<Vec2>) {
 
 fn draw_shadow_pointlight(
     edges: &[Edge],
-    cursor: Option<Vec2>,
+    pointlight: Vec2,
     camera: &Camera2D,
     resources: &Resources,
 ) {
     let range = 60.0;
 
-    if let Some(cursor) = cursor {
-        let edges_in_region = filter_edges_by_region(edges, cursor, range);
+    let edges_in_region = filter_edges_by_region(edges, pointlight, range);
 
-        let mut edges_by_direction = filter_edges_by_direction(edges_in_region, cursor);
+    let mut edges_by_direction = filter_edges_by_direction(edges_in_region, pointlight);
 
-        add_border_edges(&mut edges_by_direction, cursor, range);
-        let (triangles, _points) = find_shadow_triangles(edges_by_direction, cursor, range);
+    add_border_edges(&mut edges_by_direction, pointlight, range);
+    let (triangles, _points) = find_shadow_triangles(edges_by_direction, pointlight, range);
 
-        let screen_cursor = camera.world_to_screen(cursor);
-        let pointlight_size = camera.world_to_screen(cursor + vec2(range, range)) - screen_cursor;
+    let screen_cursor = camera.world_to_screen(pointlight);
+    let pointlight_size = camera.world_to_screen(pointlight + vec2(range, range)) - screen_cursor;
 
-        resources
-            .pointlight_material
-            .set_uniform("pointlight_size", pointlight_size);
-        resources
-            .pointlight_material
-            .set_uniform("pointlight_position", screen_cursor);
+    resources
+        .pointlight_material
+        .set_uniform("pointlight_size", pointlight_size);
+    resources
+        .pointlight_material
+        .set_uniform("pointlight_position", screen_cursor);
 
-        gl_use_material(resources.pointlight_material);
+    gl_use_material(resources.pointlight_material);
 
-        for Triangle(p1, p2, p3) in triangles {
-            let gray = Color::new(1.0, 1.0, 1.0, 1.0);
+    for Triangle(p1, p2, p3) in triangles {
+        let gray = Color::new(1.0, 1.0, 1.0, 1.0);
 
-            draw_triangle(p1, p2, p3, gray);
-        }
-
-        gl_use_default_material();
+        draw_triangle(p1, p2, p3, gray);
     }
+
+    gl_use_default_material();
 }
 
 fn draw_shadows_on_texture(
@@ -592,25 +590,41 @@ fn draw_shadows_on_texture(
             .get_mut(sub_index)
             .expect("All submarines should have their own MutableSubResources instance");
 
-        if let Some((x, y)) = mutable_resources.sub_cursor {
-            let (x, y) = (x as usize, y as usize);
-            let (width, height) = submarine.water_grid.size();
+        update_shadow_edges(&submarine.water_grid, mutable_resources);
 
-            if x >= width && y >= height {
-                continue;
-            }
+        let (x, y) = mutable_resources.sub_cursor;
+        let pointlight = vec2(x, y);
+        let (x, y) = (x as usize, y as usize);
+        let (width, height) = submarine.water_grid.size();
 
-            if submarine.water_grid.cell(x, y).is_wall() {
-                continue;
-            }
-
-            update_shadow_edges(&submarine.water_grid, mutable_resources);
+        // Draw a pointlight at the cursor; except when the cursor is
+        // inside a submarine's wall.
+        if x >= width || y >= height || !submarine.water_grid.cell(x, y).is_wall() {
             draw_shadow_pointlight(
                 &mutable_resources.shadow_edges,
-                mutable_resources.sub_cursor.map(Into::into),
+                pointlight,
                 &camera,
                 resources,
             );
+        }
+
+        for object in &submarine.objects {
+            if let ObjectType::Lamp = object.object_type {
+                // FIXME: Need a better way to say it's "on"
+                // Maybe just ask the object for what kind of light it has
+                if object.current_frame != 1 {
+                    continue;
+                }
+                let pointlight = vec2(
+                    object.position.0 as f32 + 3.5,
+                    object.position.1 as f32 + 3.0,
+                );
+                draw_shadow_pointlight(&mutable_resources.shadow_edges,
+                    pointlight,
+                    &camera,
+                    resources
+                );
+            }
         }
     }
 

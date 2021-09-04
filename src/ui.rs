@@ -419,7 +419,7 @@ pub(crate) fn draw_ui(
                 ui.scope(|ui| {
                     let unavailable = if !cfg!(target_arch = "wasm32") {
                         "Only available on browser client"
-                    } else if quad_url::path(false).starts_with("http://") {
+                    } else if quad_url::path(false).starts_with("https://") {
                         "Cannot access ws:// when the page is loaded from an https:// URL \
                         (such as from Github Pages), and wss:// is not yet supported by \
                         the server. For now, load the page from an http:// location instead."

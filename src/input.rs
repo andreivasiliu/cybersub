@@ -106,20 +106,14 @@ pub(crate) fn handle_pointer_input(
         camera.zoom = (camera.zoom + (scroll * multiplier) as i32 * 4).clamp(-512, 36);
     }
 
-    let (width, height) = submarine.water_grid.size();
-    let sub_rect = Rect::new(0.0, 0.0, width as f32, height as f32);
-
     let mouse_position = macroquad_camera.screen_to_world(mouse_position.into());
-    mutable_resources.sub_cursor = if sub_rect.contains(mouse_position) {
-        Some(mouse_position.into())
-    } else {
-        None
-    };
+    mutable_resources.sub_cursor = mouse_position.into();
 
     mutable_resources.highlighting_object = None;
 
     if is_mouse_button_down(MouseButton::Left) && !*dragging_object {
         let (x, y) = camera.pointing_at;
+        let (width, height) = submarine.water_grid.size();
 
         if x >= width || y >= height {
             return;

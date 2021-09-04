@@ -61,7 +61,7 @@ pub(crate) struct MutableSubResources {
     pub sonar_cursor: Option<(usize, (f32, f32))>,
     pub turbulence_particles: Vec<TurbulenceParticle>,
     pub highlighting_object: Option<usize>,
-    pub sub_cursor: Option<(f32, f32)>,
+    pub sub_cursor: (f32, f32),
     pub shadow_edges: Vec<Edge>,
     pub shadow_edges_updated: bool,
 }
@@ -301,7 +301,7 @@ impl MutableSubResources {
             sonar_cursor: None,
             turbulence_particles: Vec::new(),
             highlighting_object: None,
-            sub_cursor: None,
+            sub_cursor: (0.0, 0.0),
             shadow_edges: Vec::new(),
             shadow_edges_updated: true,
         }
