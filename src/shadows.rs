@@ -38,8 +38,7 @@
 //!     * Save closest_edge_point as last_point
 //!
 //! Workflow for generating a point for the closest edge in the set:
-//! * Normal raycast (aka line intersection equation) maybe?
-//! * Some sort of start/end radians interpolation?
+//! * Normal raycast (aka ray vs line intersection equation)
 
 use std::{f32::consts::PI, fmt::Display};
 
@@ -89,10 +88,29 @@ pub(crate) enum Direction {
 pub(crate) struct Triangle(pub Vec2, pub Vec2, pub Vec2);
 
 /// Allow ordering floats by panicking on NaNs
-#[derive(PartialOrd, PartialEq)]
 struct R32(f32);
 
+impl PartialEq for R32 {
+    fn eq(&self, other: &Self) -> bool {
+        assert!(
+            (self.0 == other.0) != (self.0 != other.0),
+            "There should be no NaNs"
+        );
+        self.0 == other.0
+    }
+}
+
 impl Eq for R32 {}
+
+impl PartialOrd for R32 {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(
+            self.0
+                .partial_cmp(&other.0)
+                .expect("There should be no NaNs"),
+        )
+    }
+}
 
 impl Ord for R32 {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
@@ -323,7 +341,7 @@ pub(crate) fn filter_edges_by_region(edges: &[Edge], cursor: Vec2, range: f32) -
     };
 
     for edge in edges {
-        if is_in_region(&edge) {
+        if is_in_region(edge) {
             edges_in_region.push(*edge);
         }
     }
@@ -537,14 +555,14 @@ pub(crate) fn find_shadow_triangles(
             distances[edge_index] = intersection_distance((cursor, ray), line);
         }
 
-        if point.starts_edge {
-            let point_distance = point_distance.length();
-            let closest_distance = current_edges
-                .iter()
-                .map(|edge_index| distances[*edge_index])
-                .min_by_key(|distance| R32(*distance))
-                .expect("Should have at least border edge lines");
+        let point_distance = point_distance.length();
+        let closest_distance = current_edges
+            .iter()
+            .map(|edge_index| distances[*edge_index])
+            .min_by_key(|distance| R32(*distance))
+            .expect("Should have at least border edge lines");
 
+        if point.starts_edge {
             // eprintln!(
             //     "[{}] Closest on add: {}/{}",
             //     point.edge_index,
@@ -565,29 +583,19 @@ pub(crate) fn find_shadow_triangles(
 
                 triangles.push(Triangle(cursor, last_point, next_closest_point));
 
-                // eprintln!("Added triangle on add.");
-
                 last_point = point.point;
             }
         } else {
-            let point_distance = point_distance.length();
-
-            // eprintln!("Added triangle on remove.");
-
-            let next_closest_distance = current_edges
-                .iter()
-                .map(|edge_index| distances[*edge_index])
-                .min_by_key(|distance| R32(*distance))
-                .expect("Should have at least border edge lines");
-
             // eprintln!(
             //     "[{}] Closest on remove: {}/{}",
             //     point.edge_index, next_closest_distance, point_distance
             // );
 
-            let was_closest = point_distance <= next_closest_distance + 0.1;
+            let was_closest = point_distance <= closest_distance + 0.1;
 
             if was_closest {
+                // The closest edge was already removed.
+                let next_closest_distance = closest_distance;
                 let next_closest_point = cursor + ray * next_closest_distance;
 
                 triangles.push(Triangle(cursor, last_point, point.point));
@@ -598,8 +606,6 @@ pub(crate) fn find_shadow_triangles(
     }
 
     triangles.push(Triangle(cursor, last_point, starting_point));
-
-    // dbg!(triangles.len());
 
     (triangles, three_points)
 }

@@ -324,6 +324,7 @@ dependencies = [
  "macroquad",
  "png 0.17.0",
  "quad-net",
+ "quad-url",
  "serde",
  "serde_yaml",
 ]
@@ -1119,9 +1120,9 @@ dependencies = [
 
 [[package]]
 name = "quad-url"
-version = "0.1.0"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e37ef371d6293cc338eeb2863bec2508b552a2622ebba596ed28d0dc15b7d755"
+checksum = "e674b7e6218e9d5d01ca431e2088b647cd75cdf483f8201533dcb1fecfa25f03"
 dependencies = [
  "sapp-jsutils",
  "webbrowser",

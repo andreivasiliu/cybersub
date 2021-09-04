@@ -457,10 +457,7 @@ fn update_shadow_edges(water_grid: &WaterGrid, mutable_resources: &mut MutableSu
     }
 }
 
-fn draw_shadow_debugging_edges(
-    edges: &[Edge],
-    cursor: Option<Vec2>,
-) -> () {
+fn draw_shadow_debugging_edges(edges: &[Edge], cursor: Option<Vec2>) {
     for edge in edges {
         let (start, end) = edge.line();
 
@@ -526,7 +523,7 @@ fn draw_shadow_pointlight(
     cursor: Option<Vec2>,
     camera: &Camera2D,
     resources: &Resources,
-) -> () {
+) {
     let range = 60.0;
 
     if let Some(cursor) = cursor {

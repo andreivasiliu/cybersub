@@ -416,9 +416,26 @@ pub(crate) fn draw_ui(
                     ui.text_edit_singleline(client_ws_address)
                         .on_disabled_hover_text("Only available on browser client");
                 });
-                if ui.button("Connect to server").clicked() {
-                    *connect_client = true;
-                }
+                ui.scope(|ui| {
+                    let unavailable = if !cfg!(target_arch = "wasm32") {
+                        "Only available on browser client"
+                    } else if quad_url::path(false).starts_with("http://") {
+                        "Cannot access ws:// when the page is loaded from an https:// URL \
+                        (such as from Github Pages), and wss:// is not yet supported by \
+                        the server. For now, load the page from an http:// location instead."
+                    } else {
+                        ""
+                    };
+                    ui.set_enabled(unavailable.is_empty());
+
+                    if ui
+                        .button("Connect to server")
+                        .on_disabled_hover_text(unavailable)
+                        .clicked()
+                    {
+                        *connect_client = true;
+                    }
+                })
             });
 
             ui.separator();
