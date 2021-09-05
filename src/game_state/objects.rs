@@ -575,24 +575,24 @@ pub(crate) fn current_frame(object: &Object) -> (u16, u16) {
     match &object.object_type {
         ObjectType::Door { progress, .. } => {
             current_frame = (*progress as u16 * 8 / 15).clamp(0, 7);
-        },
+        }
         ObjectType::VerticalDoor { progress, .. } => {
             current_frame = (*progress as u16 * 9 / 15).clamp(0, 8);
-        },
+        }
         ObjectType::Reactor { active } => {
             if *active {
                 current_frame = 0;
             } else {
                 current_frame = 1;
             }
-        },
+        }
         ObjectType::Lamp => {
             if *powered {
                 current_frame = 1;
             } else {
                 current_frame = 0;
             }
-        },
+        }
         ObjectType::Gauge { value } => {
             current_frame = match *value {
                 -128..=-96 => 0,
@@ -601,39 +601,39 @@ pub(crate) fn current_frame(object: &Object) -> (u16, u16) {
                 32..=95 => 3,
                 96..=127 => 4,
             };
-        },
+        }
         ObjectType::SmallPump { progress, .. } => {
             current_frame = (*progress as u8 / (u8::MAX / 4)).clamp(0, 3) as u16;
-        },
+        }
         ObjectType::LargePump { progress, .. } => {
             current_frame = (*progress as u8 / (u8::MAX / 4)).clamp(0, 3) as u16;
-        },
+        }
         ObjectType::JunctionBox => {
             current_frame = 0;
-        },
-        ObjectType::NavController { active, progress, .. } => {
+        }
+        ObjectType::NavController {
+            active, progress, ..
+        } => {
             current_frame = if *active && *powered {
                 (*progress as u16 / 8) % 5 + 1
             } else {
                 0
             };
-        },
+        }
         ObjectType::Sonar { active, .. } => {
             current_frame = if *powered && *active { 0 } else { 1 };
-        },
+        }
         ObjectType::Engine { progress, .. } => {
             let frames = 24;
-            current_frame =
-                (*progress as u8 / (u8::MAX / frames)).clamp(0, frames - 1) as u16;
-
-        },
+            current_frame = (*progress as u8 / (u8::MAX / frames)).clamp(0, frames - 1) as u16;
+        }
         ObjectType::Battery { charge } => {
             current_frame = if *charge == 0 {
                 7
             } else {
                 7 - (*charge * 8 / 5400).clamp(1, 7)
             };
-        },
+        }
     }
 
     (current_frame, 0)
@@ -666,7 +666,7 @@ impl ObjectTemplate {
                 ObjectTypeTemplate::VerticalDoor { state, progress }
             }
             ObjectType::Reactor { active } => ObjectTypeTemplate::Reactor { active },
-            ObjectType::Lamp { .. }=> ObjectTypeTemplate::Lamp,
+            ObjectType::Lamp { .. } => ObjectTypeTemplate::Lamp,
             ObjectType::Gauge { value } => ObjectTypeTemplate::Gauge { value },
             ObjectType::SmallPump {
                 target_speed,

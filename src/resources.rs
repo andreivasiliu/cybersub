@@ -6,7 +6,15 @@ use macroquad::{
     },
 };
 
-use crate::shadows::Edge;
+use crate::{
+    draw::Camera,
+    game_state::{
+        state::GameState,
+        update::{SubmarineUpdatedEvent, UpdateEvent},
+    },
+    saveload::pixels_to_image,
+    shadows::Edge,
+};
 
 pub(crate) struct Resources {
     pub settings: Texture2D,
@@ -306,6 +314,80 @@ impl MutableSubResources {
             sub_cursor: (0.0, 0.0),
             shadow_edges: Vec::new(),
             shadow_edges_updated: true,
+        }
+    }
+}
+
+pub(crate) fn update_resources_from_events(
+    events: impl Iterator<Item = UpdateEvent>,
+    game_state: &GameState,
+    mutable_sub_resources: &mut Vec<MutableSubResources>,
+    camera: &mut Camera,
+    current_submarine: &mut usize,
+) {
+    for event in events {
+        match event {
+            UpdateEvent::Submarine {
+                submarine_id,
+                submarine_event,
+            } => {
+                let mutable_sub_resources = mutable_sub_resources
+                    .get_mut(submarine_id)
+                    .expect("All submarines should have their own MutableSubResources instance");
+
+                match submarine_event {
+                    SubmarineUpdatedEvent::Sonar => {
+                        mutable_sub_resources.sonar_updated = true;
+                    }
+                    SubmarineUpdatedEvent::Walls => {
+                        mutable_sub_resources.walls_updated = true;
+                        mutable_sub_resources.shadow_edges_updated = true;
+                    }
+                    SubmarineUpdatedEvent::Wires => {
+                        mutable_sub_resources.wires_updated = true;
+                    }
+                    SubmarineUpdatedEvent::Signals => {
+                        mutable_sub_resources.signals_updated = true;
+                    }
+                }
+            }
+            UpdateEvent::SubmarineCreated => {
+                let submarine = game_state
+                    .submarines
+                    .last()
+                    .expect("Submarine just created");
+                let (width, height) = submarine.water_grid.size();
+                let image = pixels_to_image(width, height, &submarine.background_pixels);
+                mutable_sub_resources.push(MutableSubResources::new(image));
+
+                // Change camera to its middle and set it as current
+                *current_submarine = game_state.submarines.len() - 1;
+                camera.offset_x = -(width as f32) / 2.0;
+                camera.offset_y = -(height as f32) / 2.0;
+            }
+            UpdateEvent::GameStateReset => {
+                // FIXME: Delete textures
+                mutable_sub_resources.clear();
+
+                // FIXME: factor out
+                for submarine in &game_state.submarines {
+                    let (width, height) = submarine.water_grid.size();
+                    let image = pixels_to_image(width, height, &submarine.background_pixels);
+                    mutable_sub_resources.push(MutableSubResources::new(image))
+                }
+
+                // Get last submarine
+                let submarine = game_state
+                    .submarines
+                    .last()
+                    .expect("Submarine just created");
+                let (width, height) = submarine.water_grid.size();
+
+                // Change camera to its middle and set it as current
+                *current_submarine = game_state.submarines.len() - 1;
+                camera.offset_x = -(width as f32) / 2.0;
+                camera.offset_y = -(height as f32) / 2.0;
+            }
         }
     }
 }

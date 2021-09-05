@@ -153,11 +153,7 @@ fn hovering_over_sonar(
     hover_position: Vec2,
     mutable_resources: &mut MutableSubResources,
 ) -> bool {
-    if let ObjectType::Sonar {
-        active: true,
-        ..
-    } = &object.object_type
-    {
+    if let ObjectType::Sonar { active: true, .. } = &object.object_type {
         if !object.powered {
             // Acknowledge hovering, but don't set target
             return true;

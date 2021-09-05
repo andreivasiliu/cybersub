@@ -11,10 +11,25 @@ use macroquad::{
     },
 };
 
-use crate::{Timings, app::{GameSettings, PlacingObject}, game_state::objects::{Object, ObjectType}, game_state::rocks::RockGrid, game_state::sonar::Sonar, game_state::{objects::current_frame, state::{GameState, Navigation, SubmarineState}}, game_state::water::WallMaterial, game_state::water::WaterGrid, game_state::wires::{WireColor, WireGrid}, resources::{MutableResources, MutableSubResources, Resources, TurbulenceParticle}, shadows::{
+use crate::{
+    app::{GameSettings, PlacingObject},
+    game_state::objects::{Object, ObjectType},
+    game_state::rocks::RockGrid,
+    game_state::sonar::Sonar,
+    game_state::water::WallMaterial,
+    game_state::water::WaterGrid,
+    game_state::wires::{WireColor, WireGrid},
+    game_state::{
+        objects::current_frame,
+        state::{GameState, Navigation, SubmarineState},
+    },
+    resources::{MutableResources, MutableSubResources, Resources, TurbulenceParticle},
+    shadows::{
         add_border_edges, filter_edges_by_direction, filter_edges_by_region, find_shadow_edges,
         find_shadow_triangles, Edge, Triangle,
-    }};
+    },
+    Timings,
+};
 
 pub(crate) struct DrawSettings {
     pub draw_egui: bool,
@@ -602,7 +617,7 @@ fn draw_shadows_on_texture(
                 let frame_y = (frame_height as u16 * current_frame_line) as f32;
 
                 // Draw the shadow map directly onto the screen shadow texture
-        
+
                 draw_texture_ex(
                     texture,
                     draw_rect.x,

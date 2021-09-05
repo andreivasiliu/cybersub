@@ -427,7 +427,7 @@ pub(crate) fn draw_ui(
                         (such as from Github Pages), and wss:// is not yet supported by \
                         the server. For now, load the page from an http:// location instead."
                     } else {
-                        ""
+                        "Already connected"
                     };
                     ui.set_enabled(unavailable.is_empty());
 

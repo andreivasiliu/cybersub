@@ -8,11 +8,11 @@ use crate::{
     game_state::wires::WireColor,
     game_state::{
         state::SubmarineTemplate,
-        update::{update_game, Command, SubmarineUpdatedEvent, UpdateEvent},
+        update::{update_game, Command, UpdateEvent},
     },
     input::{handle_keyboard_input, handle_pointer_input},
-    resources::{MutableResources, MutableSubResources, Resources},
-    saveload::{load_rocks_from_png, load_template_from_data, pixels_to_image, save_to_file_data},
+    resources::{update_resources_from_events, MutableResources, MutableSubResources, Resources},
+    saveload::{load_rocks_from_png, load_template_from_data, save_to_file_data},
     ui::{draw_ui, UiState},
     SubmarineFileData,
 };
@@ -232,107 +232,45 @@ impl CyberSubApp {
     pub fn update_game(&mut self, game_time: f64) {
         self.game_settings.animation_ticks = 0;
 
-        if let Some(last_draw) = self.game_settings.last_draw {
-            let mut delta = (game_time - last_draw).clamp(0.0, 0.5);
-
-            while delta > 0.0 {
-                // 60 animation updates per second, regardless of FPS
-
-                delta -= 1.0 / 60.0;
-                self.game_settings.animation_ticks += 1;
-            }
-        }
-
+        let last_draw = self.game_settings.last_draw.get_or_insert(game_time);
         let last_update = self.game_settings.last_update.get_or_insert(game_time);
 
-        while *last_update < game_time {
-            // 60 updates per second, regardless of FPS
-            *last_update += 1.0 / 60.0;
-
-            if true {
-                let commands = self.commands.drain(0..self.commands.len());
-                self.update_source.update(
-                    &mut self.game_state,
-                    commands,
-                    &mut self.update_events,
-                    &mut self.game_settings.network_settings,
-                );
-
-                for event in self.update_events.drain(0..self.update_events.len()) {
-                    match event {
-                        UpdateEvent::Submarine {
-                            submarine_id,
-                            submarine_event,
-                        } => {
-                            let mutable_sub_resources = self.mutable_sub_resources.get_mut(submarine_id).expect("All submarines should have their own MutableSubResources instance");
-
-                            match submarine_event {
-                                SubmarineUpdatedEvent::Sonar => {
-                                    mutable_sub_resources.sonar_updated = true;
-                                }
-                                SubmarineUpdatedEvent::Walls => {
-                                    mutable_sub_resources.walls_updated = true;
-                                    mutable_sub_resources.shadow_edges_updated = true;
-                                }
-                                SubmarineUpdatedEvent::Wires => {
-                                    mutable_sub_resources.wires_updated = true;
-                                }
-                                SubmarineUpdatedEvent::Signals => {
-                                    mutable_sub_resources.signals_updated = true;
-                                }
-                            }
-                        }
-                        UpdateEvent::SubmarineCreated => {
-                            let submarine = self
-                                .game_state
-                                .submarines
-                                .last()
-                                .expect("Submarine just created");
-                            let (width, height) = submarine.water_grid.size();
-                            let image =
-                                pixels_to_image(width, height, &submarine.background_pixels);
-                            self.mutable_sub_resources
-                                .push(MutableSubResources::new(image));
-
-                            // Change camera to its middle and set it as current
-                            self.game_settings.current_submarine =
-                                self.game_state.submarines.len() - 1;
-                            self.game_settings.camera.offset_x = -(width as f32) / 2.0;
-                            self.game_settings.camera.offset_y = -(height as f32) / 2.0;
-                        }
-                        UpdateEvent::GameStateReset => {
-                            // FIXME: Delete textures
-                            self.mutable_sub_resources.clear();
-
-                            // FIXME: factor out
-                            for submarine in &self.game_state.submarines {
-                                let (width, height) = submarine.water_grid.size();
-                                let image =
-                                    pixels_to_image(width, height, &submarine.background_pixels);
-                                self.mutable_sub_resources
-                                    .push(MutableSubResources::new(image))
-                            }
-
-                            // Get last submarine
-                            let submarine = self
-                                .game_state
-                                .submarines
-                                .last()
-                                .expect("Submarine just created");
-                            let (width, height) = submarine.water_grid.size();
-
-                            // Change camera to its middle and set it as current
-                            self.game_settings.current_submarine =
-                                self.game_state.submarines.len() - 1;
-                            self.game_settings.camera.offset_x = -(width as f32) / 2.0;
-                            self.game_settings.camera.offset_y = -(height as f32) / 2.0;
-                        }
-                    }
-                }
-            }
+        // Disable catching up if the game was suppressed for too long.
+        if (game_time - *last_draw).abs() > 0.5 {
+            *last_draw = game_time - 0.5;
         }
 
-        self.game_settings.last_draw = Some(game_time);
+        if (game_time - *last_update).abs() > 0.5 {
+            *last_update = game_time - 0.5;
+        }
+
+        // 60 animation updates per second, regardless of FPS
+        while *last_draw < game_time {
+            *last_draw += 1.0 / 60.0;
+
+            self.game_settings.animation_ticks += 1;
+        }
+
+        // 60 updates per second, regardless of FPS
+        while *last_update < game_time {
+            *last_update += 1.0 / 60.0;
+
+            let commands = self.commands.drain(0..self.commands.len());
+            self.update_source.update(
+                &mut self.game_state,
+                commands,
+                &mut self.update_events,
+                &mut self.game_settings.network_settings,
+            );
+
+            update_resources_from_events(
+                self.update_events.drain(..),
+                &self.game_state,
+                &mut self.mutable_sub_resources,
+                &mut self.game_settings.camera,
+                &mut self.game_settings.current_submarine,
+            );
+        }
 
         // Follow submarine with camera
         let submarine_camera = self
