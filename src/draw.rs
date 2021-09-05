@@ -11,22 +11,10 @@ use macroquad::{
     },
 };
 
-use crate::{
-    app::{GameSettings, PlacingObject},
-    game_state::objects::{Object, ObjectType},
-    game_state::rocks::RockGrid,
-    game_state::sonar::Sonar,
-    game_state::state::{GameState, Navigation, SubmarineState},
-    game_state::water::WallMaterial,
-    game_state::water::WaterGrid,
-    game_state::wires::{WireColor, WireGrid},
-    resources::{MutableResources, MutableSubResources, Resources, TurbulenceParticle},
-    shadows::{
+use crate::{Timings, app::{GameSettings, PlacingObject}, game_state::objects::{Object, ObjectType}, game_state::rocks::RockGrid, game_state::sonar::Sonar, game_state::{objects::current_frame, state::{GameState, Navigation, SubmarineState}}, game_state::water::WallMaterial, game_state::water::WaterGrid, game_state::wires::{WireColor, WireGrid}, resources::{MutableResources, MutableSubResources, Resources, TurbulenceParticle}, shadows::{
         add_border_edges, filter_edges_by_direction, filter_edges_by_region, find_shadow_edges,
         find_shadow_triangles, Edge, Triangle,
-    },
-    Timings,
-};
+    }};
 
 pub(crate) struct DrawSettings {
     pub draw_egui: bool,
@@ -597,22 +585,40 @@ fn draw_shadows_on_texture(
         let (x, y) = (x as usize, y as usize);
         let (width, height) = submarine.water_grid.size();
 
-        // Draw a pointlight at the cursor; except when the cursor is
-        // inside a submarine's wall.
-        if x >= width || y >= height || !submarine.water_grid.cell(x, y).is_wall() {
-            draw_shadow_pointlight(
-                &mutable_resources.shadow_edges,
-                pointlight,
-                &camera,
-                resources,
-            );
-        }
-
         for object in &submarine.objects {
-            if let ObjectType::Lamp = object.object_type {
-                // FIXME: Need a better way to say it's "on"
-                // Maybe just ask the object for what kind of light it has
-                if object.current_frame != 1 {
+            // Texture with emissive colors
+            let (frame_lines, frame_columns) = object_frames(&object.object_type);
+            if frame_columns == 2 {
+                let draw_rect = object_rect(object);
+
+                let texture = object_texture(&object.object_type, resources);
+                let frame_width = (texture.width() as u16 / frame_columns) as f32;
+                let frame_height = (texture.height() as u16 / frame_lines) as f32;
+
+                let (current_frame_line, current_frame_column) = current_frame(object);
+                // Second column is for a shadow map
+                let current_frame_column = current_frame_column + 1;
+                let frame_x = (frame_width as u16 * current_frame_column) as f32;
+                let frame_y = (frame_height as u16 * current_frame_line) as f32;
+
+                // Draw the shadow map directly onto the screen shadow texture
+        
+                draw_texture_ex(
+                    texture,
+                    draw_rect.x,
+                    draw_rect.y,
+                    WHITE,
+                    DrawTextureParams {
+                        dest_size: Some(draw_rect.size()),
+                        source: Some(Rect::new(frame_x, frame_y, frame_width, frame_height)),
+                        ..Default::default()
+                    },
+                );
+            }
+
+            // Point lights
+            if let ObjectType::Lamp { .. } = object.object_type {
+                if !object.powered {
                     continue;
                 }
                 let pointlight = vec2(
@@ -626,6 +632,17 @@ fn draw_shadows_on_texture(
                     resources,
                 );
             }
+        }
+
+        // Draw a pointlight at the cursor; except when the cursor is
+        // inside a submarine's wall.
+        if x >= width || y >= height || !submarine.water_grid.cell(x, y).is_wall() {
+            draw_shadow_pointlight(
+                &mutable_resources.shadow_edges,
+                pointlight,
+                &camera,
+                resources,
+            );
         }
     }
 
@@ -887,20 +904,20 @@ pub(crate) fn object_size(object_type: &ObjectType) -> (usize, usize) {
     }
 }
 
-fn object_frames(object_type: &ObjectType) -> u16 {
+fn object_frames(object_type: &ObjectType) -> (u16, u16) {
     match object_type {
-        ObjectType::Door { .. } => 8,
-        ObjectType::VerticalDoor { .. } => 9,
-        ObjectType::Reactor { .. } => 2,
-        ObjectType::Lamp => 2,
-        ObjectType::Gauge { .. } => 5,
-        ObjectType::SmallPump { .. } => 4,
-        ObjectType::LargePump { .. } => 4,
-        ObjectType::JunctionBox => 1,
-        ObjectType::NavController { .. } => 6,
-        ObjectType::Sonar { .. } => 2,
-        ObjectType::Engine { .. } => 24,
-        ObjectType::Battery { .. } => 8,
+        ObjectType::Door { .. } => (8, 1),
+        ObjectType::VerticalDoor { .. } => (9, 1),
+        ObjectType::Reactor { .. } => (2, 2),
+        ObjectType::Lamp => (2, 1),
+        ObjectType::Gauge { .. } => (5, 1),
+        ObjectType::SmallPump { .. } => (4, 1),
+        ObjectType::LargePump { .. } => (4, 1),
+        ObjectType::JunctionBox => (1, 1),
+        ObjectType::NavController { .. } => (6, 2),
+        ObjectType::Sonar { .. } => (2, 2),
+        ObjectType::Engine { .. } => (24, 1),
+        ObjectType::Battery { .. } => (8, 1),
     }
 }
 
@@ -927,22 +944,26 @@ fn draw_objects(
     highlighting_object: Option<usize>,
     placing_object: &Option<PlacingObject>,
 ) {
-    let draw_object = |object, highlight, shadow| {
+    let draw_object = |object, highlight, ghost| {
         let draw_rect = object_rect(object);
 
         let texture = object_texture(&object.object_type, resources);
 
         // Textures are vertically split into equally-sized animation frames
-        let frame_width = texture.width();
-        let frame_height = (texture.height() as u16 / object_frames(&object.object_type)) as f32;
-        let frame_x = 0.0;
-        let frame_y = (frame_height as u16 * object.current_frame) as f32;
+        // Sometimes they also have more equally-sized state or shadow columns
+        let (frame_lines, frame_columns) = object_frames(&object.object_type);
+        let frame_width = (texture.width() as u16 / frame_columns) as f32;
+        let frame_height = (texture.height() as u16 / frame_lines) as f32;
+
+        let (current_frame_line, current_frame_column) = current_frame(object);
+        let frame_x = (frame_width as u16 * current_frame_column) as f32;
+        let frame_y = (frame_height as u16 * current_frame_line) as f32;
 
         draw_texture_ex(
             texture,
             draw_rect.x,
             draw_rect.y,
-            if shadow {
+            if ghost {
                 Color::new(0.5, 0.5, 1.0, 0.5)
             } else {
                 WHITE
@@ -960,9 +981,13 @@ fn draw_objects(
                 .hover_highlight
                 .set_uniform("input_resolution", texture_resolution);
             resources.hover_highlight.set_uniform("frame_y", frame_y);
+            resources.hover_highlight.set_uniform("frame_x", frame_x);
             resources
                 .hover_highlight
                 .set_uniform("frame_height", frame_height);
+            resources
+                .hover_highlight
+                .set_uniform("frame_width", frame_width);
             resources
                 .hover_highlight
                 .set_texture("input_texture", texture);
@@ -975,8 +1000,8 @@ fn draw_objects(
 
     for (obj_id, object) in objects.iter().enumerate() {
         let highlight = highlighting_object == Some(obj_id);
-        let shadow = false;
-        draw_object(object, highlight, shadow);
+        let ghost = false;
+        draw_object(object, highlight, ghost);
     }
 
     if let Some(PlacingObject {
@@ -988,12 +1013,12 @@ fn draw_objects(
         let object = Object {
             object_type: object_type.clone(),
             position: (*x as u32, *y as u32),
-            current_frame: 0,
+            powered: false,
         };
 
         let highlight = false;
-        let shadow = true;
-        draw_object(&object, highlight, shadow);
+        let ghost = true;
+        draw_object(&object, highlight, ghost);
     }
 }
 

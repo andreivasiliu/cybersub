@@ -155,11 +155,10 @@ fn hovering_over_sonar(
 ) -> bool {
     if let ObjectType::Sonar {
         active: true,
-        powered,
         ..
     } = &object.object_type
     {
-        if !powered {
+        if !object.powered {
             // Acknowledge hovering, but don't set target
             return true;
         }

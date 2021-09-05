@@ -8,7 +8,7 @@ pub(crate) struct Object {
 
     pub position: (u32, u32),
 
-    pub current_frame: u16,
+    pub powered: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -45,7 +45,6 @@ pub(crate) enum ObjectType {
     },
     Sonar {
         active: bool,
-        powered: bool,
         navigation_target: Option<(usize, usize)>,
     },
     Engine {
@@ -111,8 +110,6 @@ pub(crate) enum ObjectTypeTemplate {
     Sonar {
         active: bool,
         #[serde(default, skip_serializing_if = "is_default")]
-        powered: bool,
-        #[serde(default, skip_serializing_if = "is_default")]
         navigation_target: Option<(usize, usize)>,
     },
     Engine {
@@ -152,13 +149,16 @@ impl Default for DoorState {
 
 impl Object {
     pub(crate) fn active_sonar_target(&self) -> Option<Option<(usize, usize)>> {
-        if let ObjectType::Sonar {
-            active: true,
-            powered: true,
-            navigation_target,
-        } = &self.object_type
-        {
-            Some(*navigation_target)
+        if self.powered {
+            if let ObjectType::Sonar {
+                active: true,
+                navigation_target,
+            } = &self.object_type
+            {
+                Some(*navigation_target)
+            } else {
+                None
+            }
         } else {
             None
         }
@@ -211,7 +211,6 @@ pub(crate) const OBJECT_TYPES: &[(&str, ObjectType)] = &[
         "Sonar",
         ObjectType::Sonar {
             active: true,
-            powered: false,
             navigation_target: None,
         },
     ),
@@ -236,13 +235,14 @@ pub(crate) fn update_objects(submarine: &mut SubmarineState, walls_updated: &mut
     } = submarine;
 
     for object in objects {
+        let powered = &mut object.powered;
+
         match &mut object.object_type {
             ObjectType::Door { state, progress } => {
                 match state {
                     DoorState::Opening => *progress = (*progress + 1).min(15),
                     DoorState::Closing => *progress = progress.saturating_sub(1),
                 }
-                object.current_frame = (*progress as u16 * 8 / 15).clamp(0, 7);
 
                 let open_cells = match *progress {
                     x if (0..3).contains(&x) => (12..12),
@@ -280,7 +280,6 @@ pub(crate) fn update_objects(submarine: &mut SubmarineState, walls_updated: &mut
                     DoorState::Opening => *progress = (*progress + 1).min(15),
                     DoorState::Closing => *progress = progress.saturating_sub(1),
                 }
-                object.current_frame = (*progress as u16 * 9 / 15).clamp(0, 8);
 
                 let open_cells = match *progress {
                     0 => 0,
@@ -321,10 +320,7 @@ pub(crate) fn update_objects(submarine: &mut SubmarineState, walls_updated: &mut
                 let cell = wire_grid.cell_mut(cell_x as usize, cell_y as usize);
 
                 if *active {
-                    object.current_frame = 0;
                     cell.send_power(200);
-                } else {
-                    object.current_frame = 1;
                 }
             }
             ObjectType::Lamp => {
@@ -333,11 +329,7 @@ pub(crate) fn update_objects(submarine: &mut SubmarineState, walls_updated: &mut
 
                 let cell = wire_grid.cell(cell_x as usize, cell_y as usize);
 
-                object.current_frame = 0;
-
-                if cell.minimum_power(10) {
-                    object.current_frame = 1;
-                }
+                *powered = cell.minimum_power(10);
             }
             ObjectType::Gauge { value } => {
                 let cell_x = object.position.0 + 4;
@@ -349,14 +341,6 @@ pub(crate) fn update_objects(submarine: &mut SubmarineState, walls_updated: &mut
                 }
                 let cell = wire_grid.cell_mut(cell_x as usize, cell_y as usize + 5);
                 cell.send_logic(*value);
-
-                object.current_frame = match *value {
-                    -128..=-96 => 0,
-                    -95..=-32 => 1,
-                    -31..=31 => 2,
-                    32..=95 => 3,
-                    96..=127 => 4,
-                };
             }
             ObjectType::SmallPump {
                 target_speed,
@@ -384,8 +368,6 @@ pub(crate) fn update_objects(submarine: &mut SubmarineState, walls_updated: &mut
                 } else {
                     *progress = progress.wrapping_sub((speed.abs() / 4) as u8);
                 }
-
-                object.current_frame = (*progress as u8 / (u8::MAX / 4)).clamp(0, 3) as u16;
 
                 let cell_x = object.position.0 + 7;
                 let cell_y = object.position.1 + 5;
@@ -420,8 +402,6 @@ pub(crate) fn update_objects(submarine: &mut SubmarineState, walls_updated: &mut
                 } else {
                     *progress = progress.wrapping_sub((speed.abs() / 4) as u8);
                 }
-
-                object.current_frame = (*progress as u8 / (u8::MAX / 4)).clamp(0, 3) as u16;
 
                 for y in 0..4 {
                     for x in 0..4 {
@@ -463,8 +443,8 @@ pub(crate) fn update_objects(submarine: &mut SubmarineState, walls_updated: &mut
                 let cell_y = object.position.1 as usize + 4;
 
                 let nav_control = compute_navigation(&submarine.navigation);
-                object.current_frame = 0;
                 let cell = wire_grid.cell(cell_x, cell_y);
+                object.powered = false;
                 if *active && cell.minimum_power(50) {
                     let (engine_speed, pump_speed) = nav_control.engine_and_pump_speed;
 
@@ -478,12 +458,11 @@ pub(crate) fn update_objects(submarine: &mut SubmarineState, walls_updated: &mut
 
                     *progress = (*progress + 1) % (8 * 5);
 
-                    object.current_frame = (*progress as u16 / 8) % 5 + 1;
+                    object.powered = true;
                 }
             }
             ObjectType::Sonar {
                 active,
-                powered,
                 navigation_target,
             } => {
                 let x = object.position.0 as usize + 2;
@@ -496,8 +475,6 @@ pub(crate) fn update_objects(submarine: &mut SubmarineState, walls_updated: &mut
                         submarine.navigation.target = (target.0 as i32, target.1 as i32);
                     }
                 }
-
-                object.current_frame = if *powered && *active { 0 } else { 1 };
             }
             ObjectType::Engine {
                 target_speed,
@@ -526,10 +503,6 @@ pub(crate) fn update_objects(submarine: &mut SubmarineState, walls_updated: &mut
                     *progress = progress.wrapping_sub((speed.abs() / 4) as u8);
                 }
 
-                let frames = 24;
-                object.current_frame =
-                    (*progress as u8 / (u8::MAX / frames)).clamp(0, frames - 1) as u16;
-
                 submarine.navigation.acceleration.0 = match *speed {
                     -128..=-96 => -4,
                     -95..=-64 => -3,
@@ -557,12 +530,6 @@ pub(crate) fn update_objects(submarine: &mut SubmarineState, walls_updated: &mut
 
                     wire_grid.cell_mut(cell_x + 5, cell_y).send_power(100);
                 }
-
-                object.current_frame = if *charge == 0 {
-                    7
-                } else {
-                    7 - (*charge * 8 / 5400).clamp(1, 7)
-                };
             }
         }
     }
@@ -578,7 +545,7 @@ pub(crate) fn interact_with_object(object: &mut Object) {
             }
         }
         ObjectType::Reactor { active } => *active = !*active,
-        ObjectType::Lamp => (),
+        ObjectType::Lamp { .. } => (),
         ObjectType::Gauge { value } => cycle_i8(value),
         ObjectType::SmallPump { target_speed, .. } => cycle_i8(target_speed),
         ObjectType::LargePump { target_speed, .. } => cycle_i8(target_speed),
@@ -599,6 +566,77 @@ fn cycle_i8(value: &mut i8) {
         -64 => 0,
         _ => 0,
     };
+}
+
+pub(crate) fn current_frame(object: &Object) -> (u16, u16) {
+    let current_frame;
+    let powered = &object.powered;
+
+    match &object.object_type {
+        ObjectType::Door { progress, .. } => {
+            current_frame = (*progress as u16 * 8 / 15).clamp(0, 7);
+        },
+        ObjectType::VerticalDoor { progress, .. } => {
+            current_frame = (*progress as u16 * 9 / 15).clamp(0, 8);
+        },
+        ObjectType::Reactor { active } => {
+            if *active {
+                current_frame = 0;
+            } else {
+                current_frame = 1;
+            }
+        },
+        ObjectType::Lamp => {
+            if *powered {
+                current_frame = 1;
+            } else {
+                current_frame = 0;
+            }
+        },
+        ObjectType::Gauge { value } => {
+            current_frame = match *value {
+                -128..=-96 => 0,
+                -95..=-32 => 1,
+                -31..=31 => 2,
+                32..=95 => 3,
+                96..=127 => 4,
+            };
+        },
+        ObjectType::SmallPump { progress, .. } => {
+            current_frame = (*progress as u8 / (u8::MAX / 4)).clamp(0, 3) as u16;
+        },
+        ObjectType::LargePump { progress, .. } => {
+            current_frame = (*progress as u8 / (u8::MAX / 4)).clamp(0, 3) as u16;
+        },
+        ObjectType::JunctionBox => {
+            current_frame = 0;
+        },
+        ObjectType::NavController { active, progress, .. } => {
+            current_frame = if *active && *powered {
+                (*progress as u16 / 8) % 5 + 1
+            } else {
+                0
+            };
+        },
+        ObjectType::Sonar { active, .. } => {
+            current_frame = if *powered && *active { 0 } else { 1 };
+        },
+        ObjectType::Engine { progress, .. } => {
+            let frames = 24;
+            current_frame =
+                (*progress as u8 / (u8::MAX / frames)).clamp(0, frames - 1) as u16;
+
+        },
+        ObjectType::Battery { charge } => {
+            current_frame = if *charge == 0 {
+                7
+            } else {
+                7 - (*charge * 8 / 5400).clamp(1, 7)
+            };
+        },
+    }
+
+    (current_frame, 0)
 }
 
 pub(crate) fn compute_navigation(navigation: &Navigation) -> NavControl {
@@ -628,7 +666,7 @@ impl ObjectTemplate {
                 ObjectTypeTemplate::VerticalDoor { state, progress }
             }
             ObjectType::Reactor { active } => ObjectTypeTemplate::Reactor { active },
-            ObjectType::Lamp => ObjectTypeTemplate::Lamp,
+            ObjectType::Lamp { .. }=> ObjectTypeTemplate::Lamp,
             ObjectType::Gauge { value } => ObjectTypeTemplate::Gauge { value },
             ObjectType::SmallPump {
                 target_speed,
@@ -654,11 +692,9 @@ impl ObjectTemplate {
             }
             ObjectType::Sonar {
                 active,
-                powered,
                 navigation_target,
             } => ObjectTypeTemplate::Sonar {
                 active,
-                powered,
                 navigation_target,
             },
             ObjectType::Engine {
@@ -712,11 +748,9 @@ impl ObjectTemplate {
             }
             ObjectTypeTemplate::Sonar {
                 active,
-                powered,
                 navigation_target,
             } => ObjectType::Sonar {
                 active,
-                powered,
                 navigation_target,
             },
             ObjectTypeTemplate::Engine {
@@ -734,7 +768,7 @@ impl ObjectTemplate {
         Object {
             object_type,
             position: self.position,
-            current_frame: 0,
+            powered: false,
         }
     }
 }

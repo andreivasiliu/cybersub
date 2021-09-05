@@ -7,7 +7,9 @@ varying lowp vec2 uv;
 uniform sampler2D input_texture;
 uniform vec2 input_resolution;
 uniform float frame_y;
+uniform float frame_x;
 uniform float frame_height;
+uniform float frame_width;
 
 float lookup(vec2 p, float dx, float dy)
 {
@@ -21,7 +23,8 @@ float lookup(vec2 p, float dx, float dy)
 void main()
 {
     float p_y = (uv.y / input_resolution.y * frame_height + frame_y / input_resolution.y);
-    vec2 p = vec2(uv.x, p_y);
+    float p_x = (uv.x / input_resolution.x * frame_width + frame_x / input_resolution.x);
+    vec2 p = vec2(p_x, p_y);
 
     float current_alpha = lookup(p, 0.0, 0.0);
 

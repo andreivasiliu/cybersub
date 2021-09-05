@@ -143,7 +143,9 @@ impl Resources {
                 uniforms: vec![
                     ("input_resolution".to_string(), UniformType::Float2),
                     ("frame_y".to_string(), UniformType::Float1),
+                    ("frame_x".to_string(), UniformType::Float1),
                     ("frame_height".to_string(), UniformType::Float1),
+                    ("frame_width".to_string(), UniformType::Float1),
                     ("clicked".to_string(), UniformType::Float1),
                 ],
                 textures: vec!["input_texture".to_string()],

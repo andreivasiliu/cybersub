@@ -101,7 +101,7 @@ pub(crate) fn update_game(
                             submarine.objects.push(Object {
                                 object_type: object_type.clone(),
                                 position: (cell.0 as u32, cell.1 as u32),
-                                current_frame: 0,
+                                powered: false,
                             });
                         }
                     }
