@@ -10,7 +10,7 @@ use crate::{
         state::SubmarineTemplate,
         update::{update_game, Command, UpdateEvent},
     },
-    input::{handle_keyboard_input, handle_pointer_input},
+    input::{handle_keyboard_input, handle_pointer_input, Dragging},
     resources::{update_resources_from_events, MutableResources, MutableSubResources, Resources},
     saveload::{load_rocks_from_png, load_template_from_data, save_to_file_data},
     ui::{draw_ui, UiState},
@@ -40,7 +40,7 @@ pub(crate) struct GameSettings {
     pub current_submarine: usize,
     pub current_tool: Tool,
     pub quit_game: bool,
-    pub dragging_object: bool,
+    pub dragging: Option<Dragging>,
     pub highlighting_settings: bool,
     pub last_update: Option<f64>,
     pub last_draw: Option<f64>,
@@ -63,7 +63,7 @@ pub(crate) struct NetworkSettings {
     pub download_progress: Option<u8>,
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Clone, Copy)]
 pub(crate) enum Tool {
     Interact,
     EditWater { add: bool },
@@ -143,7 +143,7 @@ impl Default for CyberSubApp {
                 current_submarine: 0,
                 current_tool: Tool::Interact,
                 quit_game: false,
-                dragging_object: false,
+                dragging: None,
                 highlighting_settings: false,
                 last_update: None,
                 last_draw: None,

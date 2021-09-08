@@ -55,6 +55,12 @@ pub(crate) enum ObjectType {
     Battery {
         charge: u16,
     },
+    BundleInput {
+        sub_bundle: u8,
+    },
+    BundleOutput {
+        sub_bundle: u8,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -122,6 +128,12 @@ pub(crate) enum ObjectTypeTemplate {
     },
     Battery {
         charge: u16,
+    },
+    BundleInput {
+        sub_bundle: u8,
+    },
+    BundleOutput {
+        sub_bundle: u8,
     },
 }
 
@@ -223,6 +235,8 @@ pub(crate) const OBJECT_TYPES: &[(&str, ObjectType)] = &[
         },
     ),
     ("Battery", ObjectType::Battery { charge: 300 }),
+    ("Bundle input", ObjectType::BundleInput { sub_bundle: 0 }),
+    ("Bundle output", ObjectType::BundleOutput { sub_bundle: 0 }),
 ];
 
 // What an object does on every physics update tick.
@@ -333,13 +347,13 @@ pub(crate) fn update_objects(submarine: &mut SubmarineState, walls_updated: &mut
             }
             ObjectType::Gauge { value } => {
                 let cell_x = object.position.0 + 4;
-                let cell_y = object.position.1 + 1;
+                let cell_y = object.position.1 + 2;
 
                 let cell = wire_grid.cell(cell_x as usize, cell_y as usize);
                 if let Some(logic_value) = cell.receive_logic() {
                     *value = logic_value;
                 }
-                let cell = wire_grid.cell_mut(cell_x as usize, cell_y as usize + 5);
+                let cell = wire_grid.cell_mut(cell_x as usize, cell_y as usize + 4);
                 cell.send_logic(*value);
             }
             ObjectType::SmallPump {
@@ -531,6 +545,51 @@ pub(crate) fn update_objects(submarine: &mut SubmarineState, walls_updated: &mut
                     wire_grid.cell_mut(cell_x + 5, cell_y).send_power(100);
                 }
             }
+            ObjectType::BundleInput { sub_bundle } => {
+                let cell_x = object.position.0 as usize + 2;
+                let cell_y = object.position.1 as usize + 2;
+                let mut wire_bundle = None;
+
+                if let Some(wire_bundle_id) = wire_grid.cell(cell_x, cell_y).bundle_id() {
+                    let b2 = wire_grid.cell(cell_x + 1, cell_y).bundle_id();
+                    let b3 = wire_grid.cell(cell_x + 2, cell_y).bundle_id();
+
+                    if Some(wire_bundle_id) == b2 && Some(wire_bundle_id) == b3 {
+                        let source = *wire_grid.cell(cell_x + 2, cell_y);
+                        wire_bundle = wire_grid
+                            .wire_bundle_mut(wire_bundle_id)
+                            .map(|bundle| (source, bundle));
+                    }
+                }
+
+                if let Some((source, wire_bundle)) = wire_bundle {
+                    let sub_bundle: usize = (*sub_bundle).into();
+                    wire_bundle.bundled_cells[sub_bundle] = source;
+                }
+            }
+            ObjectType::BundleOutput { sub_bundle } => {
+                let cell_x = object.position.0 as usize + 2;
+                let cell_y = object.position.1 as usize + 2;
+                let mut wire_bundle = None;
+
+                if let Some(wire_bundle_id) = wire_grid.cell(cell_x, cell_y).bundle_id() {
+                    let b2 = wire_grid.cell(cell_x + 1, cell_y).bundle_id();
+                    let b3 = wire_grid.cell(cell_x + 2, cell_y).bundle_id();
+
+                    if Some(wire_bundle_id) == b2 && Some(wire_bundle_id) == b3 {
+                        let source = *wire_grid.cell(cell_x + 2, cell_y);
+                        wire_bundle = wire_grid
+                            .wire_bundle_mut(wire_bundle_id)
+                            .map(|bundle| (source, bundle));
+                    }
+                }
+
+                if let Some((_source, wire_bundle)) = wire_bundle {
+                    let sub_bundle: usize = (*sub_bundle).into();
+                    let source = wire_bundle.bundled_cells[sub_bundle];
+                    *wire_grid.cell_mut(cell_x + 2, cell_y) = source;
+                }
+            }
         }
     }
 }
@@ -554,6 +613,9 @@ pub(crate) fn interact_with_object(object: &mut Object) {
         ObjectType::Sonar { active, .. } => *active = !*active,
         ObjectType::Engine { target_speed, .. } => cycle_i8(target_speed),
         ObjectType::Battery { .. } => (),
+        ObjectType::BundleInput { sub_bundle } | ObjectType::BundleOutput { sub_bundle } => {
+            *sub_bundle = (*sub_bundle + 1) % 8;
+        }
     }
 }
 
@@ -570,6 +632,7 @@ fn cycle_i8(value: &mut i8) {
 
 pub(crate) fn current_frame(object: &Object) -> (u16, u16) {
     let current_frame;
+    let current_frame_column = 0;
     let powered = &object.powered;
 
     match &object.object_type {
@@ -634,9 +697,15 @@ pub(crate) fn current_frame(object: &Object) -> (u16, u16) {
                 7 - (*charge * 8 / 5400).clamp(1, 7)
             };
         }
+        ObjectType::BundleInput { sub_bundle } => {
+            current_frame = *sub_bundle as u16;
+        }
+        ObjectType::BundleOutput { sub_bundle } => {
+            current_frame = *sub_bundle as u16;
+        }
     }
 
-    (current_frame, 0)
+    (current_frame, current_frame_column)
 }
 
 pub(crate) fn compute_navigation(navigation: &Navigation) -> NavControl {
@@ -707,6 +776,12 @@ impl ObjectTemplate {
                 progress,
             },
             ObjectType::Battery { charge } => ObjectTypeTemplate::Battery { charge },
+            ObjectType::BundleInput { sub_bundle } => {
+                ObjectTypeTemplate::BundleInput { sub_bundle }
+            }
+            ObjectType::BundleOutput { sub_bundle } => {
+                ObjectTypeTemplate::BundleOutput { sub_bundle }
+            }
         };
 
         ObjectTemplate {
@@ -763,6 +838,12 @@ impl ObjectTemplate {
                 progress,
             },
             ObjectTypeTemplate::Battery { charge } => ObjectType::Battery { charge },
+            ObjectTypeTemplate::BundleInput { sub_bundle } => {
+                ObjectType::BundleInput { sub_bundle }
+            }
+            ObjectTypeTemplate::BundleOutput { sub_bundle } => {
+                ObjectType::BundleOutput { sub_bundle }
+            }
         };
 
         Object {

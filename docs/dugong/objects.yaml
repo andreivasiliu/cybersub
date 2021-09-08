@@ -65,7 +65,6 @@
   position:
     - 112
     - 76
-  current_frame: 1
 - object_type: Lamp
   position:
     - 160
@@ -73,21 +72,13 @@
 - object_type:
     Gauge: {}
   position:
-    - 115
-    - 52
-  current_frame: 2
-- object_type:
-    Gauge: {}
-  position:
     - 62
     - 71
-  current_frame: 2
 - object_type:
     Gauge: {}
   position:
     - 275
     - 71
-  current_frame: 2
 - object_type:
     LargePump: {}
   position:
@@ -147,3 +138,157 @@
   position:
     - 1
     - 61
+- object_type:
+    BundleInput:
+      sub_bundle: 0
+  position:
+    - 183
+    - 69
+- object_type:
+    BundleInput:
+      sub_bundle: 1
+  position:
+    - 190
+    - 69
+- object_type:
+    BundleInput:
+      sub_bundle: 2
+  position:
+    - 197
+    - 69
+- object_type:
+    BundleInput:
+      sub_bundle: 3
+  position:
+    - 204
+    - 69
+- object_type:
+    BundleInput:
+      sub_bundle: 4
+  position:
+    - 211
+    - 69
+- object_type:
+    BundleInput:
+      sub_bundle: 5
+  position:
+    - 218
+    - 69
+- object_type:
+    BundleInput:
+      sub_bundle: 7
+  position:
+    - 197
+    - 78
+- object_type:
+    BundleInput:
+      sub_bundle: 6
+  position:
+    - 190
+    - 78
+- object_type:
+    BundleOutput:
+      sub_bundle: 0
+  position:
+    - 186
+    - 69
+- object_type:
+    BundleOutput:
+      sub_bundle: 0
+  position:
+    - 193
+    - 69
+- object_type:
+    BundleOutput:
+      sub_bundle: 0
+  position:
+    - 200
+    - 69
+- object_type:
+    BundleOutput:
+      sub_bundle: 0
+  position:
+    - 207
+    - 69
+- object_type:
+    BundleOutput:
+      sub_bundle: 0
+  position:
+    - 214
+    - 69
+- object_type:
+    BundleOutput:
+      sub_bundle: 6
+  position:
+    - 186
+    - 78
+- object_type:
+    BundleOutput:
+      sub_bundle: 7
+  position:
+    - 193
+    - 78
+- object_type:
+    Gauge: {}
+  position:
+    - 104
+    - 50
+- object_type:
+    Gauge: {}
+  position:
+    - 104
+    - 56
+- object_type:
+    BundleOutput:
+      sub_bundle: 0
+  position:
+    - 92
+    - 44
+- object_type:
+    BundleOutput:
+      sub_bundle: 0
+  position:
+    - 127
+    - 44
+- object_type:
+    BundleInput:
+      sub_bundle: 7
+  position:
+    - 107
+    - 44
+- object_type:
+    BundleOutput:
+      sub_bundle: 7
+  position:
+    - 62
+    - 69
+- object_type:
+    BundleOutput:
+      sub_bundle: 1
+  position:
+    - 74
+    - 69
+- object_type:
+    BundleOutput:
+      sub_bundle: 7
+  position:
+    - 275
+    - 69
+- object_type:
+    BundleOutput:
+      sub_bundle: 1
+  position:
+    - 288
+    - 69
+- object_type:
+    BundleOutput:
+      sub_bundle: 7
+  position:
+    - 36
+    - 77
+- object_type:
+    BundleOutput:
+      sub_bundle: 1
+  position:
+    - 39
+    - 77

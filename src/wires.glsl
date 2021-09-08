@@ -9,7 +9,8 @@ uniform sampler2D sub_wires;
 uniform sampler2D sub_signals;
 
 void main() {
-    vec3 wire_color = texture2D(sub_wires, uv).rgb;
+    vec4 wire_texel = texture2D(sub_wires, uv);
+    vec3 wire_color = wire_texel.rgb;
     vec4 wire_signals = texture2D(sub_signals, uv);
 
     vec3 color;
@@ -32,8 +33,8 @@ void main() {
         color = vec3(0.1, 0.4, 0.1);
         signal = wire_signals.a;
     } else {
-        // Nothing
-        gl_FragColor = vec4(0.0, 0.0, 0.0, 0.0);
+        // Bundle wire, or nothing at all
+        gl_FragColor = wire_texel;
         return;
     }
 

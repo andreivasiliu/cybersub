@@ -23,6 +23,7 @@ use crate::{
         objects::current_frame,
         state::{GameState, Navigation, SubmarineState},
     },
+    input::Dragging,
     resources::{MutableResources, MutableSubResources, Resources, TurbulenceParticle},
     shadows::{
         add_border_edges, filter_edges_by_direction, filter_edges_by_region, find_shadow_edges,
@@ -114,6 +115,7 @@ pub(crate) fn draw_game(
     let GameSettings {
         camera,
         draw_settings,
+        dragging,
         ..
     } = game_settings;
 
@@ -195,6 +197,7 @@ pub(crate) fn draw_game(
             update_wires_texture(&submarine.wire_grid, resources, mutable_resources);
             update_signals_texture(&submarine.wire_grid, mutable_resources);
             draw_wires(&submarine.wire_grid, resources, mutable_resources);
+            draw_wire_plan(dragging, camera);
         }
 
         if draw_settings.draw_objects {
@@ -741,6 +744,7 @@ fn update_wires_texture(
             let cell = grid.cell(x, y);
 
             let colors = &[
+                WireColor::Bundle,
                 WireColor::Purple,
                 WireColor::Brown,
                 WireColor::Blue,
@@ -754,7 +758,7 @@ fn update_wires_texture(
 
                 let has_neighbours = grid.has_neighbours(*wire_color, x, y);
 
-                let wire_color_frames = 4;
+                let wire_color_frames = 5;
                 let wire_color_frame = *wire_color as u16;
 
                 let wire_type_frames = 7;
@@ -794,8 +798,6 @@ fn update_wires_texture(
             }
         }
     }
-
-    draw_circle(1.0, 1.0, 15.0, RED);
 
     pop_camera_state();
 }
@@ -843,6 +845,7 @@ fn update_signals_texture(grid: &WireGrid, mutable_resources: &mut MutableSubRes
                     // This will be used by a fragment shader to light up wires of that
                     // particular color.
                     match wire_color {
+                        WireColor::Bundle => (),
                         WireColor::Purple => color.r = brightness,
                         WireColor::Brown => color.g = brightness,
                         WireColor::Blue => color.b = brightness,
@@ -860,6 +863,26 @@ fn update_signals_texture(grid: &WireGrid, mutable_resources: &mut MutableSubRes
         mutable_resources.sub_signals = Texture2D::from_image(image);
     } else {
         mutable_resources.sub_signals.update(image);
+    }
+}
+
+fn draw_wire_plan(dragging: &Option<Dragging>, camera: &Camera) {
+    if let Some(dragging) = dragging {
+        if let Dragging::Wires { dragging_from, .. } = dragging {
+            let (start_x, start_y) = *dragging_from;
+            let (end_x, end_y) = camera.pointing_at;
+
+            let start_x = start_x as f32 + 0.5;
+            let start_y = start_y as f32 + 0.5;
+            let end_x = end_x as f32 + 0.5;
+            let end_y = end_y as f32 + 0.5;
+
+            if start_x == end_x || start_y == end_y {
+                draw_circle(start_x, start_y, 0.2, WHITE);
+                draw_circle(end_x, end_y, 0.2, WHITE);
+                draw_line(start_x, start_y, end_x, end_y, 0.2, WHITE);
+            }
+        }
     }
 }
 
@@ -916,6 +939,8 @@ pub(crate) fn object_size(object_type: &ObjectType) -> (usize, usize) {
         ObjectType::Sonar { .. } => (19, 17),
         ObjectType::Engine { .. } => (37, 20),
         ObjectType::Battery { .. } => (8, 10),
+        ObjectType::BundleInput { .. } => (5, 3),
+        ObjectType::BundleOutput { .. } => (5, 3),
     }
 }
 
@@ -933,6 +958,8 @@ fn object_frames(object_type: &ObjectType) -> (u16, u16) {
         ObjectType::Sonar { .. } => (2, 2),
         ObjectType::Engine { .. } => (24, 1),
         ObjectType::Battery { .. } => (8, 1),
+        ObjectType::BundleInput { .. } => (8, 1),
+        ObjectType::BundleOutput { .. } => (8, 1),
     }
 }
 
@@ -950,6 +977,27 @@ fn object_texture(object_type: &ObjectType, resources: &Resources) -> Texture2D 
         ObjectType::Sonar { .. } => resources.sonar,
         ObjectType::Engine { .. } => resources.engine,
         ObjectType::Battery { .. } => resources.battery,
+        ObjectType::BundleInput { .. } => resources.bundle_input,
+        ObjectType::BundleOutput { .. } => resources.bundle_output,
+    }
+}
+
+fn object_connectors(object_type: &ObjectType) -> &'static [(u32, u32)] {
+    match object_type {
+        ObjectType::Door { .. } => &[],
+        ObjectType::VerticalDoor { .. } => &[],
+        ObjectType::Reactor { .. } => &[(29, 5)],
+        ObjectType::Lamp => &[(3, 1)],
+        ObjectType::Gauge { .. } => &[(4, 2), (4, 6)],
+        ObjectType::SmallPump { .. } => &[(3, 2), (5, 2)],
+        ObjectType::LargePump { .. } => &[(10, 2), (13, 2)],
+        ObjectType::JunctionBox => &[(3, 1), (6, 3), (6, 4), (6, 5), (6, 6)],
+        ObjectType::NavController { .. } => &[(2, 4), (8, 4), (8, 6)],
+        ObjectType::Sonar { .. } => &[(2, 15)],
+        ObjectType::Engine { .. } => &[(36, 6), (36, 8)],
+        ObjectType::Battery { .. } => &[(2, 4), (7, 4)],
+        ObjectType::BundleInput { .. } => &[(4, 2)],
+        ObjectType::BundleOutput { .. } => &[(4, 2)],
     }
 }
 
@@ -989,6 +1037,13 @@ fn draw_objects(
                 ..Default::default()
             },
         );
+
+        for &(cell_x, cell_y) in object_connectors(&object.object_type) {
+            let x = object.position.0 + cell_x;
+            let y = object.position.1 + cell_y;
+            let transparent_blue = Color::new(0.0, 0.2, 1.0, 0.2);
+            draw_circle(x as f32 + 0.5, y as f32 + 0.5, 0.5, transparent_blue);
+        }
 
         if highlight {
             let texture_resolution = vec2(texture.width(), texture.height());

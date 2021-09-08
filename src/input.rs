@@ -6,13 +6,26 @@ use macroquad::prelude::{
 use crate::{
     app::{GameSettings, Tool},
     draw::{object_rect, object_size, Camera},
-    game_state::update::{CellCommand, Command},
     game_state::{
         objects::{Object, ObjectType},
         state::{Navigation, SubmarineState},
     },
+    game_state::{
+        update::{CellCommand, Command},
+        wires::WireColor,
+    },
     resources::MutableSubResources,
 };
+
+pub(crate) enum Dragging {
+    Camera,
+    Object,
+    Wires {
+        color: WireColor,
+        dragging_from: (usize, usize),
+    },
+    Tool(Tool),
+}
 
 fn from_screen_coords(pos: Vec2) -> (usize, usize) {
     (pos.x as usize, pos.y as usize)
@@ -49,7 +62,7 @@ pub(crate) fn handle_pointer_input(
     let GameSettings {
         camera,
         current_tool,
-        dragging_object,
+        dragging,
         highlighting_settings,
         ..
     } = game_settings;
@@ -69,19 +82,52 @@ pub(crate) fn handle_pointer_input(
 
     if is_mouse_button_pressed(MouseButton::Left) && !*draw_egui && *highlighting_settings {
         *draw_egui = true;
+        return;
     }
 
-    let scrolling = if is_mouse_button_down(MouseButton::Right) {
-        true
-    } else {
-        matches!(current_tool, Tool::Interact) && is_mouse_button_down(MouseButton::Left)
-    };
+    // Placing an object
+    let (width, height) = submarine.water_grid.size();
+    if let Some(placing_object) = &mut game_settings.placing_object {
+        let (x, y) = camera.pointing_at;
 
-    if is_mouse_button_pressed(MouseButton::Left) || is_mouse_button_pressed(MouseButton::Right) {
-        camera.dragging_from = mouse_position;
+        let size = object_size(&placing_object.object_type);
+
+        let x = x.wrapping_sub(size.0 / 2 + size.0 % 2);
+        let y = y.wrapping_sub(size.1 / 2 + size.1 % 2 + 1);
+
+        if x < width && y < height {
+            placing_object.submarine = sub_index;
+            placing_object.position = Some((x, y));
+
+            if is_mouse_button_pressed(MouseButton::Left) {
+                commands.push(Command::Cell {
+                    cell_command: CellCommand::AddObject {
+                        object_type: placing_object.object_type.clone(),
+                    },
+                    cell: (x, y),
+                    submarine_id: sub_index,
+                });
+
+                if !is_key_down(KeyCode::LeftShift) && !is_key_down(KeyCode::RightShift) {
+                    game_settings.placing_object = None;
+                }
+
+                // Prevent doing something else right after clicking
+                *dragging = None;
+            }
+
+            if is_mouse_button_down(MouseButton::Right) {
+                game_settings.placing_object = None;
+            }
+        }
+
+        return;
     }
 
-    if scrolling && !*dragging_object {
+    let right_click_dragging = is_mouse_button_down(MouseButton::Right);
+    let dragging_camera = matches!(dragging, Some(Dragging::Camera)) || right_click_dragging;
+
+    if dragging_camera {
         let new_position = mouse_position;
 
         let old = macroquad_camera.screen_to_world(Vec2::from(camera.dragging_from));
@@ -91,9 +137,9 @@ pub(crate) fn handle_pointer_input(
 
         camera.offset_x += delta.x;
         camera.offset_y += delta.y;
-
-        camera.dragging_from = mouse_position;
     }
+
+    camera.dragging_from = mouse_position;
 
     let scroll = mouse_wheel().1;
     if scroll != 0.0 {
@@ -109,41 +155,106 @@ pub(crate) fn handle_pointer_input(
     let mouse_position = macroquad_camera.screen_to_world(mouse_position.into());
     mutable_resources.sub_cursor = mouse_position.into();
 
-    mutable_resources.highlighting_object = None;
+    // Highlight current object.
+    // Also, some objects react by just hovering over them.
+    let clicked = false;
+    interact(
+        commands,
+        submarine,
+        sub_index,
+        mouse_position,
+        mutable_resources,
+        clicked,
+    );
 
-    if is_mouse_button_down(MouseButton::Left) && !*dragging_object {
+    // Press
+    if is_mouse_button_pressed(MouseButton::Left) {
+        *dragging = Some(match current_tool {
+            Tool::Interact => {
+                let clicked = true;
+                let clicked_object = interact(
+                    commands,
+                    submarine,
+                    sub_index,
+                    mouse_position,
+                    mutable_resources,
+                    clicked,
+                );
+
+                if clicked_object {
+                    Dragging::Object
+                } else {
+                    Dragging::Camera
+                }
+            }
+            Tool::EditWires { color } => Dragging::Wires {
+                color: *color,
+                dragging_from: camera.pointing_at,
+            },
+            tool => Dragging::Tool(*tool),
+        });
+    }
+
+    // Hold
+    if let Some(Dragging::Tool(tool)) = dragging {
         let (x, y) = camera.pointing_at;
         let (width, height) = submarine.water_grid.size();
 
-        if x >= width || y >= height {
-            return;
-        }
+        if x < width || y < height {
+            let cell_command = match *tool {
+                Tool::Interact => None,
+                Tool::EditWater { add } => Some(CellCommand::EditWater { add }),
+                Tool::EditWalls { add } => Some(CellCommand::EditWalls { add }),
+                Tool::EditWires { color } => Some(CellCommand::EditWires { color }),
+            };
 
-        let cell_command = match *current_tool {
-            Tool::Interact => None,
-            Tool::EditWater { add } => Some(CellCommand::EditWater { add }),
-            Tool::EditWalls { add } => Some(CellCommand::EditWalls { add }),
-            Tool::EditWires { color } => Some(CellCommand::EditWires { color }),
-        };
-
-        if let Some(cell_command) = cell_command {
-            commands.push(Command::Cell {
-                cell_command,
-                cell: (x, y),
-                submarine_id: sub_index,
-            });
+            if let Some(cell_command) = cell_command {
+                commands.push(Command::Cell {
+                    cell_command,
+                    cell: (x, y),
+                    submarine_id: sub_index,
+                });
+            }
         }
     }
 
-    if let Tool::Interact = current_tool {
-        interact(
-            commands,
-            submarine,
-            sub_index,
-            mouse_position,
-            game_settings,
-            mutable_resources,
-        );
+    // Release
+    if is_mouse_button_released(MouseButton::Left) {
+        if let Some(dragging) = dragging.take() {
+            if let Dragging::Wires {
+                color,
+                dragging_from,
+            } = dragging
+            {
+                let (width, height) = submarine.water_grid.size();
+                let (mut start_x, mut start_y) = dragging_from;
+                let (mut end_x, mut end_y) = camera.pointing_at;
+
+                if start_x == end_x || start_y == end_y {
+                    if start_x > end_x {
+                        std::mem::swap(&mut start_x, &mut end_x);
+                    }
+
+                    if start_y > end_y {
+                        std::mem::swap(&mut start_y, &mut end_y)
+                    }
+
+                    for x in start_x..=end_x {
+                        for y in start_y..=end_y {
+                            if x < width || y < height {
+                                let cell_command = CellCommand::EditWires { color };
+
+                                commands.push(Command::Cell {
+                                    cell_command,
+                                    cell: (x, y),
+                                    submarine_id: sub_index,
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -199,84 +310,47 @@ fn interact(
     submarine: &SubmarineState,
     sub_index: usize,
     mouse_position: Vec2,
-    game_settings: &mut GameSettings,
     mutable_resources: &mut MutableSubResources,
-) {
-    let camera = &mut game_settings.camera;
-    let dragging_object = &mut game_settings.dragging_object;
-
+    clicked: bool,
+) -> bool {
     mutable_resources.sonar_cursor = None;
+
+    mutable_resources.highlighting_object = None;
 
     for (obj_index, object) in submarine.objects.iter().enumerate() {
         let draw_rect = object_rect(object);
 
-        if draw_rect.contains(mouse_position) {
-            mutable_resources.highlighting_object = Some(obj_index);
-
-            let hover_position = mouse_position - draw_rect.point();
-
-            let clicked = is_mouse_button_pressed(MouseButton::Left);
-            let hovering_over_sonar =
-                hovering_over_sonar(object, obj_index, hover_position, mutable_resources);
-
-            if hovering_over_sonar && clicked {
-                commands.push(Command::SetSonarTarget {
-                    submarine_id: sub_index,
-                    object_id: obj_index,
-                    rock_position: sonar_target(&submarine.navigation, mutable_resources),
-                });
-                return;
-            } else if clicked {
-                commands.push(Command::Interact {
-                    submarine_id: sub_index,
-                    object_id: obj_index,
-                });
-                *dragging_object = true;
-                return;
-            }
-        }
-    }
-
-    if is_mouse_button_released(MouseButton::Left) {
-        *dragging_object = false;
-    }
-
-    // Placing an object
-    let (width, height) = submarine.water_grid.size();
-    if let Some(placing_object) = &mut game_settings.placing_object {
-        let (x, y) = camera.pointing_at;
-
-        let size = object_size(&placing_object.object_type);
-
-        let x = x.wrapping_sub(size.0 / 2 + size.0 % 2);
-        let y = y.wrapping_sub(size.1 / 2 + size.1 % 2 + 1);
-
-        if x < width && y < height {
-            placing_object.submarine = sub_index;
-            placing_object.position = Some((x, y));
-
-            if is_mouse_button_pressed(MouseButton::Left) {
-                commands.push(Command::Cell {
-                    cell_command: CellCommand::AddObject {
-                        object_type: placing_object.object_type.clone(),
-                    },
-                    cell: (x, y),
-                    submarine_id: sub_index,
-                });
-
-                if !is_key_down(KeyCode::LeftShift) && !is_key_down(KeyCode::RightShift) {
-                    game_settings.placing_object = None;
-                }
-
-                // Prevent placing water right after clicking
-                *dragging_object = true;
-            }
-
-            if is_mouse_button_down(MouseButton::Right) {
-                game_settings.placing_object = None;
-            }
+        if !draw_rect.contains(mouse_position) {
+            continue;
         }
 
-        return;
+        mutable_resources.highlighting_object = Some(obj_index);
+
+        let hover_position = mouse_position - draw_rect.point();
+
+        let hovering_over_sonar =
+            hovering_over_sonar(object, obj_index, hover_position, mutable_resources);
+
+        if !clicked {
+            return false;
+        }
+
+        let command = if hovering_over_sonar {
+            Command::SetSonarTarget {
+                submarine_id: sub_index,
+                object_id: obj_index,
+                rock_position: sonar_target(&submarine.navigation, mutable_resources),
+            }
+        } else {
+            Command::Interact {
+                submarine_id: sub_index,
+                object_id: obj_index,
+            }
+        };
+
+        commands.push(command);
+        return true;
     }
+
+    false
 }

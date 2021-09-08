@@ -521,6 +521,7 @@ pub(crate) fn draw_ui(
                     }
                 } else if let Tool::EditWires { color } = current_tool {
                     ui.label("Edit wires:");
+                    ui.radio_value(color, WireColor::Bundle, "Bundle");
                     ui.radio_value(color, WireColor::Purple, "Purple");
                     ui.radio_value(color, WireColor::Brown, "Brown");
                     ui.radio_value(color, WireColor::Blue, "Blue");

@@ -44,6 +44,8 @@ pub(crate) struct Resources {
     pub engine: Texture2D,
     pub turbulence: Texture2D,
     pub battery: Texture2D,
+    pub bundle_input: Texture2D,
+    pub bundle_output: Texture2D,
 }
 
 pub(crate) struct MutableResources {
@@ -127,6 +129,8 @@ impl Resources {
         let engine = load_texture(include_bytes!("../resources/engine.png"));
         let turbulence = load_texture(include_bytes!("../resources/turbulence.png"));
         let battery = load_texture(include_bytes!("../resources/battery.png"));
+        let bundle_input = load_texture(include_bytes!("../resources/bundle_input.png"));
+        let bundle_output = load_texture(include_bytes!("../resources/bundle_output.png"));
 
         sea_dust.set_filter(FilterMode::Linear);
 
@@ -269,6 +273,8 @@ impl Resources {
             engine,
             turbulence,
             battery,
+            bundle_input,
+            bundle_output,
         }
     }
 }

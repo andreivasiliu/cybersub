@@ -1,22 +1,33 @@
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, convert::TryInto};
 
 use serde::{Deserialize, Serialize};
 
 /// Logic and power wire grid.
 
-// Still need to implement cable bundles and voltage/demand-based current and supply.
+// Still need to implement voltage/demand-based current and supply.
+//
+// Bundles are implemented but have issues:
+// * They can replicate cells infinitely
+// * They (and other things) pick up signals from mid-wires
+// * They are not order-irrelevant
 
 #[derive(Clone, Serialize, Deserialize)]
 pub(crate) struct WireGrid {
     cells: Vec<WireCell>,
     width: usize,
     height: usize,
-    connected_wires: [Vec<(usize, usize)>; COLORS],
+    connected_wires: [Vec<(usize, usize)>; WIRE_COLORS],
+    bundles: Vec<WireBundle>,
+}
+
+#[derive(Default, Clone, Serialize, Deserialize)]
+pub(crate) struct WireBundle {
+    pub bundled_cells: [WireCell; 8],
 }
 
 #[derive(Default, Clone, Copy, Serialize, Deserialize)]
 pub(crate) struct WireCell {
-    value: [WireValue; COLORS],
+    value: [WireValue; WIRE_COLORS],
 }
 
 #[derive(Clone, Copy, Serialize, Deserialize)]
@@ -25,21 +36,23 @@ pub(crate) enum WireValue {
     NoSignal,
     Power { value: u8, signal: u16 },
     Logic { value: i8, signal: u16 },
+    Bundle { bundle_id: u8 },
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum WireColor {
-    Purple = 0,
-    Brown = 1,
-    Blue = 2,
-    Green = 3,
+    Bundle = 0,
+    Purple = 1,
+    Brown = 2,
+    Blue = 3,
+    Green = 4,
 }
 
 pub(crate) type WirePoints = (WireColor, Vec<(usize, usize)>);
 
 const NEIGHBOUR_OFFSETS: &[(i32, i32)] = &[(1, 0), (0, 1), (-1, 0), (0, -1)];
 
-const COLORS: usize = 4;
+pub(crate) const WIRE_COLORS: usize = 5;
 
 impl Default for WireValue {
     fn default() -> Self {
@@ -57,6 +70,7 @@ impl WireGrid {
             width,
             height,
             connected_wires: Default::default(),
+            bundles: Vec::new(),
         }
     }
 
@@ -77,6 +91,7 @@ impl WireGrid {
             width: other_grid.width,
             height: other_grid.height,
             connected_wires: other_grid.connected_wires.clone(),
+            bundles: other_grid.bundles.clone(),
         }
     }
 
@@ -123,10 +138,66 @@ impl WireGrid {
     }
 
     pub fn make_wire(&mut self, x: usize, y: usize, color: WireColor) {
-        self.cell_mut(x, y).value[color as usize] = WireValue::NoSignal;
+        self.cell_mut(x, y).value[color as usize] = if color == WireColor::Bundle {
+            if let Some(bundle_id) = self.connect_bundle(x, y) {
+                WireValue::Bundle { bundle_id }
+            } else {
+                return;
+            }
+        } else {
+            WireValue::NoSignal
+        };
         if (1..self.width - 2).contains(&x) && (1..self.height - 1).contains(&y) {
             self.connected_wires[color as usize].push((x, y));
         }
+    }
+
+    fn connect_bundle(&mut self, x: usize, y: usize) -> Option<u8> {
+        let mut neighbouring_sets = Vec::new();
+
+        for neighbour in self.neighbours(x, y) {
+            if let Some(bundle_id) = neighbour.bundle_id() {
+                if !neighbouring_sets.contains(&bundle_id) {
+                    neighbouring_sets.push(bundle_id);
+                }
+            }
+        }
+
+        let new_bundle_id = if let [one_neighbour] = neighbouring_sets[..] {
+            one_neighbour
+        } else {
+            // No neighbours, or too many neighbours; make a new bundle to have
+            // all of them.
+            // Convert from usize to u8; if there's an overflow, don't create
+            // any new bundles.
+            if let Ok(bundle_id) = self.bundles.len().try_into() {
+                self.bundles.push(WireBundle::default());
+                bundle_id
+            } else {
+                return None;
+            }
+        };
+
+        for neighbour_bundle_id in neighbouring_sets {
+            for (color, wires) in &mut self.connected_wires.iter().enumerate() {
+                if color != WireColor::Bundle as usize {
+                    continue;
+                }
+
+                for &(x, y) in wires {
+                    let cell = &mut self.cells[y * self.width + x];
+                    let value = &mut cell.value[WireColor::Bundle as usize];
+
+                    if let WireValue::Bundle { bundle_id } = value {
+                        if *bundle_id == neighbour_bundle_id {
+                            *bundle_id = new_bundle_id;
+                        }
+                    }
+                }
+            }
+        }
+
+        Some(new_bundle_id)
     }
 
     /// Returns whether a cell has the following neighbours: [down, right, up, left]
@@ -159,6 +230,12 @@ impl WireGrid {
         let old_grid = WireGrid::clone_from(self);
 
         for (wire_color, wires) in self.connected_wires.iter().enumerate() {
+            if wire_color == WireColor::Bundle as usize {
+                // Wire bundles have instantaneous transmission and are updated
+                // only when they're built/destroyed.
+                continue;
+            }
+
             for &(x, y) in wires {
                 let cell = old_grid.cell(x, y);
                 let old_value = &cell.value[wire_color];
@@ -200,6 +277,7 @@ impl WireGrid {
         let mut wire_sets: Vec<(WireColor, Vec<(usize, usize)>)> = Vec::new();
 
         let colors = [
+            WireColor::Bundle,
             WireColor::Purple,
             WireColor::Brown,
             WireColor::Blue,
@@ -242,7 +320,17 @@ impl WireGrid {
                                     old_wires.1.reverse();
                                 }
 
-                                top_set
+                                let last_wire =
+                                    old_wires.1.last().expect("Sets have at least 1 wire");
+
+                                if *last_wire != (x, y - 1) {
+                                    // If this is still the incorrect end, then this is
+                                    // a fork; make a new set.
+                                    wire_sets.push((color, Vec::new()));
+                                    wire_sets.len() - 1
+                                } else {
+                                    top_set
+                                }
                             }
                             (Some(&left_set), None) => {
                                 // Reuse the set from the cell to the left
@@ -255,7 +343,17 @@ impl WireGrid {
                                     // Make sure to connect to the correct end
                                     old_wires.1.reverse();
                                 }
-                                left_set
+                                let last_wire =
+                                    old_wires.1.last().expect("Sets have at least 1 wire");
+
+                                if *last_wire != (x - 1, y) {
+                                    // If this is still the incorrect end, then this is
+                                    // a fork; make a new set.
+                                    wire_sets.push((color, Vec::new()));
+                                    wire_sets.len() - 1
+                                } else {
+                                    left_set
+                                }
                             }
                             (Some(&left_set), Some(&top_set)) => {
                                 // Merge the two sets
@@ -274,21 +372,30 @@ impl WireGrid {
                                     old_wires.1.reverse();
                                 }
 
-                                // Add the current cell, which will be sandwhiched between the older top
-                                // and newer left sets.
-                                wire_set_map.insert((color, x, y), left_set);
-                                wire_sets[left_set].1.push((x, y));
+                                let last_wire =
+                                    old_wires.1.last().expect("Sets have at least 1 wire");
+                                if *last_wire != (x, y - 1) {
+                                    // If this is still the incorrect end, then this is
+                                    // a fork; make a new set.
+                                    wire_sets.push((color, Vec::new()));
+                                    wire_sets.len() - 1
+                                } else {
+                                    // Add the current cell, which will be sandwhiched between the older top
+                                    // and newer left sets.
+                                    wire_set_map.insert((color, x, y), left_set);
+                                    wire_sets[left_set].1.push((x, y));
 
-                                // Add the top cells to the left set in reversed order
-                                // This is to keep neighbours contiguous in the list
-                                let old_wires: Vec<(usize, usize)> =
-                                    wire_sets[top_set].1.iter().copied().rev().collect();
-                                wire_sets[left_set].1.extend(old_wires);
+                                    // Add the top cells to the left set in reversed order
+                                    // This is to keep neighbours contiguous in the list
+                                    let old_wires: Vec<(usize, usize)> =
+                                        wire_sets[top_set].1.iter().copied().rev().collect();
+                                    wire_sets[left_set].1.extend(old_wires);
 
-                                wire_sets[top_set].1.clear();
+                                    wire_sets[top_set].1.clear();
 
-                                // Already addeed in the middle, don't return anything
-                                continue;
+                                    // Already added in the middle, don't return anything
+                                    continue;
+                                }
                             }
                         };
 
@@ -314,6 +421,11 @@ impl WireGrid {
         }
 
         wire_points
+    }
+
+    pub fn wire_bundle_mut(&mut self, bundle_id: u8) -> Option<&mut WireBundle> {
+        let bundle_id: usize = bundle_id.into();
+        self.bundles.get_mut(bundle_id)
     }
 }
 
@@ -352,24 +464,26 @@ impl WireCell {
     }
 
     pub fn receive_logic(&self) -> Option<i8> {
-        for wire_color in 0..COLORS {
+        for wire_color in 0..WIRE_COLORS {
             match self.value[wire_color] {
                 WireValue::NotConnected => (),
                 WireValue::NoSignal => (),
                 WireValue::Power { .. } => (),
                 WireValue::Logic { value, .. } => return Some(value),
+                WireValue::Bundle { .. } => (),
             };
         }
         None
     }
 
     pub fn receive_power(&self) -> Option<u8> {
-        for wire_color in 0..COLORS {
+        for wire_color in 0..WIRE_COLORS {
             match self.value[wire_color] {
                 WireValue::NotConnected => (),
                 WireValue::NoSignal => (),
                 WireValue::Power { value, .. } => return Some(value),
                 WireValue::Logic { .. } => (),
+                WireValue::Bundle { .. } => (),
             };
         }
         None
@@ -383,7 +497,7 @@ impl WireCell {
     }
 
     pub fn send_logic(&mut self, logic_value: i8) {
-        for wire_color in 0..COLORS {
+        for wire_color in 0..WIRE_COLORS {
             let wire_value = &mut self.value[wire_color];
 
             if wire_value.connected() {
@@ -396,7 +510,7 @@ impl WireCell {
     }
 
     pub fn send_power(&mut self, power_value: u8) {
-        for wire_color in 0..COLORS {
+        for wire_color in 0..WIRE_COLORS {
             let wire_value = &mut self.value[wire_color];
 
             if wire_value.connected() {
@@ -409,6 +523,14 @@ impl WireCell {
             }
         }
     }
+
+    pub fn bundle_id(&self) -> Option<u8> {
+        if let WireValue::Bundle { bundle_id } = self.value(WireColor::Bundle) {
+            Some(*bundle_id)
+        } else {
+            None
+        }
+    }
 }
 
 impl WireValue {
@@ -418,6 +540,7 @@ impl WireValue {
             WireValue::NoSignal => 0,
             WireValue::Power { signal, .. } => *signal,
             WireValue::Logic { signal, .. } => *signal,
+            WireValue::Bundle { .. } => 0,
         }
     }
 
@@ -432,6 +555,9 @@ impl WireValue {
             WireValue::Logic { value, signal } => WireValue::Logic {
                 value: *value,
                 signal: signal.saturating_sub(amount),
+            },
+            WireValue::Bundle { bundle_id } => WireValue::Bundle {
+                bundle_id: *bundle_id,
             },
         };
 
