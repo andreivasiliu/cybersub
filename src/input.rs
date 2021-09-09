@@ -205,7 +205,7 @@ pub(crate) fn handle_pointer_input(
                 Tool::Interact => None,
                 Tool::EditWater { add } => Some(CellCommand::EditWater { add }),
                 Tool::EditWalls { add } => Some(CellCommand::EditWalls { add }),
-                Tool::EditWires { color } => Some(CellCommand::EditWires { color }),
+                Tool::EditWires { .. } => None,
             };
 
             if let Some(cell_command) = cell_command {
@@ -220,36 +220,47 @@ pub(crate) fn handle_pointer_input(
 
     // Release
     if is_mouse_button_released(MouseButton::Left) {
-        if let Some(dragging) = dragging.take() {
-            if let Dragging::Wires {
-                color,
-                dragging_from,
-            } = dragging
-            {
-                let (width, height) = submarine.water_grid.size();
-                let (mut start_x, mut start_y) = dragging_from;
-                let (mut end_x, mut end_y) = camera.pointing_at;
+        if let Some(Dragging::Wires {
+            color,
+            dragging_from,
+        }) = dragging.take()
+        {
+            let (width, height) = submarine.water_grid.size();
+            let (mut start_x, mut start_y) = dragging_from;
+            let (mut end_x, mut end_y) = camera.pointing_at;
 
-                if start_x == end_x || start_y == end_y {
-                    if start_x > end_x {
-                        std::mem::swap(&mut start_x, &mut end_x);
+            if start_x == end_x || start_y == end_y {
+                if start_x > end_x {
+                    std::mem::swap(&mut start_x, &mut end_x);
+                }
+
+                if start_y > end_y {
+                    std::mem::swap(&mut start_y, &mut end_y)
+                }
+
+                let mut add = false;
+
+                'check: for x in start_x..=end_x {
+                    for y in start_y..=end_y {
+                        if (x < width || y < height)
+                            && !submarine.wire_grid.cell(x, y).value(color).connected()
+                        {
+                            add = true;
+                            break 'check;
+                        }
                     }
+                }
 
-                    if start_y > end_y {
-                        std::mem::swap(&mut start_y, &mut end_y)
-                    }
+                for x in start_x..=end_x {
+                    for y in start_y..=end_y {
+                        if x < width || y < height {
+                            let cell_command = CellCommand::EditWires { color, add };
 
-                    for x in start_x..=end_x {
-                        for y in start_y..=end_y {
-                            if x < width || y < height {
-                                let cell_command = CellCommand::EditWires { color };
-
-                                commands.push(Command::Cell {
-                                    cell_command,
-                                    cell: (x, y),
-                                    submarine_id: sub_index,
-                                });
-                            }
+                            commands.push(Command::Cell {
+                                cell_command,
+                                cell: (x, y),
+                                submarine_id: sub_index,
+                            });
                         }
                     }
                 }

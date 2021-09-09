@@ -40,7 +40,7 @@ pub(crate) enum Command {
 
 #[derive(Serialize, Deserialize, Clone)]
 pub(crate) enum CellCommand {
-    EditWires { color: WireColor },
+    EditWires { add: bool, color: WireColor },
     EditWalls { add: bool },
     EditWater { add: bool },
     AddObject { object_type: ObjectType },
@@ -94,8 +94,11 @@ pub(crate) fn update_game(
                         CellCommand::EditWater { add: false } => water_cell.empty(),
                         CellCommand::EditWalls { add: true } => water_cell.make_wall(),
                         CellCommand::EditWalls { add: false } => water_cell.clear_wall(),
-                        CellCommand::EditWires { color } => {
+                        CellCommand::EditWires { add: true, color } => {
                             submarine.wire_grid.make_wire(cell.0, cell.1, *color)
+                        }
+                        CellCommand::EditWires { add: false, color } => {
+                            submarine.wire_grid.clear_wire(cell.0, cell.1, *color)
                         }
                         CellCommand::AddObject { object_type } => {
                             submarine.objects.push(Object {
@@ -233,6 +236,8 @@ pub(crate) fn update_game(
                     });
                 }
             }
+
+            submarine.wire_grid.update_bundles();
         }
         if update_settings.update_objects {
             let mut walls_updated = false;

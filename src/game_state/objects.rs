@@ -2,6 +2,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::game_state::state::{Navigation, SubmarineState};
 
+use super::wires::{StoredSignal, THIN_COLORS};
+
 #[derive(Serialize, Deserialize, Clone)]
 pub(crate) struct Object {
     pub object_type: ObjectType,
@@ -38,7 +40,10 @@ pub(crate) enum ObjectType {
         speed: i8,
         progress: u8,
     },
-    JunctionBox,
+    JunctionBox {
+        enabled: bool,
+        progress: u8,
+    },
     NavController {
         active: bool,
         progress: u8,
@@ -107,7 +112,11 @@ pub(crate) enum ObjectTypeTemplate {
         #[serde(default, skip_serializing_if = "is_default")]
         progress: u8,
     },
-    JunctionBox,
+    JunctionBox {
+        enabled: bool,
+        #[serde(default, skip_serializing_if = "is_default")]
+        progress: u8,
+    },
     NavController {
         active: bool,
         #[serde(default, skip_serializing_if = "is_default")]
@@ -211,7 +220,13 @@ pub(crate) const OBJECT_TYPES: &[(&str, ObjectType)] = &[
             progress: 0,
         },
     ),
-    ("Junction box", ObjectType::JunctionBox),
+    (
+        "Junction box",
+        ObjectType::JunctionBox {
+            enabled: false,
+            progress: 0,
+        },
+    ),
     (
         "Nav controller",
         ObjectType::NavController {
@@ -396,7 +411,7 @@ pub(crate) fn update_objects(submarine: &mut SubmarineState, walls_updated: &mut
                 progress,
             } => {
                 let cell_x = object.position.0 + 10;
-                let cell_y = object.position.1 + 2;
+                let cell_y = object.position.1 + 3;
 
                 let cell = wire_grid.cell(cell_x as usize + 3, cell_y as usize);
                 if let Some(logic_value) = cell.receive_logic() {
@@ -428,11 +443,11 @@ pub(crate) fn update_objects(submarine: &mut SubmarineState, walls_updated: &mut
                     }
                 }
             }
-            ObjectType::JunctionBox => {
+            ObjectType::JunctionBox { enabled, progress } => {
                 let cell_x = object.position.0 as usize + 3;
-                let cell_y = object.position.1 as usize + 1;
+                let cell_y = object.position.1 as usize + 2;
 
-                let outputs = &[(3, 2), (3, 3), (3, 4), (3, 5)];
+                let outputs = &[(2, 1), (2, 2), (2, 3), (2, 4)];
 
                 let cell = wire_grid.cell(cell_x, cell_y);
                 if let Some(logic_value) = cell.receive_logic() {
@@ -443,13 +458,24 @@ pub(crate) fn update_objects(submarine: &mut SubmarineState, walls_updated: &mut
                     }
                 }
 
+                object.powered = false;
                 let cell = wire_grid.cell(cell_x, cell_y);
                 if let Some(power_value) = cell.receive_power() {
-                    for output in outputs {
-                        wire_grid
-                            .cell_mut(cell_x + output.0, cell_y + output.1)
-                            .send_power(power_value);
+                    object.powered = true;
+
+                    if *progress >= 15 {
+                        for output in outputs {
+                            wire_grid
+                                .cell_mut(cell_x + output.0, cell_y + output.1)
+                                .send_power(power_value);
+                        }
                     }
+                }
+
+                if *enabled {
+                    *progress = (*progress + 1).min(15);
+                } else {
+                    *progress = progress.saturating_sub(1);
                 }
             }
             ObjectType::NavController { active, progress } => {
@@ -557,37 +583,61 @@ pub(crate) fn update_objects(submarine: &mut SubmarineState, walls_updated: &mut
                     if Some(wire_bundle_id) == b2 && Some(wire_bundle_id) == b3 {
                         let source = *wire_grid.cell(cell_x + 2, cell_y);
                         wire_bundle = wire_grid
-                            .wire_bundle_mut(wire_bundle_id)
+                            .wire_bundle_input_mut(wire_bundle_id)
                             .map(|bundle| (source, bundle));
                     }
                 }
 
                 if let Some((source, wire_bundle)) = wire_bundle {
                     let sub_bundle: usize = (*sub_bundle).into();
-                    wire_bundle.bundled_cells[sub_bundle] = source;
+                    let stored_signals = &mut wire_bundle.bundled_cells[sub_bundle];
+
+                    for color in THIN_COLORS {
+                        stored_signals[color as usize] = StoredSignal {
+                            logic: source.value(color).get_logic(),
+                            power: source.value(color).get_power(),
+                        };
+                    }
                 }
             }
             ObjectType::BundleOutput { sub_bundle } => {
                 let cell_x = object.position.0 as usize + 2;
                 let cell_y = object.position.1 as usize + 2;
-                let mut wire_bundle = None;
+                let mut wire_bundle_id = None;
 
-                if let Some(wire_bundle_id) = wire_grid.cell(cell_x, cell_y).bundle_id() {
+                if let Some(bundle_id) = wire_grid.cell(cell_x, cell_y).bundle_id() {
                     let b2 = wire_grid.cell(cell_x + 1, cell_y).bundle_id();
                     let b3 = wire_grid.cell(cell_x + 2, cell_y).bundle_id();
 
-                    if Some(wire_bundle_id) == b2 && Some(wire_bundle_id) == b3 {
-                        let source = *wire_grid.cell(cell_x + 2, cell_y);
-                        wire_bundle = wire_grid
-                            .wire_bundle_mut(wire_bundle_id)
-                            .map(|bundle| (source, bundle));
+                    if Some(bundle_id) == b2 && Some(bundle_id) == b3 {
+                        wire_bundle_id = Some(bundle_id);
                     }
                 }
 
-                if let Some((_source, wire_bundle)) = wire_bundle {
-                    let sub_bundle: usize = (*sub_bundle).into();
-                    let source = wire_bundle.bundled_cells[sub_bundle];
-                    *wire_grid.cell_mut(cell_x + 2, cell_y) = source;
+                let (x, y) = (cell_x + 2, cell_y);
+
+                if let Some(bundle_id) = wire_bundle_id {
+                    for color in THIN_COLORS {
+                        if wire_grid.cell(x, y).value(color).is_terminal() {
+                            if let Some(output) = wire_grid.wire_bundle_output_mut(bundle_id) {
+                                let stored_signals =
+                                    &mut output.bundled_cells[*sub_bundle as usize];
+                                let signal = &mut stored_signals[color as usize];
+
+                                // Power is also consumed.
+                                let logic = signal.logic;
+                                let power = signal.power.take();
+
+                                let cell = wire_grid.cell_mut(x, y).value_mut(color);
+
+                                if let Some(power) = power {
+                                    cell.set_power(power);
+                                } else if let Some(logic) = logic {
+                                    cell.set_logic(logic);
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -608,7 +658,7 @@ pub(crate) fn interact_with_object(object: &mut Object) {
         ObjectType::Gauge { value } => cycle_i8(value),
         ObjectType::SmallPump { target_speed, .. } => cycle_i8(target_speed),
         ObjectType::LargePump { target_speed, .. } => cycle_i8(target_speed),
-        ObjectType::JunctionBox => (),
+        ObjectType::JunctionBox { enabled, .. } => *enabled = !*enabled,
         ObjectType::NavController { active, .. } => *active = !*active,
         ObjectType::Sonar { active, .. } => *active = !*active,
         ObjectType::Engine { target_speed, .. } => cycle_i8(target_speed),
@@ -671,8 +721,14 @@ pub(crate) fn current_frame(object: &Object) -> (u16, u16) {
         ObjectType::LargePump { progress, .. } => {
             current_frame = (*progress as u8 / (u8::MAX / 4)).clamp(0, 3) as u16;
         }
-        ObjectType::JunctionBox => {
-            current_frame = 0;
+        ObjectType::JunctionBox { progress, .. } => {
+            let frame = (*progress * 5 / 16).min(4) as u16;
+
+            if *powered {
+                current_frame = frame
+            } else {
+                current_frame = frame + 5
+            }
         }
         ObjectType::NavController {
             active, progress, ..
@@ -755,7 +811,9 @@ impl ObjectTemplate {
                 speed,
                 progress,
             },
-            ObjectType::JunctionBox => ObjectTypeTemplate::JunctionBox,
+            ObjectType::JunctionBox { enabled, progress } => {
+                ObjectTypeTemplate::JunctionBox { enabled, progress }
+            }
             ObjectType::NavController { active, progress } => {
                 ObjectTypeTemplate::NavController { active, progress }
             }
@@ -817,7 +875,9 @@ impl ObjectTemplate {
                 speed,
                 progress,
             },
-            ObjectTypeTemplate::JunctionBox => ObjectType::JunctionBox,
+            ObjectTypeTemplate::JunctionBox { enabled, progress } => {
+                ObjectType::JunctionBox { enabled, progress }
+            }
             ObjectTypeTemplate::NavController { active, progress } => {
                 ObjectType::NavController { active, progress }
             }

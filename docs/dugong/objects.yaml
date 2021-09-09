@@ -35,7 +35,9 @@
     - 77
     - 48
 - object_type:
-    VerticalDoor: {}
+    VerticalDoor:
+      state: Opening
+      progress: 15
   position:
     - 189
     - 48
@@ -50,7 +52,9 @@
     - 313
     - 48
 - object_type:
-    VerticalDoor: {}
+    VerticalDoor:
+      state: Opening
+      progress: 15
   position:
     - 173
     - 76
@@ -89,35 +93,54 @@
   position:
     - 282
     - 76
-- object_type: JunctionBox
+- object_type:
+    JunctionBox:
+      enabled: true
+      progress: 15
   position:
     - 180
     - 71
-- object_type: JunctionBox
+- object_type:
+    JunctionBox:
+      enabled: true
+      progress: 15
   position:
     - 187
     - 71
-- object_type: JunctionBox
+- object_type:
+    JunctionBox:
+      enabled: true
+      progress: 15
   position:
     - 194
     - 71
-- object_type: JunctionBox
+- object_type:
+    JunctionBox:
+      enabled: false
   position:
     - 201
     - 71
-- object_type: JunctionBox
+- object_type:
+    JunctionBox:
+      enabled: false
   position:
     - 208
     - 71
-- object_type: JunctionBox
+- object_type:
+    JunctionBox:
+      enabled: false
   position:
     - 215
     - 71
-- object_type: JunctionBox
+- object_type:
+    JunctionBox:
+      enabled: false
   position:
     - 187
     - 80
-- object_type: JunctionBox
+- object_type:
+    JunctionBox:
+      enabled: false
   position:
     - 194
     - 80
@@ -139,96 +162,6 @@
     - 1
     - 61
 - object_type:
-    BundleInput:
-      sub_bundle: 0
-  position:
-    - 183
-    - 69
-- object_type:
-    BundleInput:
-      sub_bundle: 1
-  position:
-    - 190
-    - 69
-- object_type:
-    BundleInput:
-      sub_bundle: 2
-  position:
-    - 197
-    - 69
-- object_type:
-    BundleInput:
-      sub_bundle: 3
-  position:
-    - 204
-    - 69
-- object_type:
-    BundleInput:
-      sub_bundle: 4
-  position:
-    - 211
-    - 69
-- object_type:
-    BundleInput:
-      sub_bundle: 5
-  position:
-    - 218
-    - 69
-- object_type:
-    BundleInput:
-      sub_bundle: 7
-  position:
-    - 197
-    - 78
-- object_type:
-    BundleInput:
-      sub_bundle: 6
-  position:
-    - 190
-    - 78
-- object_type:
-    BundleOutput:
-      sub_bundle: 0
-  position:
-    - 186
-    - 69
-- object_type:
-    BundleOutput:
-      sub_bundle: 0
-  position:
-    - 193
-    - 69
-- object_type:
-    BundleOutput:
-      sub_bundle: 0
-  position:
-    - 200
-    - 69
-- object_type:
-    BundleOutput:
-      sub_bundle: 0
-  position:
-    - 207
-    - 69
-- object_type:
-    BundleOutput:
-      sub_bundle: 0
-  position:
-    - 214
-    - 69
-- object_type:
-    BundleOutput:
-      sub_bundle: 6
-  position:
-    - 186
-    - 78
-- object_type:
-    BundleOutput:
-      sub_bundle: 7
-  position:
-    - 193
-    - 78
-- object_type:
     Gauge: {}
   position:
     - 104
@@ -240,13 +173,13 @@
     - 56
 - object_type:
     BundleOutput:
-      sub_bundle: 0
+      sub_bundle: 1
   position:
     - 92
     - 44
 - object_type:
     BundleOutput:
-      sub_bundle: 0
+      sub_bundle: 2
   position:
     - 127
     - 44
@@ -288,7 +221,195 @@
     - 77
 - object_type:
     BundleOutput:
-      sub_bundle: 1
+      sub_bundle: 2
   position:
     - 39
     - 77
+- object_type:
+    SmallPump:
+      target_speed: -128
+      progress: 41
+  position:
+    - 159
+    - 33
+- object_type:
+    SmallPump:
+      target_speed: -128
+      progress: 123
+  position:
+    - 45
+    - 74
+- object_type:
+    SmallPump:
+      target_speed: -128
+      progress: 131
+  position:
+    - 104
+    - 86
+- object_type:
+    SmallPump:
+      target_speed: -128
+      progress: 41
+  position:
+    - 223
+    - 86
+- object_type:
+    BundleOutput:
+      sub_bundle: 3
+  position:
+    - 224
+    - 69
+- object_type:
+    BundleOutput:
+      sub_bundle: 3
+  position:
+    - 194
+    - 44
+- object_type:
+    BundleOutput:
+      sub_bundle: 3
+  position:
+    - 42
+    - 77
+- object_type:
+    BundleOutput:
+      sub_bundle: 3
+  position:
+    - 103
+    - 69
+- object_type: Lamp
+  position:
+    - 118
+    - 48
+- object_type: Lamp
+  position:
+    - 224
+    - 73
+- object_type: Lamp
+  position:
+    - 231
+    - 48
+- object_type:
+    BundleOutput:
+      sub_bundle: 4
+  position:
+    - 218
+    - 44
+- object_type:
+    BundleOutput:
+      sub_bundle: 4
+  position:
+    - 117
+    - 44
+- object_type:
+    BundleOutput:
+      sub_bundle: 4
+  position:
+    - 159
+    - 69
+- object_type:
+    BundleOutput:
+      sub_bundle: 4
+  position:
+    - 227
+    - 69
+- object_type: Lamp
+  position:
+    - 192
+    - 23
+- object_type:
+    BundleOutput:
+      sub_bundle: 5
+  position:
+    - 203
+    - 44
+- object_type:
+    BundleOutput:
+      sub_bundle: 5
+  position:
+    - 284
+    - 69
+- object_type: Lamp
+  position:
+    - 57
+    - 50
+- object_type:
+    BundleOutput:
+      sub_bundle: 5
+  position:
+    - 66
+    - 69
+- object_type: Lamp
+  position:
+    - 290
+    - 48
+- object_type: Lamp
+  position:
+    - 238
+    - 73
+- object_type:
+    BundleOutput:
+      sub_bundle: 5
+  position:
+    - 237
+    - 69
+- object_type:
+    BundleInput:
+      sub_bundle: 0
+  position:
+    - 183
+    - 69
+- object_type:
+    BundleInput:
+      sub_bundle: 1
+  position:
+    - 190
+    - 69
+- object_type:
+    BundleInput:
+      sub_bundle: 2
+  position:
+    - 197
+    - 69
+- object_type:
+    BundleInput:
+      sub_bundle: 3
+  position:
+    - 204
+    - 69
+- object_type:
+    BundleInput:
+      sub_bundle: 4
+  position:
+    - 211
+    - 69
+- object_type:
+    BundleInput:
+      sub_bundle: 5
+  position:
+    - 218
+    - 69
+- object_type:
+    BundleOutput:
+      sub_bundle: 0
+  position:
+    - 186
+    - 69
+- object_type:
+    BundleOutput:
+      sub_bundle: 0
+  position:
+    - 200
+    - 69
+- object_type:
+    BundleOutput:
+      sub_bundle: 0
+  position:
+    - 207
+    - 69
+- object_type:
+    BundleOutput:
+      sub_bundle: 0
+  position:
+    - 214
+    - 69

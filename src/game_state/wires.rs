@@ -5,11 +5,6 @@ use serde::{Deserialize, Serialize};
 /// Logic and power wire grid.
 
 // Still need to implement voltage/demand-based current and supply.
-//
-// Bundles are implemented but have issues:
-// * They can replicate cells infinitely
-// * They (and other things) pick up signals from mid-wires
-// * They are not order-irrelevant
 
 #[derive(Clone, Serialize, Deserialize)]
 pub(crate) struct WireGrid {
@@ -17,12 +12,19 @@ pub(crate) struct WireGrid {
     width: usize,
     height: usize,
     connected_wires: [Vec<(usize, usize)>; WIRE_COLORS],
-    bundles: Vec<WireBundle>,
+    bundle_inputs: Vec<WireBundle>,
+    bundle_outputs: Vec<WireBundle>,
 }
 
 #[derive(Default, Clone, Serialize, Deserialize)]
 pub(crate) struct WireBundle {
-    pub bundled_cells: [WireCell; 8],
+    pub bundled_cells: [[StoredSignal; WIRE_COLORS]; 8],
+}
+
+#[derive(Default, Clone, Serialize, Deserialize)]
+pub(crate) struct StoredSignal {
+    pub logic: Option<i8>,
+    pub power: Option<u8>,
 }
 
 #[derive(Default, Clone, Copy, Serialize, Deserialize)]
@@ -33,10 +35,22 @@ pub(crate) struct WireCell {
 #[derive(Clone, Copy, Serialize, Deserialize)]
 pub(crate) enum WireValue {
     NotConnected,
-    NoSignal,
-    Power { value: u8, signal: u16 },
-    Logic { value: i8, signal: u16 },
-    Bundle { bundle_id: u8 },
+    NoSignal {
+        terminal: bool,
+    },
+    Power {
+        value: u8,
+        terminal: bool,
+        signal: u16,
+    },
+    Logic {
+        value: i8,
+        terminal: bool,
+        signal: u16,
+    },
+    Bundle {
+        bundle_id: u8,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -54,6 +68,13 @@ const NEIGHBOUR_OFFSETS: &[(i32, i32)] = &[(1, 0), (0, 1), (-1, 0), (0, -1)];
 
 pub(crate) const WIRE_COLORS: usize = 5;
 
+pub(crate) const THIN_COLORS: [WireColor; 4] = [
+    WireColor::Purple,
+    WireColor::Brown,
+    WireColor::Blue,
+    WireColor::Green,
+];
+
 impl Default for WireValue {
     fn default() -> Self {
         WireValue::NotConnected
@@ -70,7 +91,8 @@ impl WireGrid {
             width,
             height,
             connected_wires: Default::default(),
-            bundles: Vec::new(),
+            bundle_inputs: Vec::new(),
+            bundle_outputs: Vec::new(),
         }
     }
 
@@ -91,7 +113,8 @@ impl WireGrid {
             width: other_grid.width,
             height: other_grid.height,
             connected_wires: other_grid.connected_wires.clone(),
-            bundles: other_grid.bundles.clone(),
+            bundle_inputs: other_grid.bundle_inputs.clone(),
+            bundle_outputs: other_grid.bundle_outputs.clone(),
         }
     }
 
@@ -145,10 +168,22 @@ impl WireGrid {
                 return;
             }
         } else {
-            WireValue::NoSignal
+            WireValue::NoSignal { terminal: false }
         };
         if (1..self.width - 2).contains(&x) && (1..self.height - 1).contains(&y) {
             self.connected_wires[color as usize].push((x, y));
+        }
+    }
+
+    pub fn clear_wire(&mut self, x: usize, y: usize, color: WireColor) {
+        if color == WireColor::Bundle {
+            // FIXME: Need to split bundles; which needs logic to detect a loop.
+            return;
+        }
+
+        self.cell_mut(x, y).value[color as usize] = WireValue::NotConnected;
+        if (1..self.width - 2).contains(&x) && (1..self.height - 1).contains(&y) {
+            self.connected_wires[color as usize].retain(|wire| *wire != (x, y));
         }
     }
 
@@ -170,8 +205,10 @@ impl WireGrid {
             // all of them.
             // Convert from usize to u8; if there's an overflow, don't create
             // any new bundles.
-            if let Ok(bundle_id) = self.bundles.len().try_into() {
-                self.bundles.push(WireBundle::default());
+            if let Ok(bundle_id) = self.bundle_inputs.len().try_into() {
+                assert_eq!(self.bundle_inputs.len(), self.bundle_outputs.len());
+                self.bundle_inputs.push(WireBundle::default());
+                self.bundle_outputs.push(WireBundle::default());
                 bundle_id
             } else {
                 return None;
@@ -262,6 +299,8 @@ impl WireGrid {
                     new_value = WireValue::NotConnected;
                 }
 
+                new_value.set_terminal(connected_wires == 1);
+
                 if self.cell(x, y).value[wire_color].signal() != new_value.signal() {
                     *signals_updated = true;
                 }
@@ -269,6 +308,19 @@ impl WireGrid {
                 let cell_mut = &mut self.cells[y * self.width + x];
                 cell_mut.value[wire_color] = new_value;
             }
+        }
+    }
+
+    pub(crate) fn update_bundles(&mut self) {
+        assert_eq!(self.bundle_inputs.len(), self.bundle_outputs.len());
+        let zipped_bundles = self
+            .bundle_inputs
+            .iter_mut()
+            .zip(self.bundle_outputs.iter_mut());
+
+        for (input, output) in zipped_bundles {
+            *output = input.clone();
+            *input = Default::default();
         }
     }
 
@@ -423,9 +475,14 @@ impl WireGrid {
         wire_points
     }
 
-    pub fn wire_bundle_mut(&mut self, bundle_id: u8) -> Option<&mut WireBundle> {
+    pub fn wire_bundle_input_mut(&mut self, bundle_id: u8) -> Option<&mut WireBundle> {
         let bundle_id: usize = bundle_id.into();
-        self.bundles.get_mut(bundle_id)
+        self.bundle_inputs.get_mut(bundle_id)
+    }
+
+    pub fn wire_bundle_output_mut(&mut self, bundle_id: u8) -> Option<&mut WireBundle> {
+        let bundle_id: usize = bundle_id.into();
+        self.bundle_outputs.get_mut(bundle_id)
     }
 }
 
@@ -463,27 +520,39 @@ impl WireCell {
         &self.value[color as usize]
     }
 
+    pub fn value_mut(&mut self, color: WireColor) -> &mut WireValue {
+        &mut self.value[color as usize]
+    }
+
     pub fn receive_logic(&self) -> Option<i8> {
         for wire_color in 0..WIRE_COLORS {
-            match self.value[wire_color] {
-                WireValue::NotConnected => (),
-                WireValue::NoSignal => (),
-                WireValue::Power { .. } => (),
-                WireValue::Logic { value, .. } => return Some(value),
-                WireValue::Bundle { .. } => (),
-            };
+            let value = self.value[wire_color];
+
+            if value.is_terminal() {
+                match value {
+                    WireValue::NotConnected => (),
+                    WireValue::NoSignal { .. } => (),
+                    WireValue::Power { .. } => (),
+                    WireValue::Logic { value, .. } => return Some(value),
+                    WireValue::Bundle { .. } => (),
+                };
+            }
         }
         None
     }
 
     pub fn receive_power(&self) -> Option<u8> {
         for wire_color in 0..WIRE_COLORS {
-            match self.value[wire_color] {
-                WireValue::NotConnected => (),
-                WireValue::NoSignal => (),
-                WireValue::Power { value, .. } => return Some(value),
-                WireValue::Logic { .. } => (),
-                WireValue::Bundle { .. } => (),
+            let value = self.value[wire_color];
+
+            if value.is_terminal() {
+                match value {
+                    WireValue::NotConnected => (),
+                    WireValue::NoSignal { .. } => (),
+                    WireValue::Power { value, .. } => return Some(value),
+                    WireValue::Logic { .. } => (),
+                    WireValue::Bundle { .. } => (),
+                }
             };
         }
         None
@@ -500,10 +569,11 @@ impl WireCell {
         for wire_color in 0..WIRE_COLORS {
             let wire_value = &mut self.value[wire_color];
 
-            if wire_value.connected() {
+            if wire_value.connected() && wire_value.is_terminal() {
                 *wire_value = WireValue::Logic {
                     value: logic_value,
                     signal: 256,
+                    terminal: true,
                 };
             }
         }
@@ -513,10 +583,11 @@ impl WireCell {
         for wire_color in 0..WIRE_COLORS {
             let wire_value = &mut self.value[wire_color];
 
-            if wire_value.connected() {
+            if wire_value.connected() && wire_value.is_terminal() {
                 *wire_value = WireValue::Power {
                     value: power_value,
                     signal: 256,
+                    terminal: true,
                 };
                 // Send to at most one wire.
                 break;
@@ -537,24 +608,102 @@ impl WireValue {
     pub fn signal(&self) -> u16 {
         match self {
             WireValue::NotConnected => 0,
-            WireValue::NoSignal => 0,
+            WireValue::NoSignal { .. } => 0,
             WireValue::Power { signal, .. } => *signal,
             WireValue::Logic { signal, .. } => *signal,
             WireValue::Bundle { .. } => 0,
         }
     }
 
+    pub fn is_terminal(&self) -> bool {
+        match self {
+            WireValue::NotConnected => false,
+            WireValue::NoSignal { terminal } => *terminal,
+            WireValue::Power { terminal, .. } => *terminal,
+            WireValue::Logic { terminal, .. } => *terminal,
+            WireValue::Bundle { .. } => false,
+        }
+    }
+
+    pub fn set_terminal(&mut self, is_terminal: bool) {
+        match self {
+            WireValue::NotConnected => (),
+            WireValue::NoSignal { terminal } => *terminal = is_terminal,
+            WireValue::Power { terminal, .. } => *terminal = is_terminal,
+            WireValue::Logic { terminal, .. } => *terminal = is_terminal,
+            WireValue::Bundle { .. } => (),
+        }
+    }
+
+    pub fn set_logic(&mut self, value: i8) {
+        if !self.connected() || !self.is_terminal() {
+            return;
+        }
+
+        *self = WireValue::Logic {
+            value,
+            terminal: true,
+            signal: 256,
+        }
+    }
+
+    pub fn set_power(&mut self, value: u8) {
+        if !self.connected() || !self.is_terminal() {
+            return;
+        }
+
+        *self = WireValue::Power {
+            value,
+            terminal: true,
+            signal: 256,
+        }
+    }
+
+    pub fn get_logic(&self) -> Option<i8> {
+        match self {
+            WireValue::Logic {
+                value,
+                terminal: true,
+                ..
+            } => Some(*value),
+            _ => None,
+        }
+    }
+
+    pub fn get_power(&self) -> Option<u8> {
+        match self {
+            WireValue::Power {
+                value,
+                terminal: true,
+                ..
+            } => Some(*value),
+            _ => None,
+        }
+    }
+
     fn decay(&self, amount: u16) -> WireValue {
         let new_signal = match self {
             WireValue::NotConnected => WireValue::NotConnected,
-            WireValue::NoSignal => WireValue::NoSignal,
-            WireValue::Power { value, signal } => WireValue::Power {
-                value: *value,
-                signal: signal.saturating_sub(amount),
+            WireValue::NoSignal { terminal } => WireValue::NoSignal {
+                terminal: *terminal,
             },
-            WireValue::Logic { value, signal } => WireValue::Logic {
+            WireValue::Power {
+                value,
+                signal,
+                terminal,
+            } => WireValue::Power {
                 value: *value,
                 signal: signal.saturating_sub(amount),
+                terminal: *terminal,
+            },
+            WireValue::Logic {
+                value,
+                signal,
+                terminal,
+            } => WireValue::Logic {
+                value: *value,
+                signal: signal.saturating_sub(amount),
+                terminal: *terminal,
             },
             WireValue::Bundle { bundle_id } => WireValue::Bundle {
                 bundle_id: *bundle_id,
@@ -562,10 +711,16 @@ impl WireValue {
         };
 
         match new_signal {
-            WireValue::NotConnected => WireValue::NotConnected,
-            WireValue::NoSignal => WireValue::NoSignal,
-            WireValue::Power { signal: 0, .. } => WireValue::NoSignal,
-            WireValue::Logic { signal: 0, .. } => WireValue::NoSignal,
+            WireValue::Power {
+                signal: 0,
+                terminal,
+                ..
+            } => WireValue::NoSignal { terminal },
+            WireValue::Logic {
+                signal: 0,
+                terminal,
+                ..
+            } => WireValue::NoSignal { terminal },
             value => value,
         }
     }

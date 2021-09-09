@@ -58,7 +58,10 @@
     - 37
     - 8
   current_frame: 7
-- object_type: JunctionBox
+- object_type:
+    JunctionBox:
+      enabled: true
+      progress: 15
   position:
     - 45
     - 10

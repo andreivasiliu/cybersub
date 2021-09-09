@@ -867,21 +867,19 @@ fn update_signals_texture(grid: &WireGrid, mutable_resources: &mut MutableSubRes
 }
 
 fn draw_wire_plan(dragging: &Option<Dragging>, camera: &Camera) {
-    if let Some(dragging) = dragging {
-        if let Dragging::Wires { dragging_from, .. } = dragging {
-            let (start_x, start_y) = *dragging_from;
-            let (end_x, end_y) = camera.pointing_at;
+    if let Some(Dragging::Wires { dragging_from, .. }) = dragging {
+        let (start_x, start_y) = *dragging_from;
+        let (end_x, end_y) = camera.pointing_at;
 
+        if start_x == end_x || start_y == end_y {
             let start_x = start_x as f32 + 0.5;
             let start_y = start_y as f32 + 0.5;
             let end_x = end_x as f32 + 0.5;
             let end_y = end_y as f32 + 0.5;
 
-            if start_x == end_x || start_y == end_y {
-                draw_circle(start_x, start_y, 0.2, WHITE);
-                draw_circle(end_x, end_y, 0.2, WHITE);
-                draw_line(start_x, start_y, end_x, end_y, 0.2, WHITE);
-            }
+            draw_circle(start_x, start_y, 0.2, WHITE);
+            draw_circle(end_x, end_y, 0.2, WHITE);
+            draw_line(start_x, start_y, end_x, end_y, 0.2, WHITE);
         }
     }
 }
@@ -934,7 +932,7 @@ pub(crate) fn object_size(object_type: &ObjectType) -> (usize, usize) {
         ObjectType::Gauge { .. } => (7, 7),
         ObjectType::SmallPump { .. } => (9, 7),
         ObjectType::LargePump { .. } => (30, 18),
-        ObjectType::JunctionBox => (6, 8),
+        ObjectType::JunctionBox { .. } => (6, 8),
         ObjectType::NavController { .. } => (9, 15),
         ObjectType::Sonar { .. } => (19, 17),
         ObjectType::Engine { .. } => (37, 20),
@@ -953,7 +951,7 @@ fn object_frames(object_type: &ObjectType) -> (u16, u16) {
         ObjectType::Gauge { .. } => (5, 1),
         ObjectType::SmallPump { .. } => (4, 1),
         ObjectType::LargePump { .. } => (4, 1),
-        ObjectType::JunctionBox => (1, 1),
+        ObjectType::JunctionBox { .. } => (10, 2),
         ObjectType::NavController { .. } => (6, 2),
         ObjectType::Sonar { .. } => (2, 2),
         ObjectType::Engine { .. } => (24, 1),
@@ -972,7 +970,7 @@ fn object_texture(object_type: &ObjectType, resources: &Resources) -> Texture2D 
         ObjectType::Gauge { .. } => resources.gauge,
         ObjectType::SmallPump { .. } => resources.small_pump,
         ObjectType::LargePump { .. } => resources.large_pump,
-        ObjectType::JunctionBox => resources.junction_box,
+        ObjectType::JunctionBox { .. } => resources.junction_box,
         ObjectType::NavController { .. } => resources.nav_controller,
         ObjectType::Sonar { .. } => resources.sonar,
         ObjectType::Engine { .. } => resources.engine,
@@ -990,8 +988,8 @@ fn object_connectors(object_type: &ObjectType) -> &'static [(u32, u32)] {
         ObjectType::Lamp => &[(3, 1)],
         ObjectType::Gauge { .. } => &[(4, 2), (4, 6)],
         ObjectType::SmallPump { .. } => &[(3, 2), (5, 2)],
-        ObjectType::LargePump { .. } => &[(10, 2), (13, 2)],
-        ObjectType::JunctionBox => &[(3, 1), (6, 3), (6, 4), (6, 5), (6, 6)],
+        ObjectType::LargePump { .. } => &[(10, 3), (13, 3)],
+        ObjectType::JunctionBox { .. } => &[(3, 2), (5, 3), (5, 4), (5, 5), (5, 6)],
         ObjectType::NavController { .. } => &[(2, 4), (8, 4), (8, 6)],
         ObjectType::Sonar { .. } => &[(2, 15)],
         ObjectType::Engine { .. } => &[(36, 6), (36, 8)],
