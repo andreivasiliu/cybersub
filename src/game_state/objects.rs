@@ -13,7 +13,7 @@ pub(crate) struct Object {
     pub powered: bool,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub(crate) enum ObjectType {
     Door {
         state: DoorState,

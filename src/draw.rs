@@ -12,7 +12,7 @@ use macroquad::{
 };
 
 use crate::{
-    app::{GameSettings, PlacingObject},
+    app::{GameSettings, PlacingObject, Tool},
     game_state::objects::{Object, ObjectType},
     game_state::rocks::RockGrid,
     game_state::sonar::Sonar,
@@ -201,11 +201,16 @@ pub(crate) fn draw_game(
         }
 
         if draw_settings.draw_objects {
+            let placing_object = match &game_settings.current_tool {
+                Tool::PlaceObject(placing_object) => Some(placing_object),
+                _ => None,
+            };
+
             draw_objects(
                 &submarine.objects,
                 resources,
                 mutable_resources.highlighting_object,
-                &game_settings.placing_object,
+                placing_object,
             );
         }
 
@@ -1003,7 +1008,7 @@ fn draw_objects(
     objects: &[Object],
     resources: &Resources,
     highlighting_object: Option<usize>,
-    placing_object: &Option<PlacingObject>,
+    placing_object: Option<&PlacingObject>,
 ) {
     let draw_object = |object, highlight, ghost| {
         let draw_rect = object_rect(object);

@@ -1,6 +1,6 @@
 use macroquad::prelude::{
-    is_key_down, is_mouse_button_down, is_mouse_button_pressed, is_mouse_button_released,
-    mouse_position, mouse_wheel, KeyCode, MouseButton, Rect, Vec2,
+    is_key_down, is_key_pressed, is_mouse_button_down, is_mouse_button_pressed,
+    is_mouse_button_released, mouse_position, mouse_wheel, KeyCode, MouseButton, Rect, Vec2,
 };
 
 use crate::{
@@ -19,7 +19,7 @@ use crate::{
 
 pub(crate) enum Dragging {
     Camera,
-    Object,
+    Nothing,
     Wires {
         color: WireColor,
         dragging_from: (usize, usize),
@@ -31,7 +31,8 @@ fn from_screen_coords(pos: Vec2) -> (usize, usize) {
     (pos.x as usize, pos.y as usize)
 }
 
-pub(crate) fn handle_keyboard_input(camera: &mut Camera) {
+// Only called when egui doesn't want the keyboard
+pub(crate) fn handle_keyboard_input(camera: &mut Camera, current_tool: &mut Tool) {
     if is_key_down(KeyCode::A) || is_key_down(KeyCode::Left) {
         camera.offset_x += 1.0;
     }
@@ -50,8 +51,12 @@ pub(crate) fn handle_keyboard_input(camera: &mut Camera) {
     if is_key_down(KeyCode::KpSubtract) {
         camera.zoom -= 1;
     }
+    if is_key_pressed(KeyCode::Escape) {
+        *current_tool = Tool::Interact;
+    }
 }
 
+// Only called when egui doesn't want the mouse/touch pointer
 pub(crate) fn handle_pointer_input(
     commands: &mut Vec<Command>,
     submarine: &SubmarineState,
@@ -82,45 +87,6 @@ pub(crate) fn handle_pointer_input(
 
     if is_mouse_button_pressed(MouseButton::Left) && !*draw_egui && *highlighting_settings {
         *draw_egui = true;
-        return;
-    }
-
-    // Placing an object
-    let (width, height) = submarine.water_grid.size();
-    if let Some(placing_object) = &mut game_settings.placing_object {
-        let (x, y) = camera.pointing_at;
-
-        let size = object_size(&placing_object.object_type);
-
-        let x = x.wrapping_sub(size.0 / 2 + size.0 % 2);
-        let y = y.wrapping_sub(size.1 / 2 + size.1 % 2 + 1);
-
-        if x < width && y < height {
-            placing_object.submarine = sub_index;
-            placing_object.position = Some((x, y));
-
-            if is_mouse_button_pressed(MouseButton::Left) {
-                commands.push(Command::Cell {
-                    cell_command: CellCommand::AddObject {
-                        object_type: placing_object.object_type.clone(),
-                    },
-                    cell: (x, y),
-                    submarine_id: sub_index,
-                });
-
-                if !is_key_down(KeyCode::LeftShift) && !is_key_down(KeyCode::RightShift) {
-                    game_settings.placing_object = None;
-                }
-
-                // Prevent doing something else right after clicking
-                *dragging = None;
-            }
-
-            if is_mouse_button_down(MouseButton::Right) {
-                game_settings.placing_object = None;
-            }
-        }
-
         return;
     }
 
@@ -167,6 +133,22 @@ pub(crate) fn handle_pointer_input(
         clicked,
     );
 
+    // Ghost of object being placed, if any
+    if let Tool::PlaceObject(placing_object) = current_tool {
+        let (x, y) = camera.pointing_at;
+
+        let size = object_size(&placing_object.object_type);
+
+        let (width, height) = submarine.water_grid.size();
+        let x = x.wrapping_sub(size.0 / 2 + size.0 % 2);
+        let y = y.wrapping_sub(size.1 / 2 + size.1 % 2 + 1);
+
+        if x < width && y < height {
+            placing_object.submarine = sub_index;
+            placing_object.position = Some((x, y));
+        }
+    }
+
     // Press
     if is_mouse_button_pressed(MouseButton::Left) {
         *dragging = Some(match current_tool {
@@ -182,16 +164,35 @@ pub(crate) fn handle_pointer_input(
                 );
 
                 if clicked_object {
-                    Dragging::Object
+                    Dragging::Nothing
                 } else {
                     Dragging::Camera
                 }
+            }
+            Tool::PlaceObject(placing_object) => {
+                if let Some(position) = placing_object.position {
+                    commands.push(Command::Cell {
+                        cell_command: CellCommand::AddObject {
+                            object_type: placing_object.object_type.clone(),
+                        },
+                        cell: position,
+                        submarine_id: placing_object.submarine,
+                    });
+                }
+
+                let place_more_objects =
+                    is_key_down(KeyCode::LeftShift) || is_key_down(KeyCode::RightShift);
+                if !place_more_objects {
+                    *current_tool = Tool::Interact;
+                }
+
+                Dragging::Nothing
             }
             Tool::EditWires { color } => Dragging::Wires {
                 color: *color,
                 dragging_from: camera.pointing_at,
             },
-            tool => Dragging::Tool(*tool),
+            tool => Dragging::Tool(tool.clone()),
         });
     }
 
@@ -206,6 +207,7 @@ pub(crate) fn handle_pointer_input(
                 Tool::EditWater { add } => Some(CellCommand::EditWater { add }),
                 Tool::EditWalls { add } => Some(CellCommand::EditWalls { add }),
                 Tool::EditWires { .. } => None,
+                Tool::PlaceObject(_) => None,
             };
 
             if let Some(cell_command) = cell_command {

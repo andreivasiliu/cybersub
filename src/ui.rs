@@ -96,7 +96,6 @@ pub(crate) fn draw_ui(
         current_submarine,
         current_tool,
         quit_game,
-        placing_object,
         submarine_templates,
         ..
     } = settings;
@@ -214,7 +213,7 @@ pub(crate) fn draw_ui(
                 egui::menu::menu(ui, "Objects", |ui| {
                     for (object_type_name, object_type) in OBJECT_TYPES {
                         if ui.button(object_type_name).clicked() {
-                            *placing_object = Some(PlacingObject {
+                            *current_tool = Tool::PlaceObject(PlacingObject {
                                 submarine: 0,
                                 position: None,
                                 object_type: object_type.clone(),
@@ -225,9 +224,24 @@ pub(crate) fn draw_ui(
                 egui::menu::menu(ui, "Submarines", |ui| {
                     for (name, template) in submarine_templates.iter() {
                         if ui.button(name).clicked() {
+                            let old_sub_position = camera.current_submarine.unwrap_or((100, 100));
+
+                            let camera_offset =
+                                (camera.offset_x as i32 * 16, camera.offset_y as i32 * 16);
+
+                            let new_sub_size =
+                                (template.size.0 as i32 * 16, template.size.1 as i32 * 16);
+
+                            let new_sub_position = (
+                                (old_sub_position.0 - camera_offset.0 - new_sub_size.0 / 2).max(0)
+                                    as usize,
+                                (old_sub_position.1 - camera_offset.1 - new_sub_size.1 / 2).max(0)
+                                    as usize,
+                            );
+
                             commands.push(Command::CreateSubmarine {
                                 submarine_template: Box::new(template.clone()),
-                                rock_position: (100, 100),
+                                rock_position: new_sub_position,
                             });
                         }
                     }
@@ -495,10 +509,10 @@ pub(crate) fn draw_ui(
 
         toolbar.show(ctx, |ui| {
             ui.horizontal_wrapped(|ui| {
-                if placing_object.is_some() {
-                    ui.label("Left-click to place object. Right-click to cancel. Hold shift to place more objects.");
+                if let Tool::PlaceObject(_) = current_tool {
+                    ui.label("Left-click to place object. Press 'Esc' to cancel. Hold shift to place more objects.");
                     if ui.button("Cancel").clicked() {
-                        *placing_object = None;
+                        *current_tool = Tool::Interact;
                     }
                 } else if let Tool::Interact = current_tool {
                     ui.radio_value(current_tool, Tool::Interact, "Interact");

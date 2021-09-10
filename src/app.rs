@@ -45,7 +45,6 @@ pub(crate) struct GameSettings {
     pub last_update: Option<f64>,
     pub last_draw: Option<f64>,
     pub animation_ticks: u32,
-    pub placing_object: Option<PlacingObject>,
     pub submarine_templates: Vec<(String, SubmarineTemplate)>,
 }
 
@@ -63,12 +62,13 @@ pub(crate) struct NetworkSettings {
     pub download_progress: Option<u8>,
 }
 
-#[derive(PartialEq, Eq, Clone, Copy)]
+#[derive(Clone, PartialEq, Eq)]
 pub(crate) enum Tool {
     Interact,
     EditWater { add: bool },
     EditWalls { add: bool },
     EditWires { color: WireColor },
+    PlaceObject(PlacingObject),
 }
 
 #[derive(Default)]
@@ -86,6 +86,7 @@ pub struct Timings {
     pub fps_average_history: VecDeque<(f64, f64)>,
 }
 
+#[derive(Clone, PartialEq, Eq)]
 pub(crate) struct PlacingObject {
     pub submarine: usize,
     pub position: Option<(usize, usize)>,
@@ -148,7 +149,6 @@ impl Default for CyberSubApp {
                 last_update: None,
                 last_draw: None,
                 animation_ticks: 0,
-                placing_object: None,
                 submarine_templates: Vec::new(),
             },
             commands: Vec::new(),
@@ -324,7 +324,10 @@ impl CyberSubApp {
     }
 
     pub fn handle_keyboard_input(&mut self) {
-        handle_keyboard_input(&mut self.game_settings.camera);
+        handle_keyboard_input(
+            &mut self.game_settings.camera,
+            &mut self.game_settings.current_tool,
+        );
     }
 
     pub fn draw_game(&mut self) {
