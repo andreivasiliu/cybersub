@@ -35,6 +35,7 @@ enum CellType {
 pub(crate) enum WallMaterial {
     Normal,
     Glass,
+    Invisible,
 }
 
 impl Default for CellType {
@@ -54,6 +55,7 @@ pub(crate) enum CellTemplate {
     Water,
     Wall,
     Glass,
+    InvisibleWall,
 }
 
 // Currently static; will eventually be based on sub's depth
@@ -70,6 +72,9 @@ const NEIGHBOUR_OFFSETS: &[(i32, i32)] = &[
     (0, -1),
     // (1, -1),
 ];
+
+const TOP_DIRECTION: usize = 2;
+const BOTTOM_DIRECTION: usize = 0;
 
 const DIRECTIONS: usize = NEIGHBOUR_OFFSETS.len();
 
@@ -145,6 +150,7 @@ impl WaterGrid {
                     }
                     CellTemplate::Wall => cell.make_wall(),
                     CellTemplate::Glass => cell.make_glass(),
+                    CellTemplate::InvisibleWall => cell.make_invisible_wall(),
                 }
             }
         }
@@ -288,7 +294,7 @@ impl WaterGrid {
                             }
                         }
 
-                        if enable_gravity && !old_grid.cell(x, y + 1).is_wall() {
+                        if enable_gravity {
                             velocity.1 += 32;
                         }
 
@@ -483,6 +489,14 @@ impl WaterCell {
         self.replan();
     }
 
+    pub fn make_invisible_wall(&mut self) {
+        self.cell_type = CellType::Wall {
+            wall_reflect: [0; DIRECTIONS],
+            wall_material: WallMaterial::Invisible,
+        };
+        self.replan();
+    }
+
     pub fn make_sea(&mut self) {
         self.cell_type = CellType::Sea;
         self.replan();
@@ -524,5 +538,40 @@ impl WaterCell {
             CellType::Wall { .. } => (),
             CellType::Sea => (),
         }
+    }
+
+    pub(crate) fn swap_water_with(&mut self, other_cell: &mut WaterCell) {
+        match (&mut self.cell_type, &mut other_cell.cell_type) {
+            (
+                CellType::Wall {
+                    wall_reflect: reflect1,
+                    ..
+                },
+                CellType::Wall {
+                    wall_reflect: reflect2,
+                    ..
+                },
+            ) => {
+                std::mem::swap(
+                    &mut reflect1[TOP_DIRECTION],
+                    &mut reflect2[BOTTOM_DIRECTION],
+                );
+                std::mem::swap(
+                    &mut reflect1[BOTTOM_DIRECTION],
+                    &mut reflect2[TOP_DIRECTION],
+                );
+            }
+            _ => unreachable!(
+                "Swap should only be made between invisible walls of docking connectors"
+            ),
+        };
+        std::mem::swap(
+            &mut self.planned_transfer[TOP_DIRECTION],
+            &mut other_cell.planned_transfer[BOTTOM_DIRECTION],
+        );
+        std::mem::swap(
+            &mut self.planned_transfer[BOTTOM_DIRECTION],
+            &mut other_cell.planned_transfer[TOP_DIRECTION],
+        );
     }
 }

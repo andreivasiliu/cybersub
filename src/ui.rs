@@ -222,27 +222,12 @@ pub(crate) fn draw_ui(
                     }
                 });
                 egui::menu::menu(ui, "Submarines", |ui| {
-                    for (name, template) in submarine_templates.iter() {
+                    for (template_id, (name, _)) in submarine_templates.iter().enumerate() {
                         if ui.button(name).clicked() {
-                            let old_sub_position = camera.current_submarine.unwrap_or((100, 100));
-
-                            let camera_offset =
-                                (camera.offset_x as i32 * 16, camera.offset_y as i32 * 16);
-
-                            let new_sub_size =
-                                (template.size.0 as i32 * 16, template.size.1 as i32 * 16);
-
-                            let new_sub_position = (
-                                (old_sub_position.0 - camera_offset.0 - new_sub_size.0 / 2).max(0)
-                                    as usize,
-                                (old_sub_position.1 - camera_offset.1 - new_sub_size.1 / 2).max(0)
-                                    as usize,
-                            );
-
-                            commands.push(Command::CreateSubmarine {
-                                submarine_template: Box::new(template.clone()),
-                                rock_position: new_sub_position,
-                            });
+                            *current_tool = Tool::PlaceSubmarine {
+                                template_id,
+                                position: None,
+                            }
                         }
                     }
                 });
@@ -511,6 +496,11 @@ pub(crate) fn draw_ui(
             ui.horizontal_wrapped(|ui| {
                 if let Tool::PlaceObject(_) = current_tool {
                     ui.label("Left-click to place object. Press 'Esc' to cancel. Hold shift to place more objects.");
+                    if ui.button("Cancel").clicked() {
+                        *current_tool = Tool::Interact;
+                    }
+                } else if let Tool::PlaceSubmarine { .. } = current_tool {
+                    ui.label("Left-click to place submarine. Press 'Esc' to cancel.");
                     if ui.button("Cancel").clicked() {
                         *current_tool = Tool::Interact;
                     }

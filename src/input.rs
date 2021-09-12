@@ -69,6 +69,7 @@ pub(crate) fn handle_pointer_input(
         current_tool,
         dragging,
         highlighting_settings,
+        submarine_templates,
         ..
     } = game_settings;
 
@@ -134,18 +135,43 @@ pub(crate) fn handle_pointer_input(
     );
 
     // Ghost of object being placed, if any
-    if let Tool::PlaceObject(placing_object) = current_tool {
-        let (x, y) = camera.pointing_at;
+    if sub_index == game_settings.current_submarine {
+        if let Tool::PlaceObject(placing_object) = current_tool {
+            let (x, y) = camera.pointing_at;
 
-        let size = object_size(&placing_object.object_type);
+            let size = object_size(&placing_object.object_type);
 
-        let (width, height) = submarine.water_grid.size();
-        let x = x.wrapping_sub(size.0 / 2 + size.0 % 2);
-        let y = y.wrapping_sub(size.1 / 2 + size.1 % 2 + 1);
+            let (width, height) = submarine.water_grid.size();
+            let x = x.wrapping_sub(size.0 / 2 + size.0 % 2);
+            let y = y.wrapping_sub(size.1 / 2 + size.1 % 2 + 1);
 
-        if x < width && y < height {
-            placing_object.submarine = sub_index;
-            placing_object.position = Some((x, y));
+            if x < width && y < height {
+                placing_object.submarine = sub_index;
+                placing_object.position = Some((x, y));
+            }
+        }
+
+        // Ghost of submarine being placed, if any
+        if let Tool::PlaceSubmarine {
+            template_id,
+            position,
+            ..
+        } = current_tool
+        {
+            if let Some((_name, template)) = submarine_templates.get(*template_id) {
+                let old_sub_position = camera.current_submarine.unwrap_or((100, 100));
+
+                let pointer_offset = (mouse_position.x as i32 * 16, mouse_position.y as i32 * 16);
+
+                let new_sub_size = (template.size.0 as i32 * 16, template.size.1 as i32 * 16);
+
+                let new_sub_position = (
+                    (old_sub_position.0 + pointer_offset.0 - new_sub_size.0 / 2).max(0) as usize,
+                    (old_sub_position.1 + pointer_offset.1 - new_sub_size.1 / 2).max(0) as usize,
+                );
+
+                *position = Some(new_sub_position);
+            }
         }
     }
 
@@ -188,6 +214,22 @@ pub(crate) fn handle_pointer_input(
 
                 Dragging::Nothing
             }
+            Tool::PlaceSubmarine {
+                template_id,
+                position,
+            } => {
+                if let Some((_name, template)) = submarine_templates.get(*template_id) {
+                    if let Some(position) = position {
+                        commands.push(Command::CreateSubmarine {
+                            submarine_template: Box::new(template.clone()),
+                            rock_position: *position,
+                        });
+                    }
+                }
+
+                *current_tool = Tool::Interact;
+                Dragging::Nothing
+            }
             Tool::EditWires { color } => Dragging::Wires {
                 color: *color,
                 dragging_from: camera.pointing_at,
@@ -208,6 +250,7 @@ pub(crate) fn handle_pointer_input(
                 Tool::EditWalls { add } => Some(CellCommand::EditWalls { add }),
                 Tool::EditWires { .. } => None,
                 Tool::PlaceObject(_) => None,
+                Tool::PlaceSubmarine { .. } => None,
             };
 
             if let Some(cell_command) = cell_command {

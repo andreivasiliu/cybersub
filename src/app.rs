@@ -65,10 +65,20 @@ pub(crate) struct NetworkSettings {
 #[derive(Clone, PartialEq, Eq)]
 pub(crate) enum Tool {
     Interact,
-    EditWater { add: bool },
-    EditWalls { add: bool },
-    EditWires { color: WireColor },
+    EditWater {
+        add: bool,
+    },
+    EditWalls {
+        add: bool,
+    },
+    EditWires {
+        color: WireColor,
+    },
     PlaceObject(PlacingObject),
+    PlaceSubmarine {
+        template_id: usize,
+        position: Option<(usize, usize)>,
+    },
 }
 
 #[derive(Default)]

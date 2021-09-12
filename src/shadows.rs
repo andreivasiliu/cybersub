@@ -44,7 +44,7 @@ use std::{f32::consts::PI, fmt::Display};
 
 use macroquad::prelude::{vec2, Rect, Vec2};
 
-use crate::game_state::water::WaterGrid;
+use crate::game_state::water::{WallMaterial, WaterCell, WaterGrid};
 
 struct EdgeGrid {
     cells: Vec<Cell>,
@@ -211,8 +211,17 @@ impl Cell {
     }
 }
 
+fn is_opaque(cell: &WaterCell) -> bool {
+    match cell.wall_material() {
+        Some(WallMaterial::Normal) => true,
+        Some(WallMaterial::Glass) => false,
+        Some(WallMaterial::Invisible) => false,
+        None => false,
+    }
+}
+
 fn has_edge(water_grid: &WaterGrid, x: usize, y: usize, edge: Direction) -> bool {
-    if !water_grid.cell(x, y).is_wall() {
+    if !is_opaque(water_grid.cell(x, y)) {
         return false;
     }
 
@@ -221,7 +230,7 @@ fn has_edge(water_grid: &WaterGrid, x: usize, y: usize, edge: Direction) -> bool
         None => return false,
     };
 
-    !water_grid.cell(neighbour.0, neighbour.1).is_wall()
+    !is_opaque(water_grid.cell(neighbour.0, neighbour.1))
 }
 
 fn continues_edge(
@@ -489,7 +498,7 @@ pub(crate) fn find_shadow_triangles(
         // If these points are on two sides of 0, that means the line is
         // straight upwards (starting point on the left and ending point on
         // the right).
-        if edge.start_point.radians < 0.0 && edge.end_point.radians >= 0.0 {
+        if edge.start_point.radians < 0.0 && edge.end_point.radians > 0.0 {
             // eprintln!("Starting edge: {:?}", edge);
             current_edges.push(edge_index);
         }
@@ -504,8 +513,8 @@ pub(crate) fn find_shadow_triangles(
     let starting_point = vec2(cursor.x, edges[starting_edge].start_point.point.y);
     let mut last_point = starting_point;
 
-    let mut distances = Vec::new();
-    distances.resize(edges.len(), 0.0);
+    let mut distances: Vec<Option<f32>> = Vec::new();
+    distances.resize(edges.len(), None);
 
     let mut triangles = Vec::new();
 
@@ -558,7 +567,7 @@ pub(crate) fn find_shadow_triangles(
         let point_distance = point_distance.length();
         let closest_distance = current_edges
             .iter()
-            .map(|edge_index| distances[*edge_index])
+            .filter_map(|edge_index| distances[*edge_index])
             .min_by_key(|distance| R32(*distance))
             .expect("Should have at least border edge lines");
 
@@ -571,15 +580,14 @@ pub(crate) fn find_shadow_triangles(
             // );
 
             if point_distance <= closest_distance + 0.1 {
-                let next_closest = *current_edges
+                let next_closest = current_edges
                     .iter()
                     .filter(|edge_index| **edge_index != point.edge_index)
-                    .min_by_key(|edge_index| R32(distances[**edge_index]))
+                    .filter_map(|edge_index| distances[*edge_index])
+                    .min_by_key(|distance| R32(*distance))
                     .expect("Pushed one in this iteration");
 
-                let distance = distances[next_closest];
-
-                let next_closest_point = cursor + ray * distance;
+                let next_closest_point = cursor + ray * next_closest;
 
                 triangles.push(Triangle(cursor, last_point, next_closest_point));
 
@@ -610,8 +618,8 @@ pub(crate) fn find_shadow_triangles(
     (triangles, three_points)
 }
 
-/// Find where a ray and line intersect
-fn intersection_distance(ray: (Vec2, Vec2), line: (Vec2, Vec2)) -> f32 {
+/// Find where two infinite lines intersect.
+fn intersection_distance(ray: (Vec2, Vec2), line: (Vec2, Vec2)) -> Option<f32> {
     let (point, direction) = ray;
     let (line_p1, line_p2) = line;
 
@@ -619,13 +627,10 @@ fn intersection_distance(ray: (Vec2, Vec2), line: (Vec2, Vec2)) -> f32 {
 
     let projection = direction.perp_dot(line_direction);
 
-    let projection = if projection != 0.0 {
-        projection
-    } else {
-        // The lines are parallel; just make it be really far into the
-        // distance, it's better than dealing with a NaN.
-        0.001
+    if projection == 0.0 {
+        // Cannot project ray onto line; this means they are parallel.
+        return None;
     };
 
-    ((line_p1 - point).perp_dot(line_direction)) / projection
+    Some(((line_p1 - point).perp_dot(line_direction)) / projection)
 }

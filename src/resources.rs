@@ -55,6 +55,8 @@ pub(crate) struct MutableResources {
     pub sea_rocks_updated: bool,
     pub shadows: RenderTarget,
     pub screen: Texture2D,
+    pub template_ghost_id: Option<usize>,
+    pub template_ghost: Texture2D,
 }
 
 pub(crate) struct MutableSubResources {
@@ -300,6 +302,8 @@ impl MutableResources {
             sea_rocks_updated: false,
             shadows: render_target(0, 0),
             screen: Texture2D::empty(),
+            template_ghost_id: None,
+            template_ghost: Texture2D::empty(),
         }
     }
 }

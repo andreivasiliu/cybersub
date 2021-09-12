@@ -294,8 +294,12 @@ fn update_docking_points(submarines: &mut [SubmarineState]) {
             // }
 
             let (connected, direction) = match &mut object.object_type {
-                ObjectType::DockingConnectorTop { connected, .. } => (connected, DockingDirection::Top),
-                ObjectType::DockingConnectorBottom { connected, .. } => (connected, DockingDirection::Bottom),
+                ObjectType::DockingConnectorTop { connected, .. } => {
+                    (connected, DockingDirection::Top)
+                }
+                ObjectType::DockingConnectorBottom { connected, .. } => {
+                    (connected, DockingDirection::Bottom)
+                }
                 _ => continue,
             };
 
@@ -346,6 +350,7 @@ fn update_docking_points(submarines: &mut [SubmarineState]) {
                     let diff_x = point1.connection_point.0 - point2.connection_point.0;
                     let diff_y = point1.connection_point.1 - point2.connection_point.1;
 
+                    // Close enough to start pulling the subs together?
                     if diff_x.abs() >= 128 || diff_y.abs() >= 128 {
                         continue;
                     }
@@ -360,29 +365,63 @@ fn update_docking_points(submarines: &mut [SubmarineState]) {
                     point1.speed_offset = (-speed_x / 2 + speed_x % 2, -speed_y / 2 + speed_y % 2);
                     point2.speed_offset = (speed_x / 2, speed_y / 2);
 
-                    dbg!(diff_x, diff_y);
-
+                    // Connected?
                     if diff_x.abs() >= 4 || diff_y.abs() >= 4 {
                         continue;
                     }
 
+                    // The subs are successfully connected; mark the objects as such too.
                     let sub2_index = sub1_index + 1 + sub2_index_offset;
                     point1.connected_to = Some((sub2_index, point2.connector_object_id));
                     point2.connected_to = Some((sub1_index, point1.connector_object_id));
 
-                    match &mut sub1.objects[point1.connector_object_id].object_type
-                    {
+                    let sub1_object = &mut sub1.objects[point1.connector_object_id];
+                    let sub2_object = &mut sub2.objects[point2.connector_object_id];
+
+                    match &mut sub1_object.object_type {
                         ObjectType::DockingConnectorTop { connected, .. } => *connected = true,
                         ObjectType::DockingConnectorBottom { connected, .. } => *connected = true,
                         _ => unreachable!("Object type checked above"),
                     };
 
-                    match &mut sub2.objects[point2.connector_object_id].object_type
-                    {
+                    match &mut sub2_object.object_type {
                         ObjectType::DockingConnectorTop { connected, .. } => *connected = true,
                         ObjectType::DockingConnectorBottom { connected, .. } => *connected = true,
                         _ => unreachable!("Object type checked above"),
                     };
+
+                    // Transfer water between the two water grids
+                    let sub1_x = sub1_object.position.0;
+                    let sub1_y = sub1_object.position.1
+                        + match point1.direction {
+                            DockingDirection::Top => 2,
+                            DockingDirection::Bottom => 7,
+                        };
+
+                    let sub2_x = sub2_object.position.0;
+                    let sub2_y = sub2_object.position.1
+                        + match point2.direction {
+                            DockingDirection::Top => 2,
+                            DockingDirection::Bottom => 7,
+                        };
+
+                    for x in 5..=16 {
+                        let cell1 = sub1
+                            .water_grid
+                            .cell_mut(sub1_x as usize + x, sub1_y as usize);
+                        let cell2 = sub2
+                            .water_grid
+                            .cell_mut(sub2_x as usize + x, sub2_y as usize);
+
+                        if !cell1.is_wall() || !cell2.is_wall() {
+                            continue;
+                        }
+
+                        match point1.direction {
+                            DockingDirection::Top => cell2.swap_water_with(cell1),
+                            DockingDirection::Bottom => cell2.swap_water_with(cell1),
+                        }
+                    }
                 }
             }
         }
@@ -429,12 +468,11 @@ fn update_position(submarines: &mut [SubmarineState]) {
 
     // Assign submarines to groups if they're docked together
     for (sub_index, submarine) in submarines.iter().enumerate() {
-        let group = *submarine_group[sub_index]
-            .get_or_insert_with(|| {
-                group_speed.push((0, 0));
-                group_members.push(0);
-                group_speed.len() - 1
-            });
+        let group = *submarine_group[sub_index].get_or_insert_with(|| {
+            group_speed.push((0, 0));
+            group_members.push(0);
+            group_speed.len() - 1
+        });
 
         for point in &submarine.docking_points {
             if let Some((connected_sub_index, _obj_id)) = point.connected_to {

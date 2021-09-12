@@ -683,9 +683,15 @@ pub(crate) fn update_objects(submarine: &mut SubmarineState, walls_updated: &mut
                 }
             }
             ObjectType::DockingConnectorTop {
-                state, progress, connected
+                state,
+                progress,
+                connected,
             } => {
-                *state = if *connected { DoorState::Opening } else { DoorState::Closing };
+                *state = if *connected {
+                    DoorState::Opening
+                } else {
+                    DoorState::Closing
+                };
 
                 match state {
                     DoorState::Opening => *progress = (*progress + 1).min(15),
@@ -693,20 +699,24 @@ pub(crate) fn update_objects(submarine: &mut SubmarineState, walls_updated: &mut
                 };
 
                 for x in 4..=17 {
-                    for y in 3..=6 {
-                        let cell = water_grid.cell_mut(object.position.0 as usize + x, object.position.1 as usize + y);
+                    for y in 2..=6 {
+                        let cell = water_grid.cell_mut(
+                            object.position.0 as usize + x,
+                            object.position.1 as usize + y,
+                        );
                         let frame = (*progress as u16 * 9 / 15).clamp(0, 8);
 
                         let top_y = match frame {
                             0..=2 => 5,
                             3..=5 => 4,
-                            _ => 3,
+                            6..=7 => 3,
+                            _ => 2,
                         };
 
                         let above = y < top_y;
                         let top_wall = y == top_y;
                         let side_wall = x == 4 || x == 17;
-                        let invisible_wall = top_wall && !side_wall && y == 3;
+                        let invisible_wall = top_wall && y == 2;
 
                         if above {
                             if !cell.is_sea() {
@@ -714,7 +724,7 @@ pub(crate) fn update_objects(submarine: &mut SubmarineState, walls_updated: &mut
                             }
                         } else if invisible_wall {
                             if !cell.is_wall() {
-                                cell.make_glass();
+                                cell.make_invisible_wall();
                             }
                         } else if top_wall || side_wall {
                             if !cell.is_wall() {
@@ -731,9 +741,15 @@ pub(crate) fn update_objects(submarine: &mut SubmarineState, walls_updated: &mut
                 *walls_updated = true;
             }
             ObjectType::DockingConnectorBottom {
-                state, progress, connected
+                state,
+                progress,
+                connected,
             } => {
-                *state = if *connected { DoorState::Opening } else { DoorState::Closing };
+                *state = if *connected {
+                    DoorState::Opening
+                } else {
+                    DoorState::Closing
+                };
 
                 match state {
                     DoorState::Opening => *progress = (*progress + 1).min(15),
@@ -741,20 +757,24 @@ pub(crate) fn update_objects(submarine: &mut SubmarineState, walls_updated: &mut
                 };
 
                 for x in 4..=17 {
-                    for y in 3..=6 {
-                        let cell = water_grid.cell_mut(object.position.0 as usize + x, object.position.1 as usize + y);
+                    for y in 3..=7 {
+                        let cell = water_grid.cell_mut(
+                            object.position.0 as usize + x,
+                            object.position.1 as usize + y,
+                        );
                         let frame = (*progress as u16 * 9 / 15).clamp(0, 8);
 
                         let bottom_y = match frame {
                             0..=2 => 4,
                             3..=5 => 5,
-                            _ => 6,
+                            6..=7 => 6,
+                            _ => 7,
                         };
 
                         let below = y > bottom_y;
                         let bottom_wall = y == bottom_y;
                         let side_wall = x == 4 || x == 17;
-                        let invisible_wall = bottom_wall && !side_wall && y == 6;
+                        let invisible_wall = bottom_wall && y == 7;
 
                         if below {
                             if !cell.is_sea() {
@@ -762,7 +782,7 @@ pub(crate) fn update_objects(submarine: &mut SubmarineState, walls_updated: &mut
                             }
                         } else if invisible_wall {
                             if !cell.is_wall() {
-                                cell.make_glass();
+                                cell.make_invisible_wall();
                             }
                         } else if bottom_wall || side_wall {
                             if !cell.is_wall() {
@@ -777,7 +797,7 @@ pub(crate) fn update_objects(submarine: &mut SubmarineState, walls_updated: &mut
                 }
 
                 *walls_updated = true;
-           }
+            }
         }
     }
 }

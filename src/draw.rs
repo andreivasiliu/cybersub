@@ -25,6 +25,7 @@ use crate::{
     },
     input::Dragging,
     resources::{MutableResources, MutableSubResources, Resources, TurbulenceParticle},
+    saveload::pixels_to_image,
     shadows::{
         add_border_edges, filter_edges_by_direction, filter_edges_by_region, find_shadow_edges,
         find_shadow_triangles, Edge, Triangle,
@@ -255,6 +256,8 @@ pub(crate) fn draw_game(
         }
     }
 
+    draw_submarine_ghost(game_settings, mutable_resources);
+
     set_default_camera();
 
     if draw_settings.draw_shadows {
@@ -386,6 +389,7 @@ fn draw_walls(
                     let color = match wall_material {
                         WallMaterial::Normal => WHITE,
                         WallMaterial::Glass => Color::new(0.0, 1.0, 1.0, 1.0),
+                        WallMaterial::Invisible => continue,
                     };
                     image.set_pixel(x as u32, y as u32, color);
                 }
@@ -479,6 +483,35 @@ fn draw_water(grid: &WaterGrid) {
                         BLACK,
                     );
                 }
+            }
+        }
+    }
+}
+
+fn draw_submarine_ghost(game_settings: &GameSettings, mutable_resources: &mut MutableResources) {
+    if let Tool::PlaceSubmarine {
+        template_id,
+        position,
+    } = &game_settings.current_tool
+    {
+        if let Some((_name, template)) = game_settings.submarine_templates.get(*template_id) {
+            if let Some(position) = position {
+                if Some(*template_id) != mutable_resources.template_ghost_id {
+                    mutable_resources.template_ghost.delete();
+                    let (width, height) = template.size;
+                    let image = pixels_to_image(width, height, &template.background_pixels);
+                    mutable_resources.template_ghost = Texture2D::from_image(&image);
+                }
+
+                let position = vec2(position.0 as f32 / 16.0, position.1 as f32 / 16.0);
+
+                let semi_transparent = Color::new(0.0, 0.5, 0.5, 0.5);
+                draw_texture(
+                    mutable_resources.template_ghost,
+                    position.x,
+                    position.y,
+                    semi_transparent,
+                );
             }
         }
     }

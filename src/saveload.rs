@@ -194,6 +194,7 @@ pub(crate) fn save_water_to_png(grid: &WaterGrid) -> Result<Vec<u8>, String> {
                 match wall_material {
                     WallMaterial::Normal => [255, 255, 255, 255],
                     WallMaterial::Glass => [255, 0, 255, 255],
+                    WallMaterial::Invisible => [255, 255, 0, 255],
                 }
             } else if cell.amount_overfilled() > 0.5 {
                 [0, 0, 255, 255]
@@ -249,6 +250,7 @@ fn load_water_cells_from_png(
                 [0, 255, 255, 255] => CellTemplate::Water,
                 [255, 255, 255, 255] => CellTemplate::Wall,
                 [255, 0, 255, 255] => CellTemplate::Glass,
+                [255, 255, 0, 255] => CellTemplate::InvisibleWall,
                 [0, 0, 0, 0] => CellTemplate::Inside,
                 [r, g, b, a] => {
                     return Err(format!(
