@@ -3,11 +3,11 @@ use std::{cell::RefCell, collections::HashSet, mem::swap};
 use macroquad::{
     camera::{pop_camera_state, push_camera_state, set_default_camera},
     prelude::{
-        clear_background, draw_circle, draw_line, draw_rectangle, draw_rectangle_lines, draw_text,
-        draw_texture, draw_texture_ex, draw_triangle, get_time, gl_use_default_material,
-        gl_use_material, render_target, screen_height, screen_width, set_camera, vec2, Camera2D,
-        Color, DrawTextureParams, FilterMode, Image, Rect, Texture2D, Vec2, BLACK, BLANK, DARKBLUE,
-        DARKGRAY, DARKGREEN, PURPLE, RED, WHITE, YELLOW,
+        clear_background, draw_circle, draw_circle_lines, draw_line, draw_rectangle,
+        draw_rectangle_lines, draw_text, draw_texture, draw_texture_ex, draw_triangle, get_time,
+        gl_use_default_material, gl_use_material, render_target, screen_height, screen_width,
+        set_camera, vec2, Camera2D, Color, DrawTextureParams, FilterMode, Image, Rect, Texture2D,
+        Vec2, BLACK, BLANK, DARKBLUE, DARKGRAY, DARKGREEN, PURPLE, RED, SKYBLUE, WHITE, YELLOW,
     },
 };
 
@@ -206,12 +206,7 @@ pub(crate) fn draw_game(
                 _ => None,
             };
 
-            draw_objects(
-                &submarine.objects,
-                resources,
-                mutable_resources.highlighting_object,
-                placing_object,
-            );
+            draw_objects(&submarine.objects, resources, placing_object);
         }
 
         if draw_settings.draw_sonar {
@@ -228,9 +223,37 @@ pub(crate) fn draw_game(
         if draw_settings.draw_water {
             draw_water(&submarine.water_grid);
         }
+
+        if draw_settings.draw_objects {
+            if let Tool::EditWires { .. } = game_settings.current_tool {
+                draw_object_connectors(&submarine.objects);
+            }
+
+            draw_object_highlights(
+                &submarine.objects,
+                resources,
+                mutable_resources.highlighting_object,
+            );
+        }
     }
 
     pop_camera_state();
+
+    for submarine in &game_state.submarines {
+        for point in &submarine.docking_points {
+            let position = vec2(
+                point.connection_point.0 as f32 / 16.0,
+                point.connection_point.1 as f32 / 16.0,
+            );
+
+            let color = if point.connected_to.is_some() {
+                RED
+            } else {
+                SKYBLUE
+            };
+            draw_circle(position.x, position.y, 1.0, color);
+        }
+    }
 
     set_default_camera();
 
@@ -944,6 +967,8 @@ pub(crate) fn object_size(object_type: &ObjectType) -> (usize, usize) {
         ObjectType::Battery { .. } => (8, 10),
         ObjectType::BundleInput { .. } => (5, 3),
         ObjectType::BundleOutput { .. } => (5, 3),
+        ObjectType::DockingConnectorTop { .. } => (20, 8),
+        ObjectType::DockingConnectorBottom { .. } => (20, 8),
     }
 }
 
@@ -963,6 +988,8 @@ fn object_frames(object_type: &ObjectType) -> (u16, u16) {
         ObjectType::Battery { .. } => (8, 1),
         ObjectType::BundleInput { .. } => (8, 1),
         ObjectType::BundleOutput { .. } => (8, 1),
+        ObjectType::DockingConnectorTop { .. } => (18, 2),
+        ObjectType::DockingConnectorBottom { .. } => (18, 2),
     }
 }
 
@@ -982,6 +1009,8 @@ fn object_texture(object_type: &ObjectType, resources: &Resources) -> Texture2D 
         ObjectType::Battery { .. } => resources.battery,
         ObjectType::BundleInput { .. } => resources.bundle_input,
         ObjectType::BundleOutput { .. } => resources.bundle_output,
+        ObjectType::DockingConnectorTop { .. } => resources.docking_connector_top,
+        ObjectType::DockingConnectorBottom { .. } => resources.docking_connector_bottom,
     }
 }
 
@@ -1001,80 +1030,14 @@ fn object_connectors(object_type: &ObjectType) -> &'static [(u32, u32)] {
         ObjectType::Battery { .. } => &[(2, 4), (7, 4)],
         ObjectType::BundleInput { .. } => &[(4, 2)],
         ObjectType::BundleOutput { .. } => &[(4, 2)],
+        ObjectType::DockingConnectorTop { .. } => &[],
+        ObjectType::DockingConnectorBottom { .. } => &[],
     }
 }
 
-fn draw_objects(
-    objects: &[Object],
-    resources: &Resources,
-    highlighting_object: Option<usize>,
-    placing_object: Option<&PlacingObject>,
-) {
-    let draw_object = |object, highlight, ghost| {
-        let draw_rect = object_rect(object);
-
-        let texture = object_texture(&object.object_type, resources);
-
-        // Textures are vertically split into equally-sized animation frames
-        // Sometimes they also have more equally-sized state or shadow columns
-        let (frame_lines, frame_columns) = object_frames(&object.object_type);
-        let frame_width = (texture.width() as u16 / frame_columns) as f32;
-        let frame_height = (texture.height() as u16 / frame_lines) as f32;
-
-        let (current_frame_line, current_frame_column) = current_frame(object);
-        let frame_x = (frame_width as u16 * current_frame_column) as f32;
-        let frame_y = (frame_height as u16 * current_frame_line) as f32;
-
-        draw_texture_ex(
-            texture,
-            draw_rect.x,
-            draw_rect.y,
-            if ghost {
-                Color::new(0.5, 0.5, 1.0, 0.5)
-            } else {
-                WHITE
-            },
-            DrawTextureParams {
-                dest_size: Some(draw_rect.size()),
-                source: Some(Rect::new(frame_x, frame_y, frame_width, frame_height)),
-                ..Default::default()
-            },
-        );
-
-        for &(cell_x, cell_y) in object_connectors(&object.object_type) {
-            let x = object.position.0 + cell_x;
-            let y = object.position.1 + cell_y;
-            let transparent_blue = Color::new(0.0, 0.2, 1.0, 0.2);
-            draw_circle(x as f32 + 0.5, y as f32 + 0.5, 0.5, transparent_blue);
-        }
-
-        if highlight {
-            let texture_resolution = vec2(texture.width(), texture.height());
-            resources
-                .hover_highlight
-                .set_uniform("input_resolution", texture_resolution);
-            resources.hover_highlight.set_uniform("frame_y", frame_y);
-            resources.hover_highlight.set_uniform("frame_x", frame_x);
-            resources
-                .hover_highlight
-                .set_uniform("frame_height", frame_height);
-            resources
-                .hover_highlight
-                .set_uniform("frame_width", frame_width);
-            resources
-                .hover_highlight
-                .set_texture("input_texture", texture);
-            gl_use_material(resources.hover_highlight);
-            let r = draw_rect;
-            draw_rectangle(r.x, r.y, r.w, r.h, DARKBLUE);
-            gl_use_default_material();
-        }
-    };
-
-    for (obj_id, object) in objects.iter().enumerate() {
-        let highlight = highlighting_object == Some(obj_id);
-        let ghost = false;
-        draw_object(object, highlight, ghost);
+fn draw_objects(objects: &[Object], resources: &Resources, placing_object: Option<&PlacingObject>) {
+    for object in objects {
+        draw_object(object, DrawObject::Normal, resources);
     }
 
     if let Some(PlacingObject {
@@ -1089,9 +1052,91 @@ fn draw_objects(
             powered: false,
         };
 
-        let highlight = false;
-        let ghost = true;
-        draw_object(&object, highlight, ghost);
+        draw_object(&object, DrawObject::Ghost, resources);
+    }
+}
+
+fn draw_object_highlights(
+    objects: &[Object],
+    resources: &Resources,
+    highlighting_object: Option<usize>,
+) {
+    for (obj_id, object) in objects.iter().enumerate() {
+        if highlighting_object == Some(obj_id) {
+            draw_object(object, DrawObject::Highlight, resources);
+        }
+    }
+}
+
+fn draw_object_connectors(objects: &[Object]) {
+    for object in objects {
+        for &(cell_x, cell_y) in object_connectors(&object.object_type) {
+            let x = object.position.0 + cell_x;
+            let y = object.position.1 + cell_y;
+            let transparent_blue = Color::new(0.0, 0.2, 1.0, 0.2);
+            draw_circle(x as f32 + 0.5, y as f32 + 0.5, 0.5, transparent_blue);
+            draw_circle_lines(x as f32 + 0.5, y as f32 + 0.5, 0.5, 0.1, SKYBLUE);
+        }
+    }
+}
+
+enum DrawObject {
+    Normal,
+    Highlight,
+    Ghost,
+}
+
+fn draw_object(object: &Object, draw_type: DrawObject, resources: &Resources) {
+    let draw_rect = object_rect(object);
+
+    let texture = object_texture(&object.object_type, resources);
+
+    // Textures are vertically split into equally-sized animation frames
+    // Sometimes they also have more equally-sized state or shadow columns
+    let (frame_lines, frame_columns) = object_frames(&object.object_type);
+    let frame_width = (texture.width() as u16 / frame_columns) as f32;
+    let frame_height = (texture.height() as u16 / frame_lines) as f32;
+
+    let (current_frame_line, current_frame_column) = current_frame(object);
+    let frame_x = (frame_width as u16 * current_frame_column) as f32;
+    let frame_y = (frame_height as u16 * current_frame_line) as f32;
+
+    if let DrawObject::Highlight = draw_type {
+        let texture_resolution = vec2(texture.width(), texture.height());
+        resources
+            .hover_highlight
+            .set_uniform("input_resolution", texture_resolution);
+        resources.hover_highlight.set_uniform("frame_y", frame_y);
+        resources.hover_highlight.set_uniform("frame_x", frame_x);
+        resources
+            .hover_highlight
+            .set_uniform("frame_height", frame_height);
+        resources
+            .hover_highlight
+            .set_uniform("frame_width", frame_width);
+        resources
+            .hover_highlight
+            .set_texture("input_texture", texture);
+        gl_use_material(resources.hover_highlight);
+        let r = draw_rect;
+        draw_rectangle(r.x, r.y, r.w, r.h, DARKBLUE);
+        gl_use_default_material();
+    } else {
+        draw_texture_ex(
+            texture,
+            draw_rect.x,
+            draw_rect.y,
+            if let DrawObject::Ghost = draw_type {
+                Color::new(0.5, 0.5, 1.0, 0.5)
+            } else {
+                WHITE
+            },
+            DrawTextureParams {
+                dest_size: Some(draw_rect.size()),
+                source: Some(Rect::new(frame_x, frame_y, frame_width, frame_height)),
+                ..Default::default()
+            },
+        );
     }
 }
 

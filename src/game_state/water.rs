@@ -51,6 +51,7 @@ impl Default for CellType {
 pub(crate) enum CellTemplate {
     Sea,
     Inside,
+    Water,
     Wall,
     Glass,
 }
@@ -138,6 +139,10 @@ impl WaterGrid {
                 match cells[y * width + x] {
                     CellTemplate::Sea => cell.make_sea(),
                     CellTemplate::Inside => cell.make_inside(),
+                    CellTemplate::Water => {
+                        cell.make_inside();
+                        cell.add_level(1024);
+                    }
                     CellTemplate::Wall => cell.make_wall(),
                     CellTemplate::Glass => cell.make_glass(),
                 }
@@ -467,6 +472,7 @@ impl WaterCell {
             wall_reflect: [0; DIRECTIONS],
             wall_material: WallMaterial::Normal,
         };
+        self.replan();
     }
 
     pub fn make_glass(&mut self) {
@@ -474,10 +480,12 @@ impl WaterCell {
             wall_reflect: [0; DIRECTIONS],
             wall_material: WallMaterial::Glass,
         };
+        self.replan();
     }
 
     pub fn make_sea(&mut self) {
-        self.cell_type = CellType::Sea
+        self.cell_type = CellType::Sea;
+        self.replan();
     }
 
     pub fn make_inside(&mut self) {

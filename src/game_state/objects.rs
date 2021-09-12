@@ -66,6 +66,16 @@ pub(crate) enum ObjectType {
     BundleOutput {
         sub_bundle: u8,
     },
+    DockingConnectorTop {
+        state: DoorState,
+        progress: u8,
+        connected: bool,
+    },
+    DockingConnectorBottom {
+        state: DoorState,
+        progress: u8,
+        connected: bool,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -143,6 +153,22 @@ pub(crate) enum ObjectTypeTemplate {
     },
     BundleOutput {
         sub_bundle: u8,
+    },
+    DockingConnectorTop {
+        #[serde(default, skip_serializing_if = "is_default")]
+        state: DoorState,
+        #[serde(default, skip_serializing_if = "is_default")]
+        progress: u8,
+        #[serde(default, skip_serializing_if = "is_default")]
+        connected: bool,
+    },
+    DockingConnectorBottom {
+        #[serde(default, skip_serializing_if = "is_default")]
+        state: DoorState,
+        #[serde(default, skip_serializing_if = "is_default")]
+        progress: u8,
+        #[serde(default, skip_serializing_if = "is_default")]
+        connected: bool,
     },
 }
 
@@ -252,6 +278,22 @@ pub(crate) const OBJECT_TYPES: &[(&str, ObjectType)] = &[
     ("Battery", ObjectType::Battery { charge: 300 }),
     ("Bundle input", ObjectType::BundleInput { sub_bundle: 0 }),
     ("Bundle output", ObjectType::BundleOutput { sub_bundle: 0 }),
+    (
+        "Docking connector (top)",
+        ObjectType::DockingConnectorTop {
+            state: DoorState::Closing,
+            progress: 0,
+            connected: false,
+        },
+    ),
+    (
+        "Docking connector (bottom)",
+        ObjectType::DockingConnectorBottom {
+            state: DoorState::Closing,
+            progress: 0,
+            connected: false,
+        },
+    ),
 ];
 
 // What an object does on every physics update tick.
@@ -640,6 +682,102 @@ pub(crate) fn update_objects(submarine: &mut SubmarineState, walls_updated: &mut
                     }
                 }
             }
+            ObjectType::DockingConnectorTop {
+                state, progress, connected
+            } => {
+                *state = if *connected { DoorState::Opening } else { DoorState::Closing };
+
+                match state {
+                    DoorState::Opening => *progress = (*progress + 1).min(15),
+                    DoorState::Closing => *progress = progress.saturating_sub(1),
+                };
+
+                for x in 4..=17 {
+                    for y in 3..=6 {
+                        let cell = water_grid.cell_mut(object.position.0 as usize + x, object.position.1 as usize + y);
+                        let frame = (*progress as u16 * 9 / 15).clamp(0, 8);
+
+                        let top_y = match frame {
+                            0..=2 => 5,
+                            3..=5 => 4,
+                            _ => 3,
+                        };
+
+                        let above = y < top_y;
+                        let top_wall = y == top_y;
+                        let side_wall = x == 4 || x == 17;
+                        let invisible_wall = top_wall && !side_wall && y == 3;
+
+                        if above {
+                            if !cell.is_sea() {
+                                cell.make_sea();
+                            }
+                        } else if invisible_wall {
+                            if !cell.is_wall() {
+                                cell.make_glass();
+                            }
+                        } else if top_wall || side_wall {
+                            if !cell.is_wall() {
+                                cell.make_wall();
+                            }
+                        } else {
+                            if !cell.is_inside() {
+                                cell.make_inside();
+                            }
+                        }
+                    }
+                }
+
+                *walls_updated = true;
+            }
+            ObjectType::DockingConnectorBottom {
+                state, progress, connected
+            } => {
+                *state = if *connected { DoorState::Opening } else { DoorState::Closing };
+
+                match state {
+                    DoorState::Opening => *progress = (*progress + 1).min(15),
+                    DoorState::Closing => *progress = progress.saturating_sub(1),
+                };
+
+                for x in 4..=17 {
+                    for y in 3..=6 {
+                        let cell = water_grid.cell_mut(object.position.0 as usize + x, object.position.1 as usize + y);
+                        let frame = (*progress as u16 * 9 / 15).clamp(0, 8);
+
+                        let bottom_y = match frame {
+                            0..=2 => 4,
+                            3..=5 => 5,
+                            _ => 6,
+                        };
+
+                        let below = y > bottom_y;
+                        let bottom_wall = y == bottom_y;
+                        let side_wall = x == 4 || x == 17;
+                        let invisible_wall = bottom_wall && !side_wall && y == 6;
+
+                        if below {
+                            if !cell.is_sea() {
+                                cell.make_sea();
+                            }
+                        } else if invisible_wall {
+                            if !cell.is_wall() {
+                                cell.make_glass();
+                            }
+                        } else if bottom_wall || side_wall {
+                            if !cell.is_wall() {
+                                cell.make_wall();
+                            }
+                        } else {
+                            if !cell.is_inside() {
+                                cell.make_inside();
+                            }
+                        }
+                    }
+                }
+
+                *walls_updated = true;
+           }
         }
     }
 }
@@ -666,6 +804,18 @@ pub(crate) fn interact_with_object(object: &mut Object) {
         ObjectType::BundleInput { sub_bundle } | ObjectType::BundleOutput { sub_bundle } => {
             *sub_bundle = (*sub_bundle + 1) % 8;
         }
+        ObjectType::DockingConnectorTop { state, .. } => {
+            *state = match state {
+                DoorState::Opening => DoorState::Closing,
+                DoorState::Closing => DoorState::Opening,
+            }
+        }
+        ObjectType::DockingConnectorBottom { state, .. } => {
+            *state = match state {
+                DoorState::Opening => DoorState::Closing,
+                DoorState::Closing => DoorState::Opening,
+            }
+        }
     }
 }
 
@@ -681,85 +831,81 @@ fn cycle_i8(value: &mut i8) {
 }
 
 pub(crate) fn current_frame(object: &Object) -> (u16, u16) {
-    let current_frame;
     let current_frame_column = 0;
     let powered = &object.powered;
 
-    match &object.object_type {
-        ObjectType::Door { progress, .. } => {
-            current_frame = (*progress as u16 * 8 / 15).clamp(0, 7);
-        }
-        ObjectType::VerticalDoor { progress, .. } => {
-            current_frame = (*progress as u16 * 9 / 15).clamp(0, 8);
-        }
+    let current_frame = match &object.object_type {
+        ObjectType::Door { progress, .. } => (*progress as u16 * 8 / 15).clamp(0, 7),
+        ObjectType::VerticalDoor { progress, .. } => (*progress as u16 * 9 / 15).clamp(0, 8),
         ObjectType::Reactor { active } => {
             if *active {
-                current_frame = 0;
+                0
             } else {
-                current_frame = 1;
+                1
             }
         }
         ObjectType::Lamp => {
             if *powered {
-                current_frame = 1;
+                1
             } else {
-                current_frame = 0;
+                0
             }
         }
-        ObjectType::Gauge { value } => {
-            current_frame = match *value {
-                -128..=-96 => 0,
-                -95..=-32 => 1,
-                -31..=31 => 2,
-                32..=95 => 3,
-                96..=127 => 4,
-            };
-        }
+        ObjectType::Gauge { value } => match *value {
+            -128..=-96 => 0,
+            -95..=-32 => 1,
+            -31..=31 => 2,
+            32..=95 => 3,
+            96..=127 => 4,
+        },
         ObjectType::SmallPump { progress, .. } => {
-            current_frame = (*progress as u8 / (u8::MAX / 4)).clamp(0, 3) as u16;
+            (*progress as u8 / (u8::MAX / 4)).clamp(0, 3) as u16
         }
         ObjectType::LargePump { progress, .. } => {
-            current_frame = (*progress as u8 / (u8::MAX / 4)).clamp(0, 3) as u16;
+            (*progress as u8 / (u8::MAX / 4)).clamp(0, 3) as u16
         }
         ObjectType::JunctionBox { progress, .. } => {
-            let frame = (*progress * 5 / 16).min(4) as u16;
-
-            if *powered {
-                current_frame = frame
-            } else {
-                current_frame = frame + 5
-            }
+            let powered_offset = if *powered { 0 } else { 5 };
+            (*progress * 5 / 16).min(4) as u16 + powered_offset
         }
         ObjectType::NavController {
             active, progress, ..
         } => {
-            current_frame = if *active && *powered {
+            if *active && *powered {
                 (*progress as u16 / 8) % 5 + 1
             } else {
                 0
-            };
+            }
         }
         ObjectType::Sonar { active, .. } => {
-            current_frame = if *powered && *active { 0 } else { 1 };
+            if *powered && *active {
+                0
+            } else {
+                1
+            }
         }
         ObjectType::Engine { progress, .. } => {
             let frames = 24;
-            current_frame = (*progress as u8 / (u8::MAX / frames)).clamp(0, frames - 1) as u16;
+            (*progress as u8 / (u8::MAX / frames)).clamp(0, frames - 1) as u16
         }
         ObjectType::Battery { charge } => {
-            current_frame = if *charge == 0 {
+            // Treat anything that isn't exactly 0 as having at least one blip
+            // of power.
+            if *charge == 0 {
                 7
             } else {
                 7 - (*charge * 8 / 5400).clamp(1, 7)
-            };
+            }
         }
-        ObjectType::BundleInput { sub_bundle } => {
-            current_frame = *sub_bundle as u16;
+        ObjectType::BundleInput { sub_bundle } => *sub_bundle as u16,
+        ObjectType::BundleOutput { sub_bundle } => *sub_bundle as u16,
+        ObjectType::DockingConnectorTop { progress, .. } => {
+            (*progress as u16 * 9 / 15).clamp(0, 8) + if *powered { 8 } else { 0 }
         }
-        ObjectType::BundleOutput { sub_bundle } => {
-            current_frame = *sub_bundle as u16;
+        ObjectType::DockingConnectorBottom { progress, .. } => {
+            (*progress as u16 * 9 / 15).clamp(0, 8) + if *powered { 8 } else { 0 }
         }
-    }
+    };
 
     (current_frame, current_frame_column)
 }
@@ -840,6 +986,24 @@ impl ObjectTemplate {
             ObjectType::BundleOutput { sub_bundle } => {
                 ObjectTypeTemplate::BundleOutput { sub_bundle }
             }
+            ObjectType::DockingConnectorTop {
+                state,
+                progress,
+                connected,
+            } => ObjectTypeTemplate::DockingConnectorTop {
+                state,
+                progress,
+                connected,
+            },
+            ObjectType::DockingConnectorBottom {
+                state,
+                progress,
+                connected,
+            } => ObjectTypeTemplate::DockingConnectorBottom {
+                state,
+                progress,
+                connected,
+            },
         };
 
         ObjectTemplate {
@@ -904,6 +1068,24 @@ impl ObjectTemplate {
             ObjectTypeTemplate::BundleOutput { sub_bundle } => {
                 ObjectType::BundleOutput { sub_bundle }
             }
+            ObjectTypeTemplate::DockingConnectorTop {
+                state,
+                progress,
+                connected,
+            } => ObjectType::DockingConnectorTop {
+                state,
+                progress,
+                connected,
+            },
+            ObjectTypeTemplate::DockingConnectorBottom {
+                state,
+                progress,
+                connected,
+            } => ObjectType::DockingConnectorBottom {
+                state,
+                progress,
+                connected,
+            },
         };
 
         Object {

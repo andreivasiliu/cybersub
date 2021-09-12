@@ -9,6 +9,8 @@ use crate::game_state::{
     wires::{WireColor, WireGrid},
 };
 
+use super::state::{DockingDirection, DockingPoint};
+
 /// A request to mutate state. Created by the UI and player actions.
 #[derive(Serialize, Deserialize, Clone)]
 pub(crate) enum Command {
@@ -69,6 +71,98 @@ pub(crate) fn update_game(
 ) {
     game_state.collisions.clear();
 
+    update_state_from_commands(commands, game_state, events);
+
+    let update_settings = &game_state.update_settings;
+
+    for submarine in &mut game_state.submarines {
+        submarine.collisions.clear();
+    }
+
+    update_docking_points(&mut game_state.submarines);
+
+    for (sub_index, submarine) in game_state.submarines.iter_mut().enumerate() {
+        if update_settings.update_position {
+            update_navigation(submarine);
+        }
+
+        if update_settings.update_water {
+            submarine.water_grid.update(
+                update_settings.enable_gravity,
+                update_settings.enable_inertia,
+            );
+        }
+        if update_settings.update_wires {
+            for _ in 0..3 {
+                let mut signals_updated = false;
+                submarine.wire_grid.update(&mut signals_updated);
+
+                if signals_updated {
+                    events.push(UpdateEvent::Submarine {
+                        submarine_id: sub_index,
+                        submarine_event: SubmarineUpdatedEvent::Signals,
+                    });
+                }
+            }
+
+            submarine.wire_grid.update_bundles();
+        }
+        if update_settings.update_objects {
+            let mut walls_updated = false;
+            update_objects(submarine, &mut walls_updated);
+
+            if walls_updated {
+                events.push(UpdateEvent::Submarine {
+                    submarine_id: sub_index,
+                    submarine_event: SubmarineUpdatedEvent::Walls,
+                });
+            }
+        }
+        if update_settings.update_sonar {
+            let updated = update_sonar(
+                &mut submarine.sonar,
+                &submarine.navigation,
+                submarine.water_grid.size(),
+                &game_state.rock_grid,
+            );
+
+            if updated {
+                events.push(UpdateEvent::Submarine {
+                    submarine_id: sub_index,
+                    submarine_event: SubmarineUpdatedEvent::Sonar,
+                });
+            }
+        }
+
+        if update_settings.update_collision {
+            game_state.collisions.clear();
+            update_rock_collisions(submarine, &game_state.rock_grid, &mut game_state.collisions);
+        }
+    }
+
+    if update_settings.update_position {
+        update_position(&mut game_state.submarines);
+    }
+
+    if update_settings.update_collision {
+        for sub1_index in 0..game_state.submarines.len() {
+            for sub2_index in sub1_index + 1..game_state.submarines.len() {
+                let (left, right) = game_state.submarines.split_at_mut(sub2_index);
+                let submarine1 = &mut left[sub1_index];
+                let submarine2 = &mut right[0];
+
+                update_submarine_collisions(submarine1, submarine2);
+                update_submarine_collisions(submarine2, submarine1);
+            }
+        }
+    }
+}
+
+fn update_state_from_commands(
+    commands: impl Iterator<Item = Command>,
+    game_state: &mut GameState,
+    events: &mut Vec<UpdateEvent>,
+) {
     for command in commands {
         match command {
             Command::Interact {
@@ -87,6 +181,11 @@ pub(crate) fn update_game(
                 cell_command,
             } => {
                 if let Some(submarine) = game_state.submarines.get_mut(submarine_id) {
+                    let (width, height) = submarine.water_grid.size();
+                    if cell.0 >= width || cell.1 >= height {
+                        continue;
+                    }
+
                     let water_cell = submarine.water_grid.cell_mut(cell.0, cell.1);
 
                     match &cell_command {
@@ -176,112 +275,185 @@ pub(crate) fn update_game(
                     },
                     sonar: Sonar::default(),
                     collisions: Vec::new(),
+                    docking_points: Vec::new(),
                 });
 
                 events.push(UpdateEvent::SubmarineCreated);
             }
         }
     }
+}
 
-    let update_settings = &game_state.update_settings;
+fn update_docking_points(submarines: &mut [SubmarineState]) {
+    for submarine in submarines.iter_mut() {
+        submarine.docking_points.clear();
 
-    for submarine in &mut game_state.submarines {
-        submarine.collisions.clear();
+        for (obj_index, object) in submarine.objects.iter_mut().enumerate() {
+            // if !object.powered {
+            //     continue;
+            // }
+
+            let (connected, direction) = match &mut object.object_type {
+                ObjectType::DockingConnectorTop { connected, .. } => (connected, DockingDirection::Top),
+                ObjectType::DockingConnectorBottom { connected, .. } => (connected, DockingDirection::Bottom),
+                _ => continue,
+            };
+
+            *connected = false;
+
+            let vertical_offset = match direction {
+                DockingDirection::Top => 3 * 16,
+                DockingDirection::Bottom => 7 * 16,
+            };
+
+            let connection_point = (
+                submarine.navigation.position.0 + object.position.0 as i32 * 16 + 11 * 16,
+                submarine.navigation.position.1 + object.position.1 as i32 * 16 + vertical_offset,
+            );
+
+            submarine.docking_points.push(DockingPoint {
+                connection_point,
+                connector_object_id: obj_index,
+                connected_to: None,
+                in_proximity_to: None,
+                speed_offset: (0, 0),
+                direction,
+            });
+        }
     }
 
-    for (sub_index, submarine) in game_state.submarines.iter_mut().enumerate() {
-        if update_settings.update_position {
-            let navigation = &mut submarine.navigation;
+    // Attempt to nudge subs closer to each other if docking points are powered
+    // and in proximity.
+    for sub1_index in 0..submarines.len() {
+        let (left_subs, right_subs) = submarines.split_at_mut(sub1_index + 1);
 
-            // Compute weight based on number of walls
-            let weight = submarine.water_grid.total_walls() as i32;
+        for sub2_index_offset in 0..right_subs.len() {
+            let sub1 = &mut left_subs[sub1_index];
+            let sub2 = &mut right_subs[sub2_index_offset];
 
-            // Compute buoyancy; the numbers are just random stuff that seems to
-            // somewhat work for both the Dugong and the Bunyip
-            let mut buoyancy = 0;
-            buoyancy -= weight * 16;
-            buoyancy += submarine.water_grid.total_inside() as i32 * 13;
-            buoyancy -= submarine.water_grid.total_water() as i32 * 16 / 1024;
+            for point1 in &mut sub1.docking_points {
+                for point2 in &mut sub2.docking_points {
+                    if point1.in_proximity_to.is_some() || point2.in_proximity_to.is_some() {
+                        continue;
+                    }
 
-            // Massive submarines are harder to move
-            let mass = (weight * weight / 1500 / 1500).max(1);
+                    match (point1.direction, point2.direction) {
+                        (DockingDirection::Top, DockingDirection::Bottom) => (),
+                        (DockingDirection::Bottom, DockingDirection::Top) => (),
+                        _ => continue,
+                    };
 
-            let y_acceleration = (buoyancy * weight) / 1024 / 100;
-            navigation.acceleration.1 = -y_acceleration / 8 / mass;
+                    let diff_x = point1.connection_point.0 - point2.connection_point.0;
+                    let diff_y = point1.connection_point.1 - point2.connection_point.1;
 
-            navigation.speed.0 =
-                (navigation.speed.0 + navigation.acceleration.0).clamp(-2048, 2048);
-            navigation.speed.1 =
-                (navigation.speed.1 + navigation.acceleration.1).clamp(-2048, 2048);
+                    if diff_x.abs() >= 128 || diff_y.abs() >= 128 {
+                        continue;
+                    }
 
-            navigation.position.0 += navigation.speed.0 / 256;
-            navigation.position.1 += navigation.speed.1 / 256;
-        }
+                    point1.in_proximity_to = Some(point2.connection_point);
+                    point2.in_proximity_to = Some(point1.connection_point);
 
-        if update_settings.update_water {
-            submarine.water_grid.update(
-                update_settings.enable_gravity,
-                update_settings.enable_inertia,
-            );
-        }
-        if update_settings.update_wires {
-            for _ in 0..3 {
-                let mut signals_updated = false;
-                submarine.wire_grid.update(&mut signals_updated);
+                    let speed_x = diff_x.clamp(-2, 2);
+                    let speed_y = diff_y.clamp(-2, 2);
 
-                if signals_updated {
-                    events.push(UpdateEvent::Submarine {
-                        submarine_id: sub_index,
-                        submarine_event: SubmarineUpdatedEvent::Signals,
-                    });
+                    // Maximize chances of reaching the exact connecting point
+                    point1.speed_offset = (-speed_x / 2 + speed_x % 2, -speed_y / 2 + speed_y % 2);
+                    point2.speed_offset = (speed_x / 2, speed_y / 2);
+
+                    dbg!(diff_x, diff_y);
+
+                    if diff_x.abs() >= 4 || diff_y.abs() >= 4 {
+                        continue;
+                    }
+
+                    let sub2_index = sub1_index + 1 + sub2_index_offset;
+                    point1.connected_to = Some((sub2_index, point2.connector_object_id));
+                    point2.connected_to = Some((sub1_index, point1.connector_object_id));
+
+                    match &mut sub1.objects[point1.connector_object_id].object_type
+                    {
+                        ObjectType::DockingConnectorTop { connected, .. } => *connected = true,
+                        ObjectType::DockingConnectorBottom { connected, .. } => *connected = true,
+                        _ => unreachable!("Object type checked above"),
+                    };
+
+                    match &mut sub2.objects[point2.connector_object_id].object_type
+                    {
+                        ObjectType::DockingConnectorTop { connected, .. } => *connected = true,
+                        ObjectType::DockingConnectorBottom { connected, .. } => *connected = true,
+                        _ => unreachable!("Object type checked above"),
+                    };
                 }
             }
-
-            submarine.wire_grid.update_bundles();
-        }
-        if update_settings.update_objects {
-            let mut walls_updated = false;
-            update_objects(submarine, &mut walls_updated);
-
-            if walls_updated {
-                events.push(UpdateEvent::Submarine {
-                    submarine_id: sub_index,
-                    submarine_event: SubmarineUpdatedEvent::Walls,
-                });
-            }
-        }
-        if update_settings.update_sonar {
-            let updated = update_sonar(
-                &mut submarine.sonar,
-                &submarine.navigation,
-                submarine.water_grid.size(),
-                &game_state.rock_grid,
-            );
-
-            if updated {
-                events.push(UpdateEvent::Submarine {
-                    submarine_id: sub_index,
-                    submarine_event: SubmarineUpdatedEvent::Sonar,
-                });
-            }
-        }
-
-        if update_settings.update_collision {
-            game_state.collisions.clear();
-            update_rock_collisions(submarine, &game_state.rock_grid, &mut game_state.collisions);
         }
     }
+}
 
-    if update_settings.update_collision {
-        for sub1_index in 0..game_state.submarines.len() {
-            for sub2_index in sub1_index + 1..game_state.submarines.len() {
-                let (left, right) = game_state.submarines.split_at_mut(sub2_index);
-                let submarine1 = &mut left[sub1_index];
-                let submarine2 = &mut right[0];
+fn update_navigation(submarine: &mut SubmarineState) {
+    let navigation = &mut submarine.navigation;
 
-                update_submarine_collisions(submarine1, submarine2);
-                update_submarine_collisions(submarine2, submarine1);
+    // Compute weight based on number of walls
+    let weight = submarine.water_grid.total_walls() as i32;
+
+    // Compute buoyancy; the numbers are just random stuff that seems to
+    // somewhat work for both the Dugong and the Bunyip
+    let mut buoyancy = 0;
+    buoyancy -= weight * 16;
+    buoyancy += submarine.water_grid.total_inside() as i32 * 13;
+    buoyancy -= submarine.water_grid.total_water() as i32 * 16 / 1024;
+
+    // Massive submarines are harder to move
+    let mass = (weight * weight / 1500 / 1500).max(1);
+
+    let y_acceleration = (buoyancy * weight) / 1024 / 100;
+    navigation.acceleration.1 = -y_acceleration / 8 / mass;
+
+    navigation.speed.0 = (navigation.speed.0 + navigation.acceleration.0).clamp(-2048, 2048);
+    navigation.speed.1 = (navigation.speed.1 + navigation.acceleration.1).clamp(-2048, 2048);
+
+    // Speed overrides from docking connectors that are trying to dock
+    navigation.docking_override = (0, 0);
+
+    for point in &submarine.docking_points {
+        navigation.docking_override.0 += point.speed_offset.0;
+        navigation.docking_override.1 += point.speed_offset.1;
+    }
+}
+
+fn update_position(submarines: &mut [SubmarineState]) {
+    let mut submarine_group = Vec::new();
+    let mut group_speed = Vec::new();
+    let mut group_members = Vec::new();
+
+    submarine_group.resize(submarines.len(), None);
+
+    // Assign submarines to groups if they're docked together
+    for (sub_index, submarine) in submarines.iter().enumerate() {
+        let group = *submarine_group[sub_index]
+            .get_or_insert_with(|| {
+                group_speed.push((0, 0));
+                group_members.push(0);
+                group_speed.len() - 1
+            });
+
+        for point in &submarine.docking_points {
+            if let Some((connected_sub_index, _obj_id)) = point.connected_to {
+                submarine_group[connected_sub_index] = Some(group);
             }
         }
+
+        group_members[group] += 1;
+        group_speed[group].0 += submarine.navigation.speed.0;
+        group_speed[group].1 += submarine.navigation.speed.1;
+    }
+
+    // Apply the same speed to the whole docked group
+    // FIXME: should use weighted average so tiny subs can't pull big subs so easily
+    for (sub_index, submarine) in submarines.iter_mut().enumerate() {
+        let group = submarine_group[sub_index].expect("Grouped above");
+        submarine.navigation.position.0 += group_speed[group].0 / group_members[group] / 256;
+        submarine.navigation.position.1 += group_speed[group].1 / group_members[group] / 256;
+        submarine.navigation.position.0 += submarine.navigation.docking_override.0;
+        submarine.navigation.position.1 += submarine.navigation.docking_override.1;
     }
 }

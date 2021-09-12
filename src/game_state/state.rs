@@ -37,6 +37,7 @@ pub(crate) struct SubmarineState {
     pub sonar: Sonar,
     pub navigation: Navigation,
     pub collisions: Vec<(usize, usize)>,
+    pub docking_points: Vec<DockingPoint>,
 }
 
 #[derive(Default, Serialize, Deserialize, Clone)]
@@ -44,7 +45,24 @@ pub(crate) struct Navigation {
     pub target: (i32, i32),
     pub position: (i32, i32),
     pub speed: (i32, i32),
+    pub docking_override: (i32, i32),
     pub acceleration: (i32, i32),
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub(crate) struct DockingPoint {
+    pub connection_point: (i32, i32),
+    pub connector_object_id: usize,
+    pub connected_to: Option<(usize, usize)>,
+    pub in_proximity_to: Option<(i32, i32)>,
+    pub speed_offset: (i32, i32),
+    pub direction: DockingDirection,
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy)]
+pub(crate) enum DockingDirection {
+    Top,
+    Bottom,
 }
 
 #[derive(Clone, Serialize, Deserialize)]

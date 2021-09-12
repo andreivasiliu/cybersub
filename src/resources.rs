@@ -46,6 +46,8 @@ pub(crate) struct Resources {
     pub battery: Texture2D,
     pub bundle_input: Texture2D,
     pub bundle_output: Texture2D,
+    pub docking_connector_top: Texture2D,
+    pub docking_connector_bottom: Texture2D,
 }
 
 pub(crate) struct MutableResources {
@@ -131,6 +133,10 @@ impl Resources {
         let battery = load_texture(include_bytes!("../resources/battery.png"));
         let bundle_input = load_texture(include_bytes!("../resources/bundle_input.png"));
         let bundle_output = load_texture(include_bytes!("../resources/bundle_output.png"));
+        let docking_connector_top =
+            load_texture(include_bytes!("../resources/docking_connector_top.png"));
+        let docking_connector_bottom =
+            load_texture(include_bytes!("../resources/docking_connector_bottom.png"));
 
         sea_dust.set_filter(FilterMode::Linear);
 
@@ -275,6 +281,8 @@ impl Resources {
             battery,
             bundle_input,
             bundle_output,
+            docking_connector_top,
+            docking_connector_bottom,
         }
     }
 }

@@ -3,65 +3,71 @@
     Door: {}
   position:
     - 45
-    - 2
+    - 5
 - object_type:
     Door: {}
   position:
     - 45
-    - 27
+    - 30
 - object_type:
     Door: {}
   position:
     - 45
-    - 38
+    - 41
 - object_type:
     Door: {}
   position:
     - 25
-    - 26
+    - 29
 - object_type:
     SmallPump: {}
   position:
     - 29
-    - 32
+    - 35
 - object_type:
     Sonar:
       active: true
   position:
     - 93
-    - 11
-  current_frame: 1
+    - 14
 - object_type:
     NavController:
       active: true
   position:
     - 63
-    - 13
+    - 16
 - object_type:
     Battery:
       charge: 5400
   position:
     - 23
-    - 8
-  current_frame: 7
+    - 11
 - object_type:
     Battery:
       charge: 5400
   position:
     - 30
-    - 8
-  current_frame: 7
+    - 11
 - object_type:
     Battery:
       charge: 5400
   position:
     - 37
-    - 8
-  current_frame: 7
+    - 11
 - object_type:
     JunctionBox:
       enabled: true
       progress: 15
   position:
     - 45
-    - 10
+    - 13
+- object_type:
+    DockingConnectorTop: {}
+  position:
+    - 46
+    - 0
+- object_type:
+    DockingConnectorBottom: {}
+  position:
+    - 46
+    - 43

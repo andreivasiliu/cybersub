@@ -413,3 +413,8 @@
   position:
     - 214
     - 69
+- object_type:
+    DockingConnectorTop: {}
+  position:
+    - 147
+    - 8
