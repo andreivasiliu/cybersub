@@ -44,7 +44,7 @@ use std::{f32::consts::PI, fmt::Display};
 
 use macroquad::prelude::{vec2, Rect, Vec2};
 
-use crate::game_state::water::{WallMaterial, WaterCell, WaterGrid};
+use crate::game_state::water::WaterGrid;
 
 struct EdgeGrid {
     cells: Vec<Cell>,
@@ -211,17 +211,8 @@ impl Cell {
     }
 }
 
-fn is_opaque(cell: &WaterCell) -> bool {
-    match cell.wall_material() {
-        Some(WallMaterial::Normal) => true,
-        Some(WallMaterial::Glass) => false,
-        Some(WallMaterial::Invisible) => false,
-        None => false,
-    }
-}
-
 fn has_edge(water_grid: &WaterGrid, x: usize, y: usize, edge: Direction) -> bool {
-    if !is_opaque(water_grid.cell(x, y)) {
+    if !water_grid.cell(x, y).is_opaque() {
         return false;
     }
 
@@ -230,7 +221,7 @@ fn has_edge(water_grid: &WaterGrid, x: usize, y: usize, edge: Direction) -> bool
         None => return false,
     };
 
-    !is_opaque(water_grid.cell(neighbour.0, neighbour.1))
+    !water_grid.cell(neighbour.0, neighbour.1).is_opaque()
 }
 
 fn continues_edge(
@@ -328,19 +319,22 @@ pub(crate) fn find_shadow_edges(water_grid: &WaterGrid) -> Vec<Edge> {
     edges
 }
 
-pub(crate) fn filter_edges_by_region(edges: &[Edge], cursor: Vec2, range: f32) -> Vec<Edge> {
+pub(crate) fn filter_edges_by_region(
+    edges: &[Edge],
+    cursor: Vec2,
+    sub_position: Vec2,
+    range: f32,
+    edges_in_region: &mut Vec<Edge>,
+) {
     let region = Rect::new(cursor.x - range, cursor.y - range, range * 2.0, range * 2.0);
-    let mut edges_in_region = Vec::new();
 
-    let is_in_region = |edge: &Edge| {
-        let (p1, p2) = edge.line();
-
+    let is_in_region = |p1, p2| {
         // Check if one of the edge points are in the region
         if region.contains(p1) || region.contains(p2) {
             return true;
         }
 
-        // Check if a line cross through the region
+        // Check if a line crosses through the region
         let cross_x =
             (p1.x..=p2.x).contains(&cursor.x) && (region.top()..=region.bottom()).contains(&p1.y);
         let cross_y =
@@ -350,12 +344,17 @@ pub(crate) fn filter_edges_by_region(edges: &[Edge], cursor: Vec2, range: f32) -
     };
 
     for edge in edges {
-        if is_in_region(edge) {
-            edges_in_region.push(*edge);
+        let (p1, p2) = edge.line();
+        let (p1, p2) = (sub_position + p1, sub_position + p2);
+
+        if is_in_region(p1, p2) {
+            // Edges will come from many submarines, so store the offset as well.
+            edges_in_region.push(Edge {
+                line: (p1, p2),
+                ..*edge
+            });
         }
     }
-
-    edges_in_region
 }
 
 pub(crate) fn add_border_edges(edges: &mut Vec<Edge>, cursor: Vec2, range: f32) {

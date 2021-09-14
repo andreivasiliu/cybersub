@@ -465,6 +465,15 @@ impl WaterCell {
         matches!(self.cell_type, CellType::Wall { .. })
     }
 
+    pub fn is_opaque(&self) -> bool {
+        match self.wall_material() {
+            Some(WallMaterial::Normal) => true,
+            Some(WallMaterial::Glass) => false,
+            Some(WallMaterial::Invisible) => false,
+            None => false,
+        }
+    }
+
     pub fn is_inside(&self) -> bool {
         matches!(self.cell_type, CellType::Inside { .. })
     }

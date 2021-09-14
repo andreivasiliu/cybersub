@@ -453,9 +453,24 @@ fn update_navigation(submarine: &mut SubmarineState) {
     // Speed overrides from docking connectors that are trying to dock
     navigation.docking_override = (0, 0);
 
+    let mut overrides = 0;
+    let mut docking_override = (0, 0);
+
     for point in &submarine.docking_points {
-        navigation.docking_override.0 += point.speed_offset.0;
-        navigation.docking_override.1 += point.speed_offset.1;
+        if point.in_proximity_to.is_some() {
+            docking_override.0 += point.speed_offset.0;
+            docking_override.1 += point.speed_offset.1;
+            overrides += 1;
+        }
+    }
+
+    // Take the average to prevent overshooting if multiple subs are pulling in
+    // the same direction.
+    if overrides != 0 {
+        navigation.docking_override = (
+            docking_override.0 / overrides,
+            docking_override.1 / overrides,
+        );
     }
 }
 

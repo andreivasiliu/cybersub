@@ -75,11 +75,16 @@ pub(crate) fn handle_pointer_input(
 
     let draw_egui = &mut game_settings.draw_settings.draw_egui;
 
+    let world_macroquad_camera = camera.to_macroquad_camera(None);
+
     let macroquad_camera = camera.to_macroquad_camera(Some(submarine.navigation.position));
     let mouse_position = mouse_position();
 
     camera.pointing_at =
         from_screen_coords(macroquad_camera.screen_to_world(mouse_position.into()));
+    camera.pointing_at_world = world_macroquad_camera
+        .screen_to_world(mouse_position.into())
+        .into();
 
     let settings_button = Rect::new(10.0, 10.0, 20.0, 20.0);
     if !*draw_egui {
@@ -314,17 +319,8 @@ pub(crate) fn handle_pointer_input(
     }
 }
 
-fn hovering_over_sonar(
-    object: &Object,
-    obj_index: usize,
-    hover_position: Vec2,
-    mutable_resources: &mut MutableSubResources,
-) -> bool {
+fn hovering_over_sonar(object: &Object, hover_position: Vec2) -> Option<(f32, f32)> {
     if let ObjectType::Sonar { active: true, .. } = &object.object_type {
-        if !object.powered {
-            // Acknowledge hovering, but don't set target
-            return true;
-        }
         let sonar_middle = (9.5, 7.5);
         let cursor = (
             hover_position.x - sonar_middle.0,
@@ -334,31 +330,23 @@ fn hovering_over_sonar(
         let length_squared = cursor.0 * cursor.0 + cursor.1 * cursor.1;
 
         if length_squared < 5.0 * 5.0 {
-            mutable_resources.sonar_cursor = Some((obj_index, cursor));
-            return true;
+            return Some(cursor);
         }
     }
 
-    false
+    None
 }
 
-fn sonar_target(
-    navigation: &Navigation,
-    mutable_resources: &MutableSubResources,
-) -> (usize, usize) {
-    if let Some((_obj, target)) = mutable_resources.sonar_cursor {
-        // 16 sub-cells per rock-cell, 16 movement points per rock-cell
-        let world_ratio = 16.0 * 16.0;
-        // 75 rock-cells radius, on 6-pixels per cell resolution
-        let sonar_ratio = 75.0 / 6.0;
+fn sonar_target(navigation: &Navigation, sonar_cursor: (f32, f32)) -> (usize, usize) {
+    // 16 sub-cells per rock-cell, 16 movement points per rock-cell
+    let world_ratio = 16.0 * 16.0;
+    // 75 rock-cells radius, on 6-pixels per cell resolution
+    let sonar_ratio = 75.0 / 6.0;
 
-        let target_x = navigation.position.0 + (target.0 * world_ratio * sonar_ratio) as i32;
-        let target_y = navigation.position.1 + (target.1 * world_ratio * sonar_ratio) as i32;
+    let target_x = navigation.position.0 + (sonar_cursor.0 * world_ratio * sonar_ratio) as i32;
+    let target_y = navigation.position.1 + (sonar_cursor.1 * world_ratio * sonar_ratio) as i32;
 
-        (target_x as usize, target_y as usize)
-    } else {
-        unreachable!("Checked by hovering_over_sonar()")
-    }
+    (target_x as usize, target_y as usize)
 }
 
 fn interact(
@@ -384,28 +372,27 @@ fn interact(
 
         let hover_position = mouse_position - draw_rect.point();
 
-        let hovering_over_sonar =
-            hovering_over_sonar(object, obj_index, hover_position, mutable_resources);
+        if let Some(cursor) = hovering_over_sonar(object, hover_position) {
+            mutable_resources.sonar_cursor = Some((obj_index, cursor));
 
-        if !clicked {
-            return false;
+            if clicked && object.powered {
+                commands.push(Command::SetSonarTarget {
+                    submarine_id: sub_index,
+                    object_id: obj_index,
+                    rock_position: sonar_target(&submarine.navigation, cursor),
+                });
+                return true;
+            }
         }
 
-        let command = if hovering_over_sonar {
-            Command::SetSonarTarget {
+        if clicked {
+            commands.push(Command::Interact {
                 submarine_id: sub_index,
                 object_id: obj_index,
-                rock_position: sonar_target(&submarine.navigation, mutable_resources),
-            }
-        } else {
-            Command::Interact {
-                submarine_id: sub_index,
-                object_id: obj_index,
-            }
-        };
+            });
+        }
 
-        commands.push(command);
-        return true;
+        return false;
     }
 
     false

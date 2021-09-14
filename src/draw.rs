@@ -28,7 +28,7 @@ use crate::{
     saveload::pixels_to_image,
     shadows::{
         add_border_edges, filter_edges_by_direction, filter_edges_by_region, find_shadow_edges,
-        find_shadow_triangles, Edge, Triangle,
+        find_shadow_triangles, Triangle,
     },
     Timings,
 };
@@ -57,6 +57,7 @@ pub(crate) struct Camera {
     pub dragging_from: (f32, f32),
     pub scrolling_from: f32,
     pub pointing_at: (usize, usize),
+    pub pointing_at_world: (f32, f32),
     pub current_submarine: Option<(i32, i32)>,
 }
 
@@ -186,14 +187,6 @@ pub(crate) fn draw_game(
             );
         }
 
-        if draw_settings.debug_shadows {
-            update_shadow_edges(&submarine.water_grid, mutable_resources);
-            draw_shadow_debugging_edges(
-                &mutable_resources.shadow_edges,
-                Some(mutable_resources.sub_cursor.into()),
-            );
-        }
-
         if draw_settings.draw_wires {
             update_wires_texture(&submarine.wire_grid, resources, mutable_resources);
             update_signals_texture(&submarine.wire_grid, mutable_resources);
@@ -239,6 +232,14 @@ pub(crate) fn draw_game(
     }
 
     pop_camera_state();
+
+    if draw_settings.debug_shadows {
+        draw_shadow_debugging_edges(
+            Some(camera.pointing_at_world.into()),
+            submarines,
+            mutable_sub_resources,
+        );
+    }
 
     for submarine in &game_state.submarines {
         for point in &submarine.docking_points {
@@ -524,17 +525,42 @@ fn update_shadow_edges(water_grid: &WaterGrid, mutable_resources: &mut MutableSu
     }
 }
 
-fn draw_shadow_debugging_edges(edges: &[Edge], cursor: Option<Vec2>) {
-    for edge in edges {
-        let (start, end) = edge.line();
+fn draw_shadow_debugging_edges(
+    cursor: Option<Vec2>,
+    submarines: &[SubmarineState],
+    mutable_sub_resources: &mut [MutableSubResources],
+) {
+    let submarines_and_reosurces = submarines.iter().zip(mutable_sub_resources.iter_mut());
+    for (submarine, mutable_resources) in submarines_and_reosurces {
+        update_shadow_edges(&submarine.water_grid, mutable_resources);
 
-        draw_line(start.x, start.y, end.x, end.y, 0.1, PURPLE);
+        let edges = &mutable_resources.shadow_edges;
+
+        for edge in edges {
+            let sub_position = vec2(
+                submarine.navigation.position.0 as f32 / 16.0,
+                submarine.navigation.position.1 as f32 / 16.0,
+            );
+            let (start, end) = edge.line();
+            let (start, end) = (sub_position + start, sub_position + end);
+
+            draw_line(start.x, start.y, end.x, end.y, 0.1, PURPLE);
+        }
     }
 
     let range = 60.0;
 
     if let Some(cursor) = cursor {
-        let edges_in_region = filter_edges_by_region(edges, cursor, range);
+        let mut edges_in_region = Vec::new();
+
+        for (submarine, mutable_resources) in submarines.iter().zip(mutable_sub_resources) {
+            let edges = &mutable_resources.shadow_edges;
+            let sub_position = vec2(
+                submarine.navigation.position.0 as f32 / 16.0,
+                submarine.navigation.position.1 as f32 / 16.0,
+            );
+            filter_edges_by_region(edges, cursor, sub_position, range, &mut edges_in_region);
+        }
 
         for edge in &edges_in_region {
             let (start, end) = edge.line();
@@ -586,14 +612,24 @@ fn draw_shadow_debugging_edges(edges: &[Edge], cursor: Option<Vec2>) {
 }
 
 fn draw_shadow_pointlight(
-    edges: &[Edge],
+    submarines: &[SubmarineState],
+    mutable_sub_resources: &mut [MutableSubResources],
     pointlight: Vec2,
     camera: &Camera2D,
     resources: &Resources,
 ) {
     let range = 60.0;
 
-    let edges_in_region = filter_edges_by_region(edges, pointlight, range);
+    let mut edges_in_region = Vec::new();
+
+    for (submarine, mutable_resources) in submarines.iter().zip(mutable_sub_resources) {
+        let edges = &mutable_resources.shadow_edges;
+        let sub_position = vec2(
+            submarine.navigation.position.0 as f32 / 16.0,
+            submarine.navigation.position.1 as f32 / 16.0,
+        );
+        filter_edges_by_region(edges, pointlight, sub_position, range, &mut edges_in_region);
+    }
 
     let mut edges_by_direction = filter_edges_by_direction(edges_in_region, pointlight);
 
@@ -659,11 +695,6 @@ fn draw_shadows_on_texture(
 
         update_shadow_edges(&submarine.water_grid, mutable_resources);
 
-        let (x, y) = mutable_resources.sub_cursor;
-        let pointlight = vec2(x, y);
-        let (x, y) = (x as usize, y as usize);
-        let (width, height) = submarine.water_grid.size();
-
         for object in &submarine.objects {
             // Texture with emissive colors
             let (frame_lines, frame_columns) = object_frames(&object.object_type);
@@ -705,24 +736,53 @@ fn draw_shadows_on_texture(
                     object.position.1 as f32 + 3.0,
                 );
                 draw_shadow_pointlight(
-                    &mutable_resources.shadow_edges,
+                    submarines,
+                    mutable_sub_resources,
                     pointlight,
                     &camera,
                     resources,
                 );
             }
         }
+    }
 
-        // Draw a pointlight at the cursor; except when the cursor is
-        // inside a submarine's wall.
-        if x >= width || y >= height || !submarine.water_grid.cell(x, y).is_wall() {
-            draw_shadow_pointlight(
-                &mutable_resources.shadow_edges,
-                pointlight,
-                &camera,
-                resources,
-            );
+    // Draw a pointlight at the cursor; except when the cursor is
+    // inside a submarine's wall.
+    let macroquad_camera = camera.to_macroquad_camera(None);
+    // Render targets flip upside-down: https://github.com/not-fl3/macroquad/issues/171
+    let zoom = macroquad_camera.zoom * vec2(1.0, -1.0);
+    set_camera(&Camera2D {
+        render_target: Some(*shadows),
+        zoom,
+        ..macroquad_camera
+    });
+
+    let mut inside_wall = false;
+    for submarine in submarines {
+        let (x, y) = camera.pointing_at_world;
+        let (x, y) = (
+            (x - submarine.navigation.position.0 as f32 / 16.0) as usize,
+            (y - submarine.navigation.position.1 as f32 / 16.0) as usize,
+        );
+        let (width, height) = submarine.water_grid.size();
+
+        if x < width && y < height && submarine.water_grid.cell(x, y).is_opaque() {
+            inside_wall = true;
         }
+    }
+
+    if !inside_wall {
+        let (x, y) = camera.pointing_at_world;
+        let camera = camera.to_macroquad_camera(None);
+        let pointlight = vec2(x, y);
+
+        draw_shadow_pointlight(
+            submarines,
+            mutable_sub_resources,
+            pointlight,
+            &camera,
+            resources,
+        );
     }
 
     pop_camera_state();
