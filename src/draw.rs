@@ -56,7 +56,6 @@ pub(crate) struct Camera {
     pub zoom: i32,
     pub dragging_from: (f32, f32),
     pub scrolling_from: f32,
-    pub pointing_at: (usize, usize),
     pub pointing_at_world: (f32, f32),
     pub current_submarine: Option<(i32, i32)>,
 }
@@ -191,7 +190,9 @@ pub(crate) fn draw_game(
             update_wires_texture(&submarine.wire_grid, resources, mutable_resources);
             update_signals_texture(&submarine.wire_grid, mutable_resources);
             draw_wires(&submarine.wire_grid, resources, mutable_resources);
-            draw_wire_plan(dragging, camera);
+            if let Some(cursor_tile) = mutable_resources.sub_cursor_tile {
+                draw_wire_plan(dragging, sub_index, cursor_tile);
+            }
         }
 
         if draw_settings.draw_objects {
@@ -987,12 +988,25 @@ fn update_signals_texture(grid: &WireGrid, mutable_resources: &mut MutableSubRes
     }
 }
 
-fn draw_wire_plan(dragging: &Option<Dragging>, camera: &Camera) {
-    if let Some(Dragging::Wires { dragging_from, .. }) = dragging {
-        let (start_x, start_y) = *dragging_from;
-        let (end_x, end_y) = camera.pointing_at;
+fn draw_wire_plan(dragging: &Option<Dragging>, sub_index: usize, cursor_tile: (usize, usize)) {
+    if let Some(Dragging::Wires {
+        dragging_from_tile,
+        dragging_from_sub,
+        ..
+    }) = dragging
+    {
+        if *dragging_from_sub == sub_index {
+            let (start_x, start_y) = *dragging_from_tile;
+            let (end_x, end_y) = cursor_tile;
 
-        if start_x == end_x || start_y == end_y {
+            let x_length = (start_x as i32 - end_x as i32).abs();
+            let y_length = (start_y as i32 - end_y as i32).abs();
+
+            let (start_x, start_y, end_x, end_y) = if x_length > y_length {
+                (start_x, start_y, end_x, start_y)
+            } else {
+                (start_x, start_y, start_x, end_y)
+            };
             let start_x = start_x as f32 + 0.5;
             let start_y = start_y as f32 + 0.5;
             let end_x = end_x as f32 + 0.5;
@@ -1046,7 +1060,7 @@ pub(crate) fn object_rect(object: &Object) -> Rect {
 
 pub(crate) fn object_size(object_type: &ObjectType) -> (usize, usize) {
     match object_type {
-        ObjectType::Door { .. } => (22, 5),
+        ObjectType::Door { .. } => (20, 7),
         ObjectType::VerticalDoor { .. } => (5, 17),
         ObjectType::Reactor { .. } => (32, 17),
         ObjectType::Lamp => (5, 4),
@@ -1067,7 +1081,7 @@ pub(crate) fn object_size(object_type: &ObjectType) -> (usize, usize) {
 
 fn object_frames(object_type: &ObjectType) -> (u16, u16) {
     match object_type {
-        ObjectType::Door { .. } => (8, 1),
+        ObjectType::Door { .. } => (24, 2),
         ObjectType::VerticalDoor { .. } => (9, 1),
         ObjectType::Reactor { .. } => (2, 2),
         ObjectType::Lamp => (2, 1),
@@ -1109,7 +1123,7 @@ fn object_texture(object_type: &ObjectType, resources: &Resources) -> Texture2D 
 
 fn object_connectors(object_type: &ObjectType) -> &'static [(u32, u32)] {
     match object_type {
-        ObjectType::Door { .. } => &[],
+        ObjectType::Door { .. } => &[(2, 4), (19, 4)],
         ObjectType::VerticalDoor { .. } => &[],
         ObjectType::Reactor { .. } => &[(29, 5)],
         ObjectType::Lamp => &[(3, 1)],
@@ -1123,8 +1137,8 @@ fn object_connectors(object_type: &ObjectType) -> &'static [(u32, u32)] {
         ObjectType::Battery { .. } => &[(2, 4), (7, 4)],
         ObjectType::BundleInput { .. } => &[(4, 2)],
         ObjectType::BundleOutput { .. } => &[(4, 2)],
-        ObjectType::DockingConnectorTop { .. } => &[],
-        ObjectType::DockingConnectorBottom { .. } => &[],
+        ObjectType::DockingConnectorTop { .. } => &[(1, 6), (20, 6)],
+        ObjectType::DockingConnectorBottom { .. } => &[(1, 4), (20, 4)],
     }
 }
 

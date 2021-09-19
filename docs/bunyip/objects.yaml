@@ -2,23 +2,23 @@
 - object_type:
     Door: {}
   position:
-    - 45
-    - 5
+    - 46
+    - 4
 - object_type:
     Door: {}
   position:
-    - 45
-    - 30
-- object_type:
-    Door: {}
-  position:
-    - 45
-    - 41
-- object_type:
-    Door: {}
-  position:
-    - 25
+    - 46
     - 29
+- object_type:
+    Door: {}
+  position:
+    - 46
+    - 40
+- object_type:
+    Door: {}
+  position:
+    - 26
+    - 28
 - object_type:
     SmallPump: {}
   position:

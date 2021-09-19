@@ -259,12 +259,19 @@ pub(crate) fn draw_ui(
                 egui::warn_if_debug_build(ui);
                 ui.label("FPS average:".to_string());
                 ui.colored_label(Color32::GREEN, timings.fps_average.to_string());
-                ui.label("x:".to_string());
-                ui.colored_label(Color32::GREEN, camera.pointing_at.0.to_string());
-                ui.label("y:".to_string());
-                ui.colored_label(Color32::GREEN, camera.pointing_at.1.to_string());
 
                 if let Some(submarine) = submarines.get(*current_submarine) {
+                    let mutable_resources = mutable_sub_resources.get(*current_submarine).expect(
+                        "All submarines should have their own MutableSubResources instance",
+                    );
+
+                    if let Some(cursor_tile) = mutable_resources.sub_cursor_tile {
+                        ui.label("x:".to_string());
+                        ui.colored_label(Color32::GREEN, cursor_tile.0.to_string());
+                        ui.label("y:".to_string());
+                        ui.colored_label(Color32::GREEN, cursor_tile.1.to_string());
+                    }
+
                     ui.label("speed:".to_string());
                     ui.colored_label(Color32::YELLOW, submarine.navigation.speed.0.to_string());
                     ui.label("/".to_string());

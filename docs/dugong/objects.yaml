@@ -2,28 +2,28 @@
 - object_type:
     Door: {}
   position:
-    - 146
-    - 13
+    - 147
+    - 12
 - object_type:
     Door: {}
   position:
-    - 191
-    - 39
+    - 192
+    - 38
 - object_type:
     Door: {}
   position:
-    - 209
-    - 64
+    - 210
+    - 63
 - object_type:
     Door: {}
   position:
-    - 273
-    - 64
+    - 274
+    - 63
 - object_type:
     Door: {}
   position:
-    - 59
-    - 64
+    - 60
+    - 63
 - object_type:
     VerticalDoor: {}
   position:

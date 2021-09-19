@@ -76,6 +76,7 @@ pub(crate) struct MutableSubResources {
     pub turbulence_particles: Vec<TurbulenceParticle>,
     pub highlighting_object: Option<usize>,
     pub sub_cursor: (f32, f32),
+    pub sub_cursor_tile: Option<(usize, usize)>,
     pub shadow_edges: Vec<Edge>,
     pub shadow_edges_updated: bool,
 }
@@ -330,6 +331,7 @@ impl MutableSubResources {
             turbulence_particles: Vec::new(),
             highlighting_object: None,
             sub_cursor: (0.0, 0.0),
+            sub_cursor_tile: None,
             shadow_edges: Vec::new(),
             shadow_edges_updated: true,
         }

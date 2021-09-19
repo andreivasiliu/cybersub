@@ -70,11 +70,13 @@ pub(crate) enum ObjectType {
         state: DoorState,
         progress: u8,
         connected: bool,
+        previous_connected: bool,
     },
     DockingConnectorBottom {
         state: DoorState,
         progress: u8,
         connected: bool,
+        previous_connected: bool,
     },
 }
 
@@ -161,6 +163,8 @@ pub(crate) enum ObjectTypeTemplate {
         progress: u8,
         #[serde(default, skip_serializing_if = "is_default")]
         connected: bool,
+        #[serde(default, skip_serializing_if = "is_default")]
+        previous_connected: bool,
     },
     DockingConnectorBottom {
         #[serde(default, skip_serializing_if = "is_default")]
@@ -169,6 +173,8 @@ pub(crate) enum ObjectTypeTemplate {
         progress: u8,
         #[serde(default, skip_serializing_if = "is_default")]
         connected: bool,
+        #[serde(default, skip_serializing_if = "is_default")]
+        previous_connected: bool,
     },
 }
 
@@ -191,6 +197,16 @@ fn is_default<T: Default + Eq>(value: &T) -> bool {
 impl Default for DoorState {
     fn default() -> Self {
         DoorState::Closing
+    }
+}
+
+impl DoorState {
+    #[must_use = "This method does not mutate the original object."]
+    fn toggle(&self) -> DoorState {
+        match self {
+            DoorState::Opening => DoorState::Closing,
+            DoorState::Closing => DoorState::Opening,
+        }
     }
 }
 
@@ -284,6 +300,7 @@ pub(crate) const OBJECT_TYPES: &[(&str, ObjectType)] = &[
             state: DoorState::Closing,
             progress: 0,
             connected: false,
+            previous_connected: false,
         },
     ),
     (
@@ -292,6 +309,7 @@ pub(crate) const OBJECT_TYPES: &[(&str, ObjectType)] = &[
             state: DoorState::Closing,
             progress: 0,
             connected: false,
+            previous_connected: false,
         },
     ),
 ];
@@ -310,25 +328,45 @@ pub(crate) fn update_objects(submarine: &mut SubmarineState, walls_updated: &mut
 
         match &mut object.object_type {
             ObjectType::Door { state, progress } => {
+                let cell_x = object.position.0 as usize + 2;
+                let cell_y = object.position.1 as usize + 4;
+
+                let logic1 = wire_grid.cell(cell_x, cell_y).receive_logic();
+                let logic2 = wire_grid.cell(cell_x + 17, cell_y).receive_logic();
+
+                *powered = false;
+
+                if let Some(logic_value) = logic1.or(logic2) {
+                    *state = if logic_value > 0 {
+                        DoorState::Opening
+                    } else if logic_value < 0 {
+                        DoorState::Closing
+                    } else {
+                        state.toggle()
+                    };
+
+                    *powered = true;
+                }
+
                 match state {
                     DoorState::Opening => *progress = (*progress + 1).min(15),
                     DoorState::Closing => *progress = progress.saturating_sub(1),
                 }
 
                 let open_cells = match *progress {
-                    x if (0..3).contains(&x) => (12..12),
-                    x if (3..5).contains(&x) => (11..13),
-                    x if (5..7).contains(&x) => (10..14),
-                    x if (7..9).contains(&x) => (9..15),
-                    x if (9..11).contains(&x) => (8..16),
-                    x if (11..13).contains(&x) => (7..17),
-                    _ => (6..18),
+                    0..=2 => (11..11),
+                    3..=4 => (10..12),
+                    5..=6 => (9..13),
+                    7..=8 => (8..14),
+                    9..=10 => (7..15),
+                    11..=12 => (6..16),
+                    _ => (5..17),
                 };
 
                 let should_be_open = |x: u32| open_cells.contains(&x);
 
-                for y in 2..5 {
-                    for x in 6..19 {
+                for y in 3..6 {
+                    for x in 5..18 {
                         let cell_x = object.position.0 + x;
                         let cell_y = object.position.1 + y;
 
@@ -686,12 +724,22 @@ pub(crate) fn update_objects(submarine: &mut SubmarineState, walls_updated: &mut
                 state,
                 progress,
                 connected,
+                previous_connected,
             } => {
-                *state = if *connected {
-                    DoorState::Opening
-                } else {
-                    DoorState::Closing
-                };
+                let cell_x = object.position.0 as usize + 20;
+                let cell_y = object.position.1 as usize + 6;
+
+                if !*previous_connected && *connected {
+                    *state = DoorState::Opening;
+                    wire_grid.cell_mut(cell_x, cell_y).send_logic(100);
+                }
+
+                if *previous_connected && !*connected {
+                    *state = DoorState::Closing;
+                    wire_grid.cell_mut(cell_x, cell_y).send_logic(-100);
+                }
+
+                *previous_connected = *connected;
 
                 match state {
                     DoorState::Opening => *progress = (*progress + 1).min(15),
@@ -713,12 +761,18 @@ pub(crate) fn update_objects(submarine: &mut SubmarineState, walls_updated: &mut
                             _ => 2,
                         };
 
+                        // Extend the inside of the submarine for however far
+                        // the docking connector is extended.
                         let above = y < top_y;
                         let top_wall = y == top_y;
                         let side_wall = x == 4 || x == 17;
-                        let invisible_wall = top_wall && y == 2;
 
-                        if above {
+                        // Stop sea water from coming through if connected to
+                        // another submarine's grid.
+                        let invisible_wall = top_wall && y == 2;
+                        let open_wall = invisible_wall && !*connected;
+
+                        if above || open_wall {
                             if !cell.is_sea() {
                                 cell.make_sea();
                             }
@@ -744,12 +798,22 @@ pub(crate) fn update_objects(submarine: &mut SubmarineState, walls_updated: &mut
                 state,
                 progress,
                 connected,
+                previous_connected,
             } => {
-                *state = if *connected {
-                    DoorState::Opening
-                } else {
-                    DoorState::Closing
-                };
+                let cell_x = object.position.0 as usize + 20;
+                let cell_y = object.position.1 as usize + 4;
+
+                if !*previous_connected && *connected {
+                    *state = DoorState::Opening;
+                    wire_grid.cell_mut(cell_x, cell_y).send_logic(100);
+                }
+
+                if *previous_connected && !*connected {
+                    *state = DoorState::Closing;
+                    wire_grid.cell_mut(cell_x, cell_y).send_logic(-100);
+                }
+
+                *previous_connected = *connected;
 
                 match state {
                     DoorState::Opening => *progress = (*progress + 1).min(15),
@@ -771,12 +835,18 @@ pub(crate) fn update_objects(submarine: &mut SubmarineState, walls_updated: &mut
                             _ => 7,
                         };
 
+                        // Extend the inside of the submarine for however far
+                        // the docking connector is extended.
                         let below = y > bottom_y;
                         let bottom_wall = y == bottom_y;
                         let side_wall = x == 4 || x == 17;
-                        let invisible_wall = bottom_wall && y == 7;
 
-                        if below {
+                        // Stop sea water from coming through if connected to
+                        // another submarine's grid.
+                        let invisible_wall = bottom_wall && y == 7;
+                        let open_wall = invisible_wall && !*connected;
+
+                        if below || open_wall {
                             if !cell.is_sea() {
                                 cell.make_sea();
                             }
@@ -855,7 +925,17 @@ pub(crate) fn current_frame(object: &Object) -> (u16, u16) {
     let powered = &object.powered;
 
     let current_frame = match &object.object_type {
-        ObjectType::Door { progress, .. } => (*progress as u16 * 8 / 15).clamp(0, 7),
+        ObjectType::Door {
+            progress, state, ..
+        } => {
+            let powered_offset = match (*powered, state) {
+                (false, _) => 0,
+                (true, DoorState::Closing) => 8,
+                (true, DoorState::Opening) => 16,
+            };
+
+            (*progress as u16 * 8 / 15).clamp(0, 7) + powered_offset
+        }
         ObjectType::VerticalDoor { progress, .. } => (*progress as u16 * 9 / 15).clamp(0, 8),
         ObjectType::Reactor { active } => {
             if *active {
@@ -1010,19 +1090,23 @@ impl ObjectTemplate {
                 state,
                 progress,
                 connected,
+                previous_connected,
             } => ObjectTypeTemplate::DockingConnectorTop {
                 state,
                 progress,
                 connected,
+                previous_connected,
             },
             ObjectType::DockingConnectorBottom {
                 state,
                 progress,
                 connected,
+                previous_connected,
             } => ObjectTypeTemplate::DockingConnectorBottom {
                 state,
                 progress,
                 connected,
+                previous_connected,
             },
         };
 
@@ -1092,19 +1176,23 @@ impl ObjectTemplate {
                 state,
                 progress,
                 connected,
+                previous_connected,
             } => ObjectType::DockingConnectorTop {
                 state,
                 progress,
                 connected,
+                previous_connected,
             },
             ObjectTypeTemplate::DockingConnectorBottom {
                 state,
                 progress,
                 connected,
+                previous_connected,
             } => ObjectType::DockingConnectorBottom {
                 state,
                 progress,
                 connected,
+                previous_connected,
             },
         };
 

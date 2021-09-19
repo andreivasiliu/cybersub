@@ -318,19 +318,12 @@ impl CyberSubApp {
     }
 
     pub fn handle_pointer_input(&mut self) {
-        for (sub_index, submarine) in &mut self.game_state.submarines.iter().enumerate() {
-            let mutable_resources = self
-                .mutable_sub_resources
-                .get_mut(sub_index)
-                .expect("All submarines should have a MutableSubResources instance");
-            handle_pointer_input(
-                &mut self.commands,
-                submarine,
-                sub_index,
-                mutable_resources,
-                &mut self.game_settings,
-            );
-        }
+        handle_pointer_input(
+            &mut self.commands,
+            &mut self.game_settings,
+            &self.game_state.submarines,
+            &mut self.mutable_sub_resources,
+        );
     }
 
     pub fn handle_keyboard_input(&mut self) {
